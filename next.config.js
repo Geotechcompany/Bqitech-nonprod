@@ -12,7 +12,8 @@ const nextConfig = {
       'upload.wikimedia.org',
       'images.unsplash.com',
       'd1.awsstatic.com',
-      'dl.dropboxusercontent.com'
+      'dl.dropboxusercontent.com',
+      'your-image-domain.com'
     ],
   },
   async headers() {
@@ -68,7 +69,15 @@ const nextConfig = {
       {
         source: '/:path*',
         headers: securityHeaders,
-      }
+      },
+      {
+        source: '/api/:path*',
+        headers: [
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Access-Control-Allow-Methods', value: 'GET,POST,PUT,DELETE,OPTIONS' },
+          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
+        ],
+      },
     ]
   },
   webpack: (config, { isServer }) => {
@@ -120,6 +129,7 @@ const nextConfig = {
       },
     ]
   },
+  output: 'standalone',
 };
 
 module.exports = nextConfig;

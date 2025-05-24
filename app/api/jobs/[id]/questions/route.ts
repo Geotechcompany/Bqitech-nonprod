@@ -2,8 +2,6 @@ import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import { connectToDatabase } from '@/lib/mongodb';
 import { JobQuestion } from '@/models/job-question';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 
 // Add type definition for the questions array
 type JobQuestion = {
@@ -20,14 +18,15 @@ type PopulatedJobPosting = {
   questions: mongoose.Document<unknown>[];
 };
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    // Ensure connection is established
     await connectToDatabase();
-
+    
     // Validate ObjectId
     if (!mongoose.Types.ObjectId.isValid(params.id)) {
       return NextResponse.json(
@@ -38,7 +37,9 @@ export async function GET(
 
     const questions = await JobQuestion.find({ 
       jobIds: new mongoose.Types.ObjectId(params.id) 
-    }).exec();
+    })
+    .sort({ order: 1 })
+    .exec();
 
     return NextResponse.json(questions);
   } catch (error) {
@@ -51,6 +52,4 @@ export async function GET(
       { status: 500 }
     );
   }
-}
-
-export const dynamic = 'force-dynamic'; 
+} 
