@@ -5,8 +5,7 @@ import { FileText, CheckCircle, Code, MessageSquare, UserCheck, XCircle, Chevron
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
-import { UserButton } from '@clerk/nextjs';
-import { useUser } from "@clerk/nextjs";
+import { useSession } from "next-auth/react";
 import { NotificationButton } from "@/components/NotificationButton";
 
 interface ApplicationStats {
@@ -19,7 +18,7 @@ interface ApplicationStats {
 }
 
 export default function DashboardOverview() {
-  const { user } = useUser()
+  const { data: session } = useSession();
   const { data: stats, isLoading } = useQuery<ApplicationStats>({
     queryKey: ['applicationStats'],
     queryFn: () => api.get('/user/application-stats').then(res => res.data)
@@ -85,36 +84,11 @@ export default function DashboardOverview() {
           
           <div className="flex items-center gap-3">
             <span className="text-sm font-medium text-gray-700 hidden sm:block">
-              {user?.firstName || ''}
+              {session?.user?.name || ''}
             </span>
-            <UserButton 
-              afterSignOutUrl="/"
-              appearance={{
-                elements: {
-                  avatarBox: "h-8 w-8",
-                  footer: "hidden",
-                  userPreviewMainIdentifier: "hidden",
-                  userButtonPopoverFooter: "hidden",
-                  userButtonPopoverCard: "!mb-0",
-                  developmentModeText: "hidden",
-                  userButtonPopoverSecurityBox: "hidden",
-                  rootBox: "!mb-0",
-                  card: "!mb-0",
-                  navbar: "hidden",
-                  navbarMobileMenuButton: "hidden",
-                  headerTitle: "hidden",
-                  headerSubtitle: "hidden",
-                  profileSectionTitleText: "hidden",
-                  accordionTriggerButton: "hidden",
-                  organizationSwitcherTrigger: "hidden",
-                  organizationPreviewTextContainer: "hidden"
-                },
-                layout: {
-                  socialButtonsPlacement: "bottom",
-                  socialButtonsVariant: "iconButton"
-                }
-              }}
-            />
+            <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
+              {session?.user?.name?.charAt(0) || 'U'}
+            </div>
           </div>
         </div>
       </div>

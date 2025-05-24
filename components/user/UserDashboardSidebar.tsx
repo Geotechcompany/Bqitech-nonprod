@@ -13,7 +13,7 @@ import {
   X,
   LayoutDashboard,
 } from "lucide-react";
-import { useClerk } from "@clerk/nextjs";
+import { signOut } from "next-auth/react";
 
 const tabs = [
   {
@@ -49,10 +49,10 @@ export default function UserDashboardSidebar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { signOut } = useClerk();
 
-  const handleLogout = () => {
-    signOut(() => router.push("/"));
+  const handleLogout = async () => {
+    await signOut({ redirect: false });
+    router.push("/");
   };
 
   return (

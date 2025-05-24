@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import connectToDatabase from '@/lib/mongodb';
-import { JobPosting } from '@/prisma/mongodb-schema';
-import type { IJobPosting } from '@/prisma/mongodb-schema';
+import mongoose from 'mongoose';
+import { JobPosting } from '@/models/jobPosting';
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
-    await connectToDatabase();
+    await mongoose.connect(process.env.MONGODB_URI!);
+    
     const jobPosting = await JobPosting.findById(params.id).lean();
     
     if (!jobPosting) {
@@ -15,13 +15,15 @@ export async function GET(request: Request, { params }: { params: { id: string }
   } catch (error) {
     console.error('Failed to fetch job posting:', error);
     return NextResponse.json({ error: 'Failed to fetch job posting' }, { status: 500 });
+  } finally {
+    await mongoose.disconnect();
   }
 }
 
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
   try {
     const data = await request.json();
-    await connectToDatabase();
+    await mongoose.connect(process.env.MONGODB_URI!);
     
     // Sanitize the update data
     const updateData = {
@@ -54,12 +56,14 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   } catch (error) {
     console.error('Failed to update job posting:', error);
     return NextResponse.json({ error: 'Failed to update job posting' }, { status: 500 });
+  } finally {
+    await mongoose.disconnect();
   }
 }
 
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   try {
-    await connectToDatabase();
+    await mongoose.connect(process.env.MONGODB_URI!);
     const deletedJob = await JobPosting.findByIdAndDelete(params.id);
     
     if (!deletedJob) {
@@ -70,5 +74,7 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
   } catch (error) {
     console.error('Failed to delete job posting:', error);
     return NextResponse.json({ error: 'Failed to delete job posting' }, { status: 500 });
+  } finally {
+    await mongoose.disconnect();
   }
 }

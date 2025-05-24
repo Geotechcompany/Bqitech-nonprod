@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth, currentUser } from "@clerk/nextjs/server"
+import { getServerSession } from "next-auth"
 import mongoose from "mongoose"
 import connectToDatabase from "@/lib/mongodb"
 import { Application } from "@/models/application"
 import { headers } from "next/headers"
+import { authOptions } from "@/lib/auth"
 
 export async function GET(
   request: NextRequest,
@@ -12,21 +13,17 @@ export async function GET(
   await connectToDatabase()
 
   try {
-    const { userId } = await auth()
-    const user = await currentUser()
-    
-    if (!userId || !user?.emailAddresses?.[0]?.emailAddress) {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.email) {
       return NextResponse.json(
         { error: "Unauthorized" }, 
         { status: 401 }
       )
     }
 
-    const userEmail = user.emailAddresses[0].emailAddress
-
     const application = await Application.findOne({
       _id: new mongoose.Types.ObjectId(params.id),
-      email: userEmail
+      email: session.user.email
     }).lean() as mongoose.FlattenMaps<mongoose.Document & { _id: mongoose.Types.ObjectId }>;
 
     if (!application) {

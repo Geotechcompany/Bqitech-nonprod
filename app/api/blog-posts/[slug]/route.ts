@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
+import mongoose from 'mongoose'
+import { BlogPost } from '@/models/blogPost'
 
 export async function GET(
   request: Request,
   { params }: { params: { slug: string } }
 ) {
   try {
-    const post = await prisma.blogPost.findUnique({
-      where: { 
-        slug: params.slug,
-        published: true
-      }
-    })
+    await mongoose.connect(process.env.MONGODB_URI!)
+
+    const post = await BlogPost.findOne({ 
+      slug: params.slug,
+      published: true
+    }).lean()
 
     if (!post) {
       return NextResponse.json(
@@ -27,5 +28,7 @@ export async function GET(
       { error: "Failed to fetch blog post" },
       { status: 500 }
     )
+  } finally {
+    await mongoose.disconnect()
   }
 } 

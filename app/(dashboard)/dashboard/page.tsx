@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Briefcase, Clock, CheckCircle, XCircle, Calendar, Eye } from "lucide-react";
-import { useUser } from "@clerk/nextjs";
+import { useSession } from "next-auth/react";
 import DashboardOverview from "@/components/user/DashboardOverview";
 import Loader from "@/components/Loader";
 import { Button } from "@/components/ui/button";
@@ -29,11 +29,11 @@ export default function Dashboard() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const { user } = useUser();
+  const { data: session } = useSession();
 
   useEffect(() => {
     const fetchApplications = async () => {
-      if (!user) return;
+      if (!session) return;
       
       try {
         const response = await fetch('/api/applications');
@@ -50,10 +50,10 @@ export default function Dashboard() {
       }
     };
 
-    if (user) {
+    if (session) {
       fetchApplications();
     }
-  }, [user]);
+  }, [session]);
 
   const handleViewApplication = async (id: string) => {
     try {

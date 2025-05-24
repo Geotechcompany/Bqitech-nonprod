@@ -1,24 +1,31 @@
-import { getAuth } from "@clerk/nextjs/server";
+import { getServerSession } from "next-auth";
 import { NextResponse, NextRequest } from "next/server";
 import { addAdmin, removeAdmin } from "@/lib/admin-management";
+import { authOptions } from "@/lib/auth";
+import mongoose from "mongoose";
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, sessionClaims } = getAuth(req);
-    const { targetUserId, action } = await req.json();
-
-    // Ensure sessionClaims is typed correctly
-    const publicMetadata = sessionClaims?.publicMetadata as { isSuperAdmin?: boolean };
-
-    // Check if the current user is a super admin
-    const isSuperAdmin = publicMetadata?.isSuperAdmin === true;
-
-    if (!userId || !isSuperAdmin) {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
       );
     }
+
+    // Check if user is super admin
+    const user = await mongoose.model('User').findOne({ email: session.user.email });
+    const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+
+    if (!isSuperAdmin) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const { targetUserId, action } = await req.json();
 
     if (action === "add") {
       await addAdmin(targetUserId);

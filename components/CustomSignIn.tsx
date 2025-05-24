@@ -1,30 +1,37 @@
 "use client"
 
-import { SignIn } from "@clerk/nextjs";
+import { signIn } from "next-auth/react";
 import { useEffect } from "react";
 
 export default function CustomSignIn() {
   useEffect(() => {
     const style = document.createElement("style");
     style.innerHTML = `
-      .clerk-modal {
-        background-color: #ffffff; /* White background */
-        border-radius: 8px; /* Rounded corners */
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); /* Soft shadow */
+      .signin-container {
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        padding: 2rem;
+        max-width: 400px;
+        width: 100%;
       }
-      .clerk-modal h1 {
-        color: #4F46E5; /* Match site logo color */
+      .signin-container h1 {
+        color: #4F46E5;
+        text-align: center;
+        margin-bottom: 1.5rem;
       }
-      .clerk-modal .clerk-button {
-        background-color: #4F46E5; /* Match site logo color */
-        color: white; /* White text */
-        border-radius: 4px; /* Rounded corners */
+      .signin-container button {
+        background-color: #4F46E5;
+        color: white;
+        border-radius: 4px;
+        padding: 0.75rem 1rem;
+        width: 100%;
+        margin: 0.5rem 0;
+        border: none;
+        cursor: pointer;
       }
-      .clerk-modal .clerk-button:hover {
-        background-color: #4338ca; /* Darker shade on hover */
-      }
-      .clerk-modal .clerk-footer {
-        display: none; /* Hide the footer */
+      .signin-container button:hover {
+        background-color: #4338ca;
       }
     `;
     document.head.appendChild(style);
@@ -35,16 +42,11 @@ export default function CustomSignIn() {
   }, []);
 
   return (
-    <SignIn
-      path="/sign-in"
-      routing="path"
-      signUpUrl="/sign-up"
-      appearance={{
-        elements: {
-          // Customize the appearance here
-          footer: { display: "none" }, // Hide the footer
-        },
-      }}
-    />
+    <div className="signin-container">
+      <h1>Sign In</h1>
+      <button onClick={() => signIn()}>
+        Sign in with Email
+      </button>
+    </div>
   );
 }

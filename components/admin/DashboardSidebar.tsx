@@ -21,7 +21,7 @@ import {
   ChevronLeft,
   HelpCircle,
 } from "lucide-react";
-import { useClerk } from "@clerk/nextjs";
+import { signOut } from "next-auth/react";
 import { useSettings } from "@/contexts/SettingsContext";
 
 const tabs = [
@@ -103,12 +103,10 @@ interface DashboardSidebarProps {
 export default function DashboardSidebar({ isOpen, onClose }: DashboardSidebarProps) {
   const { sidebarCollapsed, updateSettings } = useSettings();
   const pathname = usePathname();
-  const { signOut } = useClerk();
   const router = useRouter();
 
   const handleLogout = async () => {
-    await signOut();
-    router.push('/');
+    await signOut({ callbackUrl: '/' });
   };
 
   return (

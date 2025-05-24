@@ -8,17 +8,17 @@ import { Button } from "@/components/ui/button"
 import { MobileMenu } from "@/components/MobileMenu"
 import { motion } from "framer-motion"
 import { useRouter } from "next/navigation"
-import { useAuth } from "@clerk/nextjs"
+import { useSession, signOut } from "next-auth/react"
 
 export default function Header() {
-  const { userId, isSignedIn } = useAuth()
+  const { data: session } = useSession()
   const router = useRouter()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   const toggleMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen)
 
   const handleClick = () => {
-    if (isSignedIn) {
+    if (session) {
       router.push("/dashboard")
     } else {
       router.push("/login")

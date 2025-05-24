@@ -1,19 +1,16 @@
 import { NextResponse } from "next/server";
-import connectToDatabase from "@/lib/mongodb";
-import { JobPosting } from "@/prisma/mongodb-schema";
 import mongoose from "mongoose";
-import { prisma } from "@/lib/prisma";
+import { JobPosting } from "@/models/jobPosting";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const jobs = await prisma.jobPosting.findMany({
-      select: {
-        id: true,
-        title: true
-      }
-    });
+    await mongoose.connect(process.env.MONGODB_URI!);
+
+    const jobs = await JobPosting.find()
+      .select('_id title')
+      .lean();
     
     return NextResponse.json(jobs);
   } catch (error) {
@@ -22,17 +19,15 @@ export async function GET() {
       { error: "Failed to fetch jobs" },
       { status: 500 }
     );
+  } finally {
+    await mongoose.disconnect();
   }
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    
-    await connectToDatabase();
-    if (mongoose.connection.readyState !== 1) {
-      throw new Error('Database connection not established');
-    }
+    await mongoose.connect(process.env.MONGODB_URI!);
 
     const job = await JobPosting.create(body);
     return NextResponse.json(job);
@@ -45,5 +40,7 @@ export async function POST(request: Request) {
       },
       { status: 500 }
     );
+  } finally {
+    await mongoose.disconnect();
   }
 } 

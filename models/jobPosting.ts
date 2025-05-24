@@ -1,7 +1,6 @@
 import mongoose from 'mongoose';
-import type { IJobPosting } from '@/prisma/mongodb-schema';
 
-const JobPostingSchema = new mongoose.Schema<IJobPosting>({
+const JobPostingSchema = new mongoose.Schema({
   title: { type: String, required: true },
   department: String,
   location: { type: String, required: true },
@@ -21,5 +20,5 @@ const JobPostingSchema = new mongoose.Schema<IJobPosting>({
   updatedAt: { type: Date, default: Date.now }
 });
 
-export const JobPosting = mongoose.models.JobPosting as mongoose.Model<IJobPosting> || 
-  mongoose.model<IJobPosting>('JobPosting', JobPostingSchema); 
+export const JobPosting = mongoose.models.JobPosting || 
+  mongoose.model('JobPosting', JobPostingSchema); 

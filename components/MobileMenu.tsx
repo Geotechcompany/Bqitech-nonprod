@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { ChevronDown, UserCircle } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { useAuth } from "@clerk/nextjs"
+import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 
 interface MobileMenuProps {
@@ -79,11 +79,11 @@ function MenuItem({ item, onClose }: { item: MenuItem; onClose: () => void }) {
 }
 
 export function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
-  const { isSignedIn } = useAuth()
+  const { data: session } = useSession()
   const router = useRouter()
 
   const handleAuthClick = () => {
-    if (isSignedIn) {
+    if (session) {
       router.push("/dashboard")
     } else {
       router.push("/login")

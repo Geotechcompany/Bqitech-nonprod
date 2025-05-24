@@ -1,42 +1,53 @@
 "use client";
 
 import { ReactNode, useState, useEffect } from 'react';
-import { useUser } from '@clerk/nextjs';
+import { getSession } from "next-auth/react";
 import DashboardSidebar from '@/components/admin/DashboardSidebar';
 import { Menu } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { toast } from "react-hot-toast";
 
+declare module "next-auth" {
+  interface User {
+    role?: string;
+  }
+}
+
 export default function AdminLayout({ children }: { children: ReactNode }) {
-  const { isLoaded, user } = useUser();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [session, setSession] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    if (isLoaded) {
-      const role = user?.publicMetadata?.role;
-      
-      if (!user) {
+    const checkSession = async () => {
+      const session = await getSession();
+      setSession(session);
+      setIsLoading(false);
+
+      if (!session) {
         router.push('/admin/login');
-      } else if (role !== "admin" && !pathname?.includes('/login')) {
+      } else if (session.user.role !== "ADMIN" && !pathname?.includes('/login')) {
         toast.error("You don't have admin access");
         router.push('/');
       }
-    }
-  }, [isLoaded, user, router, pathname]);
+    };
 
-  if (!isLoaded) {
+    checkSession();
+  }, [router, pathname]);
+
+  if (isLoading) {
     return <div>Loading...</div>;
   }
 
-  if (!user && !pathname?.includes('/login')) {
+  if (!session && !pathname?.includes('/login')) {
     return null;
   }
 
   return (
     <div className="flex flex-col h-screen bg-gray-100 md:flex-row">
-      {user?.publicMetadata?.role === "admin" && (
+      {session?.user?.role === "ADMIN" && (
         <>
           <div className="md:hidden bg-white p-4 flex justify-between items-center">
             <h1 className="text-xl font-bold text-gray-800">BQI Tech HR</h1>

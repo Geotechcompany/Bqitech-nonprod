@@ -5,9 +5,8 @@ import { Users, FileText, CheckCircle, XCircle, UserCheck, Code, MessageSquare, 
 import useSWR from 'swr';
 import { Button } from "@/components/ui/button";
 import { useRouter } from 'next/navigation';
-import { UserButton } from "@clerk/nextjs"
+import { useSession } from "next-auth/react"
 import { NotificationButton } from "@/components/NotificationButton"
-import { useUser } from "@clerk/nextjs"
 import Link from "next/link";
 import { AdminPageLayout } from "@/components/admin/AdminPageLayout";
 
@@ -43,7 +42,7 @@ interface Application {
 
 export default function OverviewPage() {
   const router = useRouter();
-  const { user } = useUser()
+  const { data: session } = useSession()
   
   const { data: overviewData, error: overviewError, isLoading: isOverviewLoading } = 
     useSWR('/api/admin/overview', overviewFetcher);

@@ -1,22 +1,22 @@
 "use client";
 
 import { ReactNode, useState } from 'react';
-import { useUser } from '@clerk/nextjs';
+import { useSession } from 'next-auth/react';
 import UserDashboardSidebar from "@/components/user/UserDashboardSidebar";
 import { Menu } from "lucide-react";
 import { useRouter, usePathname } from 'next/navigation';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
-  const { isLoaded, user } = useUser();
+  const { data: session, status } = useSession();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
-  if (!isLoaded) {
+  if (status === "loading") {
     return <div>Loading...</div>;
   }
 
-  if (!user) {
+  if (!session) {
     router.push('/login');
     return null;
   }

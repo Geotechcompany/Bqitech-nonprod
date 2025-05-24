@@ -1,10 +1,33 @@
 "use client";
 
-import { SignIn } from "@clerk/nextjs";
+import { signIn } from "next-auth/react";
 import { motion } from "framer-motion";
 import { Zap } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { toast } from "react-hot-toast";
 
 export default function AdminLoginPage() {
+  const router = useRouter();
+  const { register, handleSubmit } = useForm();
+
+  const onSubmit = async (data) => {
+    const result = await signIn("credentials", {
+      redirect: false,
+      email: data.email,
+      password: data.password,
+    });
+
+    if (result?.error) {
+      toast.error(result.error);
+    } else {
+      router.push("/admin/overview");
+    }
+  };
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-teal-500 to-blue-600">
       <motion.div
@@ -35,24 +58,29 @@ export default function AdminLoginPage() {
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.4, duration: 0.5 }}
         >
-          <SignIn
-            redirectUrl="/admin/overview"
-            appearance={{
-              elements: {
-                formButtonPrimary:
-                  "bg-teal-500 hover:bg-teal-600 text-sm normal-case",
-                card: "bg-white shadow-none",
-                headerTitle: "hidden",
-                headerSubtitle: "hidden",
-                socialButtonsBlockButton: "normal-case",
-                formFieldInput:
-                  "border-gray-300 focus:border-teal-500 focus:ring focus:ring-teal-200 focus:ring-opacity-50",
-                dividerLine: "bg-gray-200",
-                dividerText: "text-gray-500",
-                footer: "hidden", // Hide the footer containing "Secured by Clerk"
-              },
-            }}
-          />
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                {...register("email", { required: true })}
+                className="w-full"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                {...register("password", { required: true })}
+                className="w-full"
+              />
+            </div>
+            <Button type="submit" className="w-full bg-teal-500 hover:bg-teal-600">
+              Sign In
+            </Button>
+          </form>
         </motion.div>
       </motion.div>
     </div>

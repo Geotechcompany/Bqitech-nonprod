@@ -1,84 +1,71 @@
 import { NextResponse } from 'next/server';
-import { auth, currentUser, clerkClient } from '@clerk/nextjs/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import connectToDatabase from '@/lib/mongodb';
+import { User } from '@/models/user';
+import { UserSettings } from '@/models/userSettings';
+import { NotificationPreference } from '@/models/notificationPreference';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 export async function PUT(request: Request) {
   try {
-    const { userId } = await auth();
-    const user = await currentUser();
+    // Get authenticated user from NextAuth
+    const session = await getServerSession(authOptions);
     
-    if (!userId || !user?.emailAddresses?.[0]?.emailAddress) {
-      return new NextResponse('Unauthorized', { status: 401 });
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const userEmail = user.emailAddresses[0].emailAddress;
+    await connectToDatabase();
 
-    // Get all Clerk users and find admin by email
-    const clerk = await clerkClient();
-    const clerkUsers = await clerk.users.getUserList({
-      emailAddress: [userEmail],
-    });
+    const user = await User.findOne({ email: session.user.email })
+      .select('_id role')
+      .lean();
 
-    const clerkUser = clerkUsers.data[0];
-    if (!clerkUser) {
-      return new NextResponse('User not found in Clerk', { status: 404 });
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Check if user has admin role in Clerk metadata
-    const isAdmin = clerkUser.publicMetadata.role === 'admin';
-    if (!isAdmin) {
-      return new NextResponse('Unauthorized - Admin access required', { status: 401 });
-    }
+    // First cast to unknown, then to the correct type
+    const userRole = (user as unknown as { role: string }).role;
 
-    // Get the user from database using Clerk ID
-    const dbUser = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { id: true }
-    });
-
-    if (!dbUser) {
-      return new NextResponse('User not found', { status: 404 });
+    if (userRole !== 'ADMIN') {
+      return NextResponse.json(
+        { error: 'Unauthorized - Admin access required' }, 
+        { status: 401 }
+      );
     }
 
     const settings = await request.json();
 
-    // Update settings and notification preferences in a transaction
-    await prisma.$transaction([
-      prisma.userSettings.upsert({
-        where: { userId: dbUser.id },
-        update: {
+    // Add proper type casting
+    const userId = (user as { _id: string })._id;
+
+    // Update settings and notification preferences
+    await Promise.all([
+      UserSettings.findOneAndUpdate(
+        { userId },
+        {
           emailNotifications: settings.emailNotifications,
           pushNotifications: settings.pushNotifications,
           autoLogout: settings.autoLogout,
           tableRowsPerPage: settings.tableRowsPerPage,
           sidebarCollapsed: settings.sidebarCollapsed,
         },
-        create: {
-          userId: dbUser.id,
-          emailNotifications: settings.emailNotifications,
-          pushNotifications: settings.pushNotifications,
-          autoLogout: settings.autoLogout,
-          tableRowsPerPage: settings.tableRowsPerPage,
-          sidebarCollapsed: settings.sidebarCollapsed,
-        },
-      }),
-      prisma.notificationPreference.upsert({
-        where: { userId: dbUser.id },
-        update: { emailEnabled: settings.emailNotifications },
-        create: {
-          userId: dbUser.id,
-          emailEnabled: settings.emailNotifications,
-        },
-      }),
+        { upsert: true, new: true }
+      ),
+      NotificationPreference.findOneAndUpdate(
+        { userId: userId },
+        { emailEnabled: settings.emailNotifications },
+        { upsert: true, new: true }
+      )
     ]);
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Settings update error:', error);
-    return new NextResponse('Internal Server Error', { status: 500 });
-  } finally {
-    await prisma.$disconnect();
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 }
+    );
   }
 } 

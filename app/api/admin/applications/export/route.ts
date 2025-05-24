@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import connectToDatabase from "@/lib/mongodb";
 import { Application } from "@/models/application";
-import { auth } from "@clerk/nextjs/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { utils, write } from "xlsx";
 
 export async function GET(request: NextRequest) {
@@ -11,8 +12,17 @@ export async function GET(request: NextRequest) {
   const format = searchParams.get('format') || 'json';
 
   try {
-    const { userId } = await auth();
-    if (!userId) return new NextResponse("Unauthorized", { status: 401 });
+    // Verify admin permissions
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
+
+    // Check if user is admin
+    const user = await mongoose.model('User').findOne({ email: session.user.email });
+    if (!user || user.role !== 'ADMIN') {
+      return new NextResponse("Admin access required", { status: 403 });
+    }
 
     const applications = await Application.find().lean();
     const flattened = applications.map(app => {

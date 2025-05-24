@@ -68,28 +68,29 @@
   }
 }
 
-/* Hide "Secured by Clerk" and "Development mode" */
-.cl-powered-by,
-.cl-development-mode {
-  display: none !important;
+/* NextAuth sign-in form styles */
+.signin-container {
+  max-width: 400px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 2rem;
+  background-color: hsl(var(--card));
+  border-radius: var(--radius);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
 }
 
-/* Hide the bottom banner */
-.cl-development-mode-banner {
-  display: none !important;
+.signin-container button {
+  width: 100%;
+  margin: 0.5rem 0;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  transition: background-color 0.2s;
 }
 
-/* Optional: Adjust the layout to remove extra space */
-.cl-card {
-  margin-bottom: 0 !important;
-}
-
-.clerk-container {
-  display: none !important;
-}
-
-[data-color-mode="light"] {
-  --color-canvas-default: transparent;
+.signin-container button:hover {
+  background-color: hsl(var(--primary) / 0.9);
 }
 
 .w-md-editor-text-pre > code,

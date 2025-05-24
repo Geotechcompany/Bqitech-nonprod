@@ -1,16 +1,21 @@
 import { NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
+import connectToDatabase from "@/lib/mongodb"
+import mongoose from 'mongoose'
 import { z } from "zod"
 
-const blogPostSchema = z.object({
-  title: z.string().min(1, "Title is required"),
-  content: z.string().min(1, "Content is required"),
-  excerpt: z.string().min(1, "Excerpt is required"),
-  imageUrl: z.string().min(1, "Image URL is required"),
-  category: z.string().min(1, "Category is required"),
-  readTime: z.string().min(1, "Read time is required"),
-  published: z.boolean().optional().default(false),
+const blogPostSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  content: { type: String, required: true },
+  slug: { type: String, required: true, unique: true },
+  author: { type: String, required: true },
+  publishedAt: { type: Date, default: Date.now },
+  isPublished: { type: Boolean, default: false },
+  tags: [String],
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
 })
+
+const BlogPost = mongoose.models.BlogPost || mongoose.model('BlogPost', blogPostSchema)
 
 // Helper function to generate slug from title
 function generateSlug(title: string): string {
@@ -26,23 +31,8 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    const posts = await prisma.blogPost.findMany({
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        title: true,
-        content: true,
-        excerpt: true,
-        imageUrl: true,
-        category: true,
-        readTime: true,
-        slug: true,
-        published: true,
-        createdAt: true,
-        updatedAt: true,
-      }
-    })
-    console.log('Fetched posts:', posts)
+    await connectToDatabase()
+    const posts = await BlogPost.find().sort({ publishedAt: -1 })
     return NextResponse.json(posts)
   } catch (error) {
     console.error("Failed to fetch blog posts:", error)
@@ -53,38 +43,20 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
-    const data = await request.json()
-    const validated = blogPostSchema.parse(data)
+    const body = await req.json()
+    await connectToDatabase()
     
-    const baseSlug = generateSlug(validated.title)
-
-    const post = await prisma.blogPost.create({
-      data: {
-        title: validated.title,
-        content: validated.content,
-        excerpt: validated.excerpt,
-        imageUrl: validated.imageUrl,
-        category: validated.category,
-        readTime: validated.readTime,
-        published: validated.published ?? false,
-        slug: baseSlug,
-        authorId: "system"
-      }
+    const post = await BlogPost.create({
+      ...body,
+      createdAt: new Date(),
+      updatedAt: new Date()
     })
     
-    return NextResponse.json(post)
+    return NextResponse.json(post, { status: 201 })
   } catch (error) {
     console.error("Failed to create blog post:", error)
-    
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: "Validation failed", details: error.errors },
-        { status: 400 }
-      )
-    }
-    
     return NextResponse.json(
       { error: "Failed to create blog post" },
       { status: 500 }

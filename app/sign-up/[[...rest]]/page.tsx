@@ -1,11 +1,15 @@
 "use client"
 
-import { SignUp } from "@clerk/nextjs"
+import { signIn, getSession } from "next-auth/react"
 import { motion } from "framer-motion"
 import { useRouter } from "next/navigation"
 import { toast } from "react-hot-toast"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { Shield, Sparkles } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import { useForm } from "react-hook-form"
 
 // Floating background shapes component
 function FloatingShapes() {
@@ -59,6 +63,8 @@ function FloatingShapes() {
 
 export default function SignUpPage() {
   const router = useRouter()
+  const { register, handleSubmit, formState: { errors } } = useForm()
+  const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
     toast.success("Welcome! Create your account to get started.", {
@@ -68,8 +74,48 @@ export default function SignUpPage() {
         background: "#333",
         color: "#fff",
       },
+      position: "bottom-center"
     })
   }, [])
+
+  const onSubmit = async (data: any) => {
+    setIsLoading(true)
+    try {
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      })
+
+      if (!response.ok) {
+        throw new Error('Signup failed')
+      }
+
+      const result = await signIn('credentials', {
+        email: data.email,
+        password: data.password,
+        redirect: false,
+      })
+
+      if (result?.error) {
+        throw new Error(result.error)
+      }
+
+      // Check user role and redirect accordingly
+      const session = await getSession()
+      if (session?.user?.role === "ADMIN") {
+        router.push("/admin/overview")
+      } else {
+        router.push("/dashboard")
+      }
+    } catch (error) {
+      toast.error(error.message || 'Signup failed. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   return (
     <div className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-[#272055] to-[#1D1640] px-4 overflow-hidden">
@@ -119,45 +165,50 @@ export default function SignUpPage() {
           transition={{ delay: 0.6 }}
           className="backdrop-blur-sm bg-white/[0.02] rounded-3xl p-4 sm:p-6 shadow-xl border border-white/[0.05] mx-auto w-[calc(100%-2rem)] sm:w-full flex items-center justify-center"
         >
-          <SignUp
-            appearance={{
-              elements: {
-                formButtonPrimary: 
-                  "bg-gradient-to-r from-[#31CDFF] to-blue-500 hover:from-white hover:to-white hover:text-[#31CDFF] text-white transition-all duration-300 w-full",
-                card: "bg-transparent shadow-none p-0 sm:p-4 flex flex-col items-center",
-                headerTitle: "hidden",
-                headerSubtitle: "hidden",
-                socialButtonsBlockButton: 
-                  "border-gray-400/30 text-white hover:bg-white/10 backdrop-blur-sm w-full text-center",
-                socialButtonsBlockButtonText: "text-white text-center",
-                dividerLine: "bg-gray-600/30",
-                dividerText: "text-gray-400 text-center",
-                formFieldLabel: "text-gray-300 text-center w-full",
-                formFieldInput: 
-                  "bg-white/5 border-gray-600/30 text-white placeholder-gray-400 backdrop-blur-sm w-full text-center",
-                footerActionLink: "text-[#31CDFF] hover:text-white text-center",
-                footerActionText: "text-gray-300 text-center",
-                footer: "hidden",
-                rootBox: "bg-transparent w-full mx-auto flex flex-col items-center",
-                form: "w-full mx-auto flex flex-col items-center space-y-4",
-                formFieldInput__signUp: "w-full text-center",
-                formFieldLabel__signUp: "w-full text-center",
-                formButtonPrimary__signUp: "w-full",
-                socialButtonsBlockButton__signUp: "w-full text-center",
-                dividerRow: "w-full flex items-center justify-center",
-                otherLoginOptions: "w-full flex flex-col items-center space-y-4",
-              },
-              layout: {
-                socialButtonsPlacement: "bottom",
-                privacyPageUrl: "/privacy",
-                termsPageUrl: "/terms",
-                showOptionalFields: false,
-              },
-            }}
-            redirectUrl="/dashboard/jobs"
-            afterSignUpUrl="/dashboard/jobs"
-            signInUrl="/login"
-          />
+          <form onSubmit={handleSubmit(onSubmit)} className="w-full space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name" className="text-gray-300">Name</Label>
+              <Input
+                id="name"
+                {...register("name", { required: true })}
+                className="bg-white/5 border-gray-600/30 text-white placeholder-gray-400 backdrop-blur-sm w-full"
+                placeholder="Your full name"
+              />
+              {errors.name && <span className="text-red-400 text-sm">Name is required</span>}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-gray-300">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                {...register("email", { required: true })}
+                className="bg-white/5 border-gray-600/30 text-white placeholder-gray-400 backdrop-blur-sm w-full"
+                placeholder="Your email"
+              />
+              {errors.email && <span className="text-red-400 text-sm">Email is required</span>}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-gray-300">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                {...register("password", { required: true, minLength: 6 })}
+                className="bg-white/5 border-gray-600/30 text-white placeholder-gray-400 backdrop-blur-sm w-full"
+                placeholder="Your password"
+              />
+              {errors.password && <span className="text-red-400 text-sm">Password must be at least 6 characters</span>}
+            </div>
+
+            <Button
+              type="submit"
+              className="bg-gradient-to-r from-[#31CDFF] to-blue-500 hover:from-white hover:to-white hover:text-[#31CDFF] text-white transition-all duration-300 w-full"
+              disabled={isLoading}
+            >
+              {isLoading ? "Creating account..." : "Create Account"}
+            </Button>
+          </form>
         </motion.div>
 
         <motion.div

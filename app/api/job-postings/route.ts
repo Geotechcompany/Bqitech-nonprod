@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
-import connectToDatabase from '@/lib/mongodb';
-import { JobPosting } from "@/prisma/mongodb-schema";
 import mongoose from 'mongoose';
+import { JobPosting } from '@/models/jobPosting';
 
 export async function GET() {
   try {
-    await connectToDatabase();
+    await mongoose.connect(process.env.MONGODB_URI!);
     
     const jobPostings = await JobPosting.find()
       .sort({ postedDate: -1 }) // -1 for descending order
@@ -28,5 +27,7 @@ export async function GET() {
       { error: 'Failed to fetch job postings' }, 
       { status: 500 }
     );
+  } finally {
+    await mongoose.disconnect();
   }
 }

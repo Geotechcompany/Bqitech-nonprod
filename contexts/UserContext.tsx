@@ -1,13 +1,17 @@
 'use client'
 
 import { createContext, useContext } from 'react'
-import { useUser as useClerkUser } from '@clerk/nextjs'
+import { useSession } from 'next-auth/react'
 
 const UserContext = createContext({ user: null })
 
 export function UserProvider({ children }) {
-  const { user } = useClerkUser()
-  return <UserContext.Provider value={{ user }}>{children}</UserContext.Provider>
+  const { data: session } = useSession()
+  return (
+    <UserContext.Provider value={{ user: session?.user }}>
+      {children}
+    </UserContext.Provider>
+  )
 }
 
 export const useUser = () => useContext(UserContext) 

@@ -1,6 +1,6 @@
-import { UserButton, useUser } from "@clerk/nextjs";
 import { ChevronRight } from "lucide-react";
 import { NotificationButton } from "@/components/NotificationButton";
+import { useSession } from "next-auth/react";
 
 interface AdminPageHeaderProps {
   title: string;
@@ -9,7 +9,7 @@ interface AdminPageHeaderProps {
 }
 
 export function AdminPageHeader({ title, breadcrumb, children }: AdminPageHeaderProps) {
-  const { user } = useUser();
+  const { data: session } = useSession();
 
   return (
     <div className="flex flex-col gap-4 mb-6 md:mb-8">
@@ -21,16 +21,11 @@ export function AdminPageHeader({ title, breadcrumb, children }: AdminPageHeader
           <NotificationButton variant="ghost" />
           <div className="flex items-center gap-3">
             <span className="text-sm font-medium text-gray-700">
-              {user?.firstName || ''}
+              {session?.user?.name || ''}
             </span>
-            <UserButton 
-              afterSignOutUrl="/"
-              appearance={{
-                elements: {
-                  avatarBox: "h-8 w-8"
-                }
-              }}
-            />
+            <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
+              {session?.user?.name?.charAt(0) || 'U'}
+            </div>
           </div>
         </div>
       </div>

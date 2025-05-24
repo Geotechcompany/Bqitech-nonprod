@@ -2,7 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools"
-import { ClerkProvider } from '@clerk/nextjs'
+import { SessionProvider } from "next-auth/react"
 import { Toaster } from 'react-hot-toast'
 import { SettingsProvider } from "@/contexts/SettingsContext"
 import { JsonLd } from '@/components/JsonLd'
@@ -41,24 +41,18 @@ export function ClientWrapper({ children }: { children: React.ReactNode }) {
       />
       <SettingsProvider>
         <QueryClientProvider client={queryClient}>
-          <ClerkProvider>
+          <SessionProvider>
             <ClientLayout>
               {children}
             </ClientLayout>
             <CookieConsentBanner />
-          </ClerkProvider>
+          </SessionProvider>
           <Toaster position="top-right" />
           <ReactQueryDevtools initialIsOpen={false} />
           <JsonLd />
         </QueryClientProvider>
       </SettingsProvider>
-      <Image 
-        src="/bqilogo-light.png"
-        alt="BQI Tech Logo"
-        width={150}
-        height={50}
-        priority
-      />
+    
     </>
   )
 } 

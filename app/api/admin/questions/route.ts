@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import { JobQuestion, JobPosting } from "@/prisma/mongodb-schema";
+import { JobPosting } from '@/models/jobPosting';
+import { JobQuestion } from '@/models/jobQuestion';
 import mongoose from 'mongoose';
 import { z } from 'zod';
 

@@ -1,15 +1,16 @@
 // lib/db.ts
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import mongoose from 'mongoose'
+import { Application } from '@/models/application'
 
 export const getStatuses = async () => {
-  return await prisma.application.findMany({
-    select: {
-      status: true,
-    },
-    distinct: ['status'],
-  });
-};
-
-export default prisma;
+  try {
+    await mongoose.connect(process.env.MONGODB_URI!)
+    const statuses = await Application.distinct('status')
+    return statuses
+  } catch (error) {
+    console.error('Error fetching statuses:', error)
+    return []
+  } finally {
+    await mongoose.disconnect()
+  }
+}

@@ -15,15 +15,12 @@ import { ExclamationTriangleIcon } from "@heroicons/react/24/outline"
 
 function ApplicationForm() {
   const router = useRouter()
-  const { id, questions: questionIds } = useParams()
+  const { id } = useParams()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [formErrors, setFormErrors] = useState<string[]>([])
   const [isUploading, setIsUploading] = useState(false)
   const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null)
-
-  // Parse question IDs from URL
-  const parsedQuestionIds = questionIds ? String(questionIds).split(',') : []
 
   // Fetch job-specific questions
   const { data: questions = [], isLoading } = useQuery({
@@ -35,8 +32,7 @@ function ApplicationForm() {
         const error = await response.json();
         throw new Error(error.error || 'Failed to fetch questions');
       }
-      const data = await response.json();
-      return data.questions || [];
+      return response.json();
     },
     enabled: !!id
   })
@@ -62,23 +58,23 @@ function ApplicationForm() {
   const buildFormSchema = () => {
     const schemaMap = questions.reduce((acc, question) => ({
       ...acc,
-      [question.id]: z.string().refine(val => {
+      [question._id]: z.string().refine(val => {
         if (question.type !== 'file') return true;
         if (question.required && !val) return false;
         return true;
-      }, { message: `${question.text} is required` })
+      }, { message: `${question.question} is required` })
     }), {});
 
     return z.object(schemaMap);
   };
 
-  const { handleSubmit, formState, register, reset, control, trigger, setValue, setError } = useForm<DynamicFormSchema>({
-    resolver: zodResolver(buildFormSchema()),
-    mode: 'onChange',
+  // Initialize form with default values
+  const { register, handleSubmit, formState, reset, setValue, setError, trigger } = useForm({
     defaultValues: getDefaultValues(questions),
-    shouldUnregister: false
+    resolver: zodResolver(buildFormSchema())
   });
 
+  // Update form when questions change
   useEffect(() => {
     reset(getDefaultValues(questions));
   }, [questions, reset]);
@@ -98,9 +94,9 @@ function ApplicationForm() {
 
     try {
       // Validate email format if email field exists
-      const emailQuestion = questions.find(q => q.text.toLowerCase().includes('email'));
-      if (emailQuestion && data[emailQuestion.id]) {
-        const email = data[emailQuestion.id];
+      const emailQuestion = questions.find(q => q.question.toLowerCase().includes('email'));
+      if (emailQuestion && data[emailQuestion._id]) {
+        const email = data[emailQuestion._id];
         if (!z.string().email().safeParse(email).success) {
           throw new Error('Please enter a valid email address');
         }
@@ -110,11 +106,11 @@ function ApplicationForm() {
       
       // Store both question ID and text in the form data
       questions.forEach(q => {
-        if (data[q.id]) {
-          formData.append(`question_${q.id}`, JSON.stringify({
-            id: q.id,
-            text: q.text,
-            answer: data[q.id]
+        if (data[q._id]) {
+          formData.append(`question_${q._id}`, JSON.stringify({
+            id: q._id,
+            text: q.question,
+            answer: data[q._id]
           }));
         }
       });
@@ -152,25 +148,7 @@ function ApplicationForm() {
       reset();
       
     } catch (error) {
-      console.error('Submission error:', error);
-      toast.error(error.message || 'Application submission failed. Please check all required fields.', {
-        duration: 5000,
-        icon: '❌'
-      });
-      
-      // Handle specific email errors
-      if (error.message.includes('email')) {
-        const emailField = questions.find(q => 
-          q.text.toLowerCase().includes('email')
-        )?.id;
-        
-        if (emailField) {
-          setError(emailField, {
-            type: 'manual',
-            message: 'Please check your email address'
-          });
-        }
-      }
+      setFormErrors([error.message]);
     } finally {
       setIsSubmitting(false);
     }
@@ -178,21 +156,20 @@ function ApplicationForm() {
 
   // Render dynamic form fields
   const renderQuestionField = (question: any) => {
-    // For standard fields, use the id directly
-    const fieldName = question.id.startsWith('question_') ? question.id : question.id;
+    const fieldName = question._id;
     
     switch (question.type) {
       case 'text':
         return (
-          <div key={question.id} className="space-y-2">
+          <div key={question._id} className="space-y-2">
             <label className="block text-sm font-medium">
-              {question.text}
+              {question.question}
               {question.required && <span className="text-red-500">*</span>}
             </label>
             <input
               {...register(fieldName)}
               className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder={`Enter your ${question.text.toLowerCase()}`}
+              placeholder={`Enter your ${question.question.toLowerCase()}`}
             />
             {formState.errors[fieldName] && (
               <p className="text-red-500 text-sm">
@@ -203,9 +180,9 @@ function ApplicationForm() {
         )
       case 'select':
         return (
-          <div key={question.id} className="space-y-2">
+          <div key={question._id} className="space-y-2">
             <label className="block text-sm font-medium">
-              {question.text}
+              {question.question}
               {question.required && <span className="text-red-500">*</span>}
             </label>
             <div className="relative">
@@ -237,9 +214,9 @@ function ApplicationForm() {
         )
       case 'radio':
         return (
-          <div key={question.id} className="space-y-2">
+          <div key={question._id} className="space-y-2">
             <label className="block text-sm font-medium">
-              {question.text}
+              {question.question}
               {question.required && <span className="text-red-500">*</span>}
             </label>
             <div className="mt-2 space-y-2">
@@ -264,9 +241,9 @@ function ApplicationForm() {
         )
       case 'file':
         return (
-          <div key={question.id} className="space-y-2">
+          <div key={question._id} className="space-y-2">
             <label className="block text-sm font-medium">
-              {question.text}
+              {question.question}
               {question.required && <span className="text-red-500">*</span>}
             </label>
             <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-lg border-gray-300 hover:border-blue-400 transition-colors">
@@ -443,10 +420,10 @@ function ApplicationForm() {
   );
 }
 
-function getDefaultValues(questions: Array<{ id: string }>) {
+function getDefaultValues(questions: Array<{ _id: string }>) {
   return questions.reduce((acc: Record<string, string>, q) => ({ 
     ...acc, 
-    [q.id]: '' 
+    [q._id]: ''
   }), {});
 }
 

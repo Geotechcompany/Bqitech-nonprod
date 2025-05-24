@@ -1,52 +1,57 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import mongoose from "mongoose";
-import connectToDatabase from "@/lib/mongodb";
-import { Application } from "@/models/application";
-import { auth } from "@clerk/nextjs/server";
+import { NextResponse } from 'next/server';
+import connectToDatabase from '@/lib/mongodb';
+import mongoose from 'mongoose';
 
+const applicationSchema = new mongoose.Schema({
+  jobId: { type: mongoose.Schema.Types.ObjectId, ref: 'JobPosting', required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  status: { type: String, enum: ['PENDING', 'REVIEWED', 'ACCEPTED', 'REJECTED'], default: 'PENDING' },
+  answers: [{
+    questionId: { type: mongoose.Schema.Types.ObjectId, ref: 'JobQuestion' },
+    answer: String
+  }],
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
 
-const prisma = new PrismaClient();
+const Application = mongoose.models.Application || mongoose.model('Application', applicationSchema);
 
 export async function GET() {
-  await connectToDatabase();
-
   try {
-    const { userId } = await auth();
+    await connectToDatabase();
     
-    // Add your admin check logic here
-    if (!userId) {
-      return NextResponse.json(
-        { error: "Unauthorized" }, 
-        { status: 401 }
-      );
-    }
-
-    // Option 1: Use virtual population
     const applications = await Application.find()
-      .populate('jobDetails', 'title')
-      .select('name email jobId')
+      .populate('jobId', 'title')
+      .populate('userId', 'name email')
+      .sort({ createdAt: -1 })
       .lean();
 
-    // Option 2: Use manual population with explicit typing
-    // const applications = await Application.find()
-    //   .populate<{ jobId: IJobPosting }>('jobId', 'title')
-    //   .select('name email jobId')
-    //   .lean();
-
-    return NextResponse.json({
-      applications: applications.map(app => ({
-        ...app,
-        id: app._id.toString(),
-        _id: undefined,
-        position: app.jobId?.title || 'N/A'
-      }))
-    });
-
+    return NextResponse.json(applications);
   } catch (error) {
-    console.error("Error fetching applications:", error);
+    console.error('Failed to fetch applications:', error);
     return NextResponse.json(
-      { error: "Internal Server Error" }, 
+      { error: 'Failed to fetch applications' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    await connectToDatabase();
+    
+    const application = await Application.create({
+      ...body,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    
+    return NextResponse.json(application, { status: 201 });
+  } catch (error) {
+    console.error('Failed to create application:', error);
+    return NextResponse.json(
+      { error: 'Failed to create application' },
       { status: 500 }
     );
   }

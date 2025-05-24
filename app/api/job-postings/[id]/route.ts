@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import connectToDatabase from "@/lib/mongodb";
-import { JobPosting } from "@/prisma/mongodb-schema";
 import mongoose from 'mongoose';
+import { JobPosting } from '@/models/jobPosting';
 
 // Ensure schema has all required fields
 const updateSchema = async () => {
@@ -47,7 +46,7 @@ const updateSchema = async () => {
 
 export async function GET() {
   try {
-    await connectToDatabase();
+    await mongoose.connect(process.env.MONGODB_URI!);
     await updateSchema();
     
     const jobPostings = await JobPosting.find().lean();
@@ -58,13 +57,15 @@ export async function GET() {
       { error: "Failed to fetch job postings" },
       { status: 500 }
     );
+  } finally {
+    await mongoose.disconnect();
   }
 }
 
 export async function POST(request: Request) {
   try {
     const jobData = await request.json();
-    await connectToDatabase();
+    await mongoose.connect(process.env.MONGODB_URI!);
     await updateSchema();
 
     // Sanitize and prepare the data
@@ -97,5 +98,7 @@ export async function POST(request: Request) {
       { error: "Failed to create job posting" },
       { status: 500 }
     );
+  } finally {
+    await mongoose.disconnect();
   }
 }

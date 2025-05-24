@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
-import connectToDatabase from '@/lib/mongodb';
-import { JobPosting } from "@/prisma/mongodb-schema";
+import { connectToDatabase } from '@/lib/mongodb';
+import { JobQuestion } from '@/models/job-question';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 // Add type definition for the questions array
 type JobQuestion = {
@@ -18,49 +20,34 @@ type PopulatedJobPosting = {
   questions: mongoose.Document<unknown>[];
 };
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
-  await connectToDatabase();
-
-  // Add ObjectID validation
-  if (!mongoose.Types.ObjectId.isValid(params.id)) {
-    return NextResponse.json(
-      { success: false, error: 'Invalid job ID format' },
-      { status: 400 }
-    );
-  }
-
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
-    // Use JobPosting model instead of Job
-    const job = await JobPosting.findById(params.id)
-      .populate('questions')  // Populate linked questions
-      .select('questions')
-      .lean() as unknown as PopulatedJobPosting;
+    // Ensure connection is established
+    await connectToDatabase();
 
-    if (!job) {
+    // Validate ObjectId
+    if (!mongoose.Types.ObjectId.isValid(params.id)) {
       return NextResponse.json(
-        { success: false, error: 'Job not found' },
-        { status: 404 }
+        { error: 'Invalid job ID' },
+        { status: 400 }
       );
     }
 
-    // Update question mapping with proper typing
-    const transformedQuestions = job.questions.map(question => ({
-      id: (question as any)._id.toString(),
-      text: (question as any).question,
-      type: (question as any).type,
-      required: (question as any).required,
-      options: (question as any).options
-    }));
+    const questions = await JobQuestion.find({ 
+      jobIds: new mongoose.Types.ObjectId(params.id) 
+    }).exec();
 
-    return NextResponse.json({
-      success: true,
-      questions: transformedQuestions
-    });
-
+    return NextResponse.json(questions);
   } catch (error) {
     console.error('Failed to fetch questions:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch questions' },
+      { 
+        message: 'Failed to fetch questions',
+        error: process.env.NODE_ENV === 'development' ? error.message : null
+      },
       { status: 500 }
     );
   }

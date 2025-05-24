@@ -1,33 +1,21 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import mongoose from 'mongoose';
+import { Application } from '@/models/application';
 
 export async function GET() {
   try {
-    const interviewing = await prisma.application.findMany({
-      where: {
-        status: 'Interviewing'
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        position: true,
-        interviewDate: true,
-        interviewer: true,
-        status: true
-      }
-    });
+    await mongoose.connect(process.env.MONGODB_URI!);
+    const interviewing = await Application.find({ status: 'Interviewing' })
+      .select('id name email position interviewDate interviewer status')
+      .lean();
     
     return NextResponse.json({ applications: interviewing });
   } catch (error) {
     console.error('Error fetching interviewing candidates:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   } finally {
-    await prisma.$disconnect();
+    await mongoose.disconnect();
   }
-  
 }
 
 

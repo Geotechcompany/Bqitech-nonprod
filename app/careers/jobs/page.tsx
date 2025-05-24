@@ -9,7 +9,7 @@ import { Search, MapPin, Clock, ChevronDown, X, Briefcase, Calendar } from "luci
 import { JobPosting } from "@/types/jobPosting";
 import Loader from "@/components/Loader";
 import { SafeHtml } from "@/components/ui/safe-html";
-import { useUser } from "@clerk/nextjs";
+import { useSession } from "next-auth/react";
  
 export default function JobsPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -19,7 +19,8 @@ export default function JobsPage() {
   const [isLocationOpen, setIsLocationOpen] = useState(false);
   const [isDepartmentOpen, setIsDepartmentOpen] = useState(false);
   const router = useRouter();
-  const { isSignedIn } = useUser();
+  const { data: session } = useSession();
+  const isSignedIn = !!session;
  
   const {
     data: jobs,

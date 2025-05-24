@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import mongoose from "mongoose";
 import connectToDatabase from "@/lib/mongodb";
 import { Application } from "@/models/application";
@@ -8,20 +9,14 @@ export async function GET(request: NextRequest) {
   await connectToDatabase();
   
   try {
-    // Get authenticated user from Clerk
-    const user = await currentUser();
-    if (!user) {
+    // Get authenticated user from NextAuth
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get verified email from Clerk user
-    const userEmail = user.emailAddresses.find(
-      email => email.id === user.primaryEmailAddressId
-    )?.emailAddress;
-
-    if (!userEmail) {
-      return NextResponse.json({ error: "Email not found" }, { status: 400 });
-    }
+    // Use verified email from NextAuth session
+    const userEmail = session.user.email;
 
     const applications = await Application.aggregate([
       {
@@ -29,7 +24,7 @@ export async function GET(request: NextRequest) {
           "answers": {
             $elemMatch: {
               "questionText": "Email",
-              "answer": userEmail // Use Clerk-verified email
+              "answer": userEmail
             }
           }
         }
