@@ -6,12 +6,17 @@ export async function middleware(request: NextRequest) {
   const token = await getToken({ req: request });
   const { pathname } = request.nextUrl;
 
-  // Protect admin routes
-  if (pathname.startsWith("/admin") && (!token || token.role !== "ADMIN")) {
-    return NextResponse.redirect(new URL("/login", request.url));
+  // Allow access to login page
+  if (pathname === "/admin/login") {
+    return NextResponse.next();
   }
 
-  // Protect authenticated routes
+  // Protect admin routes
+  if (pathname.startsWith("/admin") && (!token || token.role !== "ADMIN")) {
+    return NextResponse.redirect(new URL("/admin/login", request.url));
+  }
+
+  // Protect dashboard routes
   if (pathname.startsWith("/dashboard") && !token) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
