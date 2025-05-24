@@ -1,0 +1,28 @@
+.animate-svg {
+  animation: scaleUp 3s infinite alternate;
+}
+
+@keyframes scaleUp {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.1);
+  }
+}
+
+.path-bg {
+  stroke-dasharray: 5;
+  animation: dash 20s linear infinite;
+}
+
+.path-progress {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@keyframes dash {
+  to {
+    stroke-dashoffset: -50;
+  }
+}

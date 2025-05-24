@@ -1,0 +1,15 @@
+/* Hide "Secured by Clerk" and "Development mode" */
+.cl-powered-by,
+.cl-development-mode {
+  display: none !important;
+}
+
+/* Hide the bottom banner */
+.cl-development-mode-banner {
+  display: none !important;
+}
+
+/* Optional: Adjust the layout to remove extra space */
+.cl-card {
+  margin-bottom: 0 !important;
+}

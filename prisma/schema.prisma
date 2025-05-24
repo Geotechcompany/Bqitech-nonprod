@@ -1,0 +1,137 @@
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["mongoDb"]
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                     String                  @id @default(cuid())
+  email                  String                  @unique
+  name                   String
+  phoneNumber            String?
+  clerkId                String                  @unique @map("clerk_id")
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  applications           Application[]
+  notificationPreference NotificationPreference?
+  settings               UserSettings?
+
+  @@index([clerkId])
+}
+
+model Application {
+  id                          String    @id @default(cuid())
+  name                        String
+  email                       String
+  position                    String
+  appliedDate                 DateTime  @default(now())
+  status                      String
+  shortlistedDate             DateTime?
+  assessmentDate              DateTime?
+  assessmentScore             Int?
+  interviewDate               DateTime?
+  interviewer                 String?
+  hireDate                    DateTime?
+  startDate                   DateTime?
+  disqualifiedDate            DateTime?
+  disqualifiedReason          String?
+  experience                  String
+  hearAbout                   String
+  location                    String
+  otherSource                 String?
+  phoneNumber                 String?
+  resumeUrl                   String
+  salary                      String
+  userId                      String?
+  lastUpdated                 DateTime  @updatedAt
+  cotsExperience              String?
+  reportDevelopmentExperience String?
+  sqlJavaScriptExperience     String?
+  user                        User?     @relation(fields: [userId], references: [id])
+}
+
+model JobPosting {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  department  String?
+  location    String
+  description String
+  postedDate  DateTime
+  employmentType String
+  category    String?
+  isActive    Boolean
+  salary      Json?
+  requirements String[]
+  questions   String[]  // Array of question IDs
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  title     String
+  message   String
+  type      String
+  date      DateTime @default(now())
+  isRead    Boolean  @default(false)
+  userId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model UserSettings {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  emailNotifications Boolean  @default(true)
+  pushNotifications  Boolean  @default(true)
+  autoLogout         Int      @default(30)
+  tableRowsPerPage   Int      @default(10)
+  sidebarCollapsed   Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  user               User     @relation(fields: [userId], references: [id])
+}
+
+model NotificationPreference {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  emailEnabled Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id])
+}
+
+model BlogPost {
+  id          String   @id @default(cuid())
+  title       String
+  excerpt     String
+  content     String   @db.Text
+  imageUrl    String
+  category    String
+  readTime    String
+  slug        String   @unique
+  published   Boolean  @default(false)
+  authorId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model JobQuestion {
+  id        String     @id @default(cuid())
+  question  String
+  type      String
+  options   String[]   @default([])
+  required  Boolean    @default(true)
+  order     Int        @default(0)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  
+  jobPosting JobPosting? @relation(fields: [jobPostingId], references: [id])
+  jobPostingId String?
+}
+
+

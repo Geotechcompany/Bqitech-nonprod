@@ -1,0 +1,29 @@
+# Allow all web crawlers
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://bqitech.com/sitemap.xml
+
+# Allow all bots to index the site
+User-agent: Googlebot
+Allow: /
+
+User-agent: Googlebot-Image
+Allow: /
+
+User-agent: Googlebot-Mobile
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Slurp
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+# Prevent crawling of admin pages
+Disallow: /admin/
+Disallow: /dashboard/ 
