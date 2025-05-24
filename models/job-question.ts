@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 const jobQuestionSchema = new mongoose.Schema({
   question: { type: String, required: true },
-  type: { type: String, enum: ['text', 'multiple-choice'], default: 'text' },
+  type: { type: String, enum: ['text', 'multiple-choice', 'boolean'], required: true },
   options: [{ type: String }],
   required: { type: Boolean, default: true },
   order: { type: Number, required: true },

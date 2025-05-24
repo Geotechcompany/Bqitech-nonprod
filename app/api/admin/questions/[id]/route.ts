@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import { JobQuestion } from "@/prisma/mongodb-schema";
 import mongoose from 'mongoose';
-import { JobPosting } from "@/prisma/mongodb-schema";
+import { JobQuestion } from '@/models/job-question';
+import { JobPosting } from '@/models/jobPosting';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,7 +11,13 @@ interface PopulatedQuestion {
   _id: mongoose.Types.ObjectId;
   jobIds: Array<{ _id: mongoose.Types.ObjectId; title: string }>;
   __v: number;
-  // ... other question properties
+  question: string;
+  type: string;
+  required: boolean;
+  options: string[];
+  order: number;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export async function GET(
@@ -50,9 +56,6 @@ export async function PUT(
     
     // Ensure database connection
     await connectToDatabase();
-    if (mongoose.connection.readyState !== 1) {
-      await mongoose.connection.asPromise();
-    }
 
     if (!params?.id || !mongoose.Types.ObjectId.isValid(params.id)) {
       return NextResponse.json(
@@ -154,6 +157,14 @@ export async function DELETE(
 ) {
   try {
     await connectToDatabase();
+    
+    // Remove question from associated jobs
+    await JobPosting.updateMany(
+      { questions: params.id },
+      { $pull: { questions: params.id } }
+    );
+    
+    // Delete the question
     await JobQuestion.findByIdAndDelete(params.id);
     
     return NextResponse.json({ message: "Question deleted successfully" });
