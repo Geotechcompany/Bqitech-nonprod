@@ -161,8 +161,8 @@ const ApplicationSchema = new Schema<IApplication>({
     ref: 'JobPosting',
     required: true
   }
-}, { 
-  strictPopulate: false,
+}, {
+  strict: false,
   strictQuery: false,
   toObject: { virtuals: true },
   toJSON: { virtuals: true }

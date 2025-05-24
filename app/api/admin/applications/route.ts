@@ -4,8 +4,7 @@ import mongoose from "mongoose";
 import connectToDatabase from "@/lib/mongodb";
 import { Application } from "@/models/application";
 import { auth } from "@clerk/nextjs/server";
-import { JobPosting } from "@/models/jobPosting";
-import { IJobPosting } from "@/interfaces/jobPosting";
+
 
 const prisma = new PrismaClient();
 
