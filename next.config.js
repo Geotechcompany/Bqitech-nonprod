@@ -13,7 +13,7 @@ const nextConfig = {
       'images.unsplash.com',
       'd1.awsstatic.com',
       'dl.dropboxusercontent.com',
-      'your-image-domain.com'
+      'bqitech.com'
     ],
   },
   async headers() {
