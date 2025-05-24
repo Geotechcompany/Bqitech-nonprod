@@ -7,7 +7,6 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "postinstall": "prisma generate",
     "migrate-to-mongodb": "node scripts/migrate-to-mongodb.js",
     "test-mongodb": "node scripts/test-mongo.js",
     "post-questions": "node scripts/post-questions-mongodb.js",
