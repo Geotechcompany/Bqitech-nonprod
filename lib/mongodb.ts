@@ -6,35 +6,58 @@ if (!MONGODB_URI) {
   throw new Error('Please define the MONGODB_URI environment variable');
 }
 
-// Global connection cache
-let cached = global.mongoose;
+interface CachedConnection {
+  conn: typeof mongoose | null;
+  promise: Promise<typeof mongoose> | null;
+}
+
+interface GlobalWithMongoose extends Global {
+  mongoose?: CachedConnection;
+}
+
+/**
+ * Global is used here to maintain a cached connection across hot reloads
+ * in development. This prevents connections growing exponentially
+ * during API Route usage.
+ */
+let cached = (global as GlobalWithMongoose).mongoose;
 
 if (!cached) {
-  cached = global.mongoose = { conn: null, promise: null };
+  cached = (global as GlobalWithMongoose).mongoose = {
+    conn: null,
+    promise: null
+  };
 }
 
 export async function connectToDatabase() {
-  if (cached.conn) {
-    return cached.conn;
-  }
-
-  if (!cached.promise) {
-    cached.promise = mongoose.connect(MONGODB_URI, {
-      bufferCommands: false,
-    }).then(mongoose => mongoose);
-  }
-
+  if (mongoose.connection.readyState === 1) return;
+  
   try {
-    cached.conn = await cached.promise;
-  } catch (e) {
-    cached.promise = null;
-    throw e;
+    await mongoose.connect(process.env.MONGODB_URI!, {
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+      maxPoolSize: 10,
+      minPoolSize: 2,
+      heartbeatFrequencyMS: 10000,
+      waitQueueTimeoutMS: 15000
+    });
+
+    mongoose.connection.on('error', (err) => {
+      console.error('MongoDB connection error:', err);
+      if (err.name === 'MongoNetworkError') {
+        setTimeout(connectToDatabase, 5000);
+      }
+    });
+    
+    mongoose.connection.on('disconnected', () => {
+      console.warn('MongoDB disconnected. Attempting reconnect...');
+      setTimeout(connectToDatabase, 5000);
+    });
+
+  } catch (error) {
+    console.error('Initial connection failed:', error);
+    throw error;
   }
-
-  return cached.conn;
 }
-
-// Initialize connection when the module is loaded
-connectToDatabase().catch(err => console.error('Initial MongoDB connection failed:', err));
 
 export default connectToDatabase; 
