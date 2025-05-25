@@ -14,41 +14,14 @@ if (!cached) {
 }
 
 export async function connectToDatabase() {
-  // If already connected, return the existing connection
-  if (cached.conn && mongoose.connection.readyState === 1) {
+  if (cached.conn) {
     return cached.conn;
   }
 
-  // If connection is in progress, wait for it
   if (!cached.promise) {
-    const opts = {
+    cached.promise = mongoose.connect(MONGODB_URI, {
       bufferCommands: false,
-      serverSelectionTimeoutMS: 10000,
-      socketTimeoutMS: 60000,
-      heartbeatFrequencyMS: 10000,
-      retryWrites: true,
-      retryReads: true,
-      maxPoolSize: 10,
-      minPoolSize: 2,
-    };
-
-    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
-      // Add event listeners to handle connection issues
-      mongoose.connection.on('connected', () => {
-        console.log('MongoDB connected');
-      });
-
-      mongoose.connection.on('error', (err) => {
-        console.error('MongoDB connection error:', err);
-      });
-
-      mongoose.connection.on('disconnected', () => {
-        console.warn('MongoDB disconnected');
-        setTimeout(() => connectToDatabase(), 5000);
-      });
-
-      return mongoose;
-    });
+    }).then(mongoose => mongoose);
   }
 
   try {

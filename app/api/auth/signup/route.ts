@@ -2,19 +2,13 @@ import { NextResponse } from 'next/server'
 import { hash } from 'bcryptjs'
 import connectToDatabase from '@/lib/mongodb'
 import mongoose from 'mongoose'
-
-const userSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-})
-
-const User = mongoose.models.User || mongoose.model('User', userSchema)
+import { User } from '@/models/user'
 
 export async function POST(req: Request) {
   try {
+    // Connect to database first
+    await connectToDatabase();
+
     const { email, password, name } = await req.json()
 
     // Validate input
@@ -25,9 +19,7 @@ export async function POST(req: Request) {
       )
     }
 
-    await connectToDatabase()
-
-    // Check if user exists
+    // Check if user exists using the imported User model
     const existingUser = await User.findOne({ email: email.toLowerCase() })
 
     if (existingUser) {
@@ -40,14 +32,22 @@ export async function POST(req: Request) {
     // Hash password
     const hashedPassword = await hash(password, 12)
 
-    // Create user
+    // Create user using the imported User model
     const user = await User.create({
       name,
       email: email.toLowerCase(),
-      password: hashedPassword
+      password: hashedPassword,
+      role: 'USER'
     })
 
-    return NextResponse.json(user, { status: 201 })
+    return NextResponse.json({
+      message: 'User created successfully',
+      user: {
+        id: user._id,
+        email: user.email,
+        role: user.role
+      }
+    })
   } catch (error) {
     console.error('Signup error:', error)
     return NextResponse.json(
