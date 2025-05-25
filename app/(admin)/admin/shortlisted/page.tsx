@@ -73,11 +73,11 @@ export default function ShortlistedPage() {
     }
   };
 
-  const filteredData = data?.applications.filter((app: Application) =>
+  const filteredData = (data?.applications ?? []).filter((app: Application) =>
     Object.values(app).some((value) =>
       String(value).toLowerCase().includes(searchTerm.toLowerCase())
     )
-  ) ?? [];
+  );
 
   if (error) return <div>Failed to load shortlisted candidates</div>;
   if (isLoading) return <div>Loading...</div>;

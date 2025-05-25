@@ -80,31 +80,38 @@ const newStructureColumns = [
   }
 ];
 
-const fetcher = (url: string) => fetch(url).then(res => res.json());
+// Add custom error type definition
+interface ApiError extends Error {
+  info?: any;
+  status?: number;
+}
+
+const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  if (!res.ok) {
+    const error = new Error('Failed to fetch applications') as ApiError;
+    error.info = await res.json();
+    error.status = res.status;
+    throw error;
+  }
+  return res.json();
+};
 
 export default function ApplicationsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPosition, setSelectedPosition] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
   const [selectedStructure, setSelectedStructure] = useState<'all' | 'old' | 'new'>('all');
-  const { data, error, isLoading, mutate } = useSWR<{ applications: Application[] }>(
-    "/api/admin/applications", 
+  const [structureType, setStructureType] = useState<'new' | 'old'>('new');
+  const { data: applications = [], error, isLoading, mutate } = useSWR<Application[]>(
+    `/api/admin/${structureType === 'new' ? 'applications' : 'old-applications'}`,
     fetcher
   );
-  const [applications, setApplications] = useState<Application[]>([]);
   const [viewApplication, setViewApplication] = useState<Application | null>(null);
   const [editApplication, setEditApplication] = useState<Application | null>(null);
   const [deleteApplicationId, setDeleteApplicationId] = useState<string | null>(null);
   const [dynamicColumns, setDynamicColumns] = useState<Column[]>([]);
   const [jobTitles, setJobTitles] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    if (data?.applications) {
-      setApplications(data.applications || []);
-      const newColumns = getDynamicColumns(data.applications || []);
-      setDynamicColumns(newColumns);
-    }
-  }, [data]);
 
   useEffect(() => {
     const fetchJobTitles = async () => {
@@ -126,20 +133,21 @@ export default function ApplicationsPage() {
 
   const allColumns = [
     ...staticColumns,
-    ...getDynamicColumns(applications)
+    ...getDynamicColumns(applications || [])
   ];
 
   if (error) return <div>Failed to load applications</div>;
   if (isLoading) return <div>Loading...</div>;
 
-  const filteredApplications = applications?.filter((app) => {
-    const isOldStructure = app.cotsExperience !== undefined;
-    const isNewStructure = app.answers !== undefined;
+  const filteredApplications = applications.filter(app => {
+    const matchesSearch = [app.name, app.email, app.position].some(field => 
+      field?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    const matchesPosition = !selectedPosition || app.position === selectedPosition;
+    const matchesStatus = !selectedStatus || app.status === selectedStatus;
     
-    if (selectedStructure === 'old') return isOldStructure;
-    if (selectedStructure === 'new') return isNewStructure;
-    return true;
-  }) ?? [];
+    return matchesSearch && matchesPosition && matchesStatus;
+  });
 
   function handleView(id: string) {
     const application = applications.find((app) => app.id === id);
@@ -162,10 +170,7 @@ export default function ApplicationsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updatedApplication),
       });
-      const updatedApplications = applications.map((app) =>
-        app.id === updatedApplication.id ? updatedApplication : app
-      );
-      setApplications(updatedApplications);
+      mutate();
       setEditApplication(null);
     } catch (error) {
       console.error("Failed to update application:", error);
@@ -175,8 +180,7 @@ export default function ApplicationsPage() {
   async function handleConfirmDelete(id: string) {
     try {
       await fetch(`/api/admin/applications/${id}`, { method: "DELETE" });
-      const updatedApplications = applications.filter((app) => app.id !== id);
-      setApplications(updatedApplications);
+      mutate();
       setDeleteApplicationId(null);
     } catch (error) {
       console.error("Failed to delete application:", error);
@@ -187,6 +191,18 @@ export default function ApplicationsPage() {
     <>
       <AdminPageHeader title="Applications">
         <div className="flex gap-2">
+          <Button
+            variant={structureType === 'new' ? 'default' : 'outline'}
+            onClick={() => setStructureType('new')}
+          >
+            New Structure
+          </Button>
+          <Button
+            variant={structureType === 'old' ? 'default' : 'outline'}
+            onClick={() => setStructureType('old')}
+          >
+            Old Structure
+          </Button>
           <input
             type="file"
             id="importFile"
@@ -292,11 +308,11 @@ export default function ApplicationsPage() {
                 onChange={(e) => setSelectedPosition(e.target.value)}
               >
                 <option value="">All Positions</option>
-                {[...new Set(applications.map((app) => app.position))].map((position) => (
-                  <option key={position} value={position}>
-                    {position}
-                  </option>
-                ))}
+                {Array.isArray(applications) && 
+                  [...new Set(applications.map(app => app.position))].map(position => (
+                    <option key={position} value={position}>{position}</option>
+                  ))
+                }
               </select>
               
               <select
@@ -312,15 +328,7 @@ export default function ApplicationsPage() {
                 <option value="Rejected">Rejected</option>
               </select>
 
-              <select
-                value={selectedStructure}
-                onChange={(e) => setSelectedStructure(e.target.value as 'all' | 'old' | 'new')}
-                className="rounded-md border p-2"
-              >
-                <option value="all">All Structures</option>
-                <option value="old">Old Structure</option>
-                <option value="new">New Structure</option>
-              </select>
+       
             </div>
           </div>
         </div>
@@ -335,6 +343,7 @@ export default function ApplicationsPage() {
             onView={handleView}
             onEdit={handleEdit}
             onDelete={handleDelete}
+            structureType={structureType}
           />
         </div>
 

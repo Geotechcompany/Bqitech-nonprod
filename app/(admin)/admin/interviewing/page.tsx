@@ -25,7 +25,7 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function InterviewingPage() {
   const [searchTerm, setSearchTerm] = useState("");
-  const { data, error, isLoading } = useSWR<{ applications: InterviewingApplication[] }>(
+  const { data, error, isLoading } = useSWR<Application[]>(
     "/api/admin/applications?status=Interviewing",
     fetcher
   );
@@ -35,12 +35,12 @@ export default function InterviewingPage() {
   const [deleteApplicationId, setDeleteApplicationId] = useState<string | null>(null);
 
   const handleView = (id: string) => {
-    const application = data?.applications.find((app: InterviewingApplication) => app.id === id);
+    const application = data?.find((app: InterviewingApplication) => app.id === id);
     setViewApplication(application || null);
   };
 
   const handleEdit = (id: string) => {
-    const application = data?.applications.find((app: InterviewingApplication) => app.id === id);
+    const application = data?.find((app: InterviewingApplication) => app.id === id);
     setEditApplication(application || null);
   };
 
@@ -71,11 +71,11 @@ export default function InterviewingPage() {
     }
   };
 
-  const filteredData = data?.applications.filter((app: Application) =>
+  const filteredData = (data ?? []).filter((app: Application) =>
     Object.values(app).some((value) =>
       String(value).toLowerCase().includes(searchTerm.toLowerCase())
     )
-  ) ?? [];
+  );
 
   if (error) return <div>Failed to load interviewing candidates</div>;
   if (isLoading) return <div>Loading...</div>;

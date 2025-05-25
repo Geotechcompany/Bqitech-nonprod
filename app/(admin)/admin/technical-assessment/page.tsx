@@ -25,7 +25,7 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function TechnicalAssessmentPage() {
   const [searchTerm, setSearchTerm] = useState("");
-  const { data, error, isLoading } = useSWR<{ applications: TechnicalAssessmentApplication[] }>(
+  const { data, error, isLoading } = useSWR<TechnicalAssessmentApplication[]>(
     "/api/admin/applications?status=Technical Assessment",
     fetcher
   );
@@ -35,12 +35,12 @@ export default function TechnicalAssessmentPage() {
   const [deleteApplicationId, setDeleteApplicationId] = useState<string | null>(null);
 
   const handleView = (id: string) => {
-    const application = data?.applications.find((app: TechnicalAssessmentApplication) => app.id === id);
+    const application = data?.find((app: TechnicalAssessmentApplication) => app.id === id);
     setViewApplication(application || null);
   };
 
   const handleEdit = (id: string) => {
-    const application = data?.applications.find((app: TechnicalAssessmentApplication) => app.id === id);
+    const application = data?.find((app: TechnicalAssessmentApplication) => app.id === id);
     setEditApplication(application || null);
   };
 
@@ -76,11 +76,11 @@ export default function TechnicalAssessmentPage() {
     }
   };
 
-  const filteredData = data?.applications.filter((app: TechnicalAssessmentApplication) =>
+  const filteredData = (data ?? []).filter((app: TechnicalAssessmentApplication) =>
     Object.values(app).some((value) =>
       String(value).toLowerCase().includes(searchTerm.toLowerCase())
     )
-  ) ?? [];
+  );
 
   if (error) return <div>Failed to load technical assessment candidates</div>;
   if (isLoading) return <div>Loading...</div>;

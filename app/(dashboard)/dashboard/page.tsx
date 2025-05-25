@@ -87,7 +87,7 @@ export default function Dashboard() {
 
   const statusIcon = (status: string) => {
     switch (status) {
-      case "Applied":
+      case "New":
         return <Briefcase className="w-5 h-5" />;
       case "Shortlisted":
         return <Clock className="w-5 h-5" />;

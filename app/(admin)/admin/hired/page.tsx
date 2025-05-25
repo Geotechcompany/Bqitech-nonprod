@@ -29,7 +29,7 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function HiredPage() {
   const [searchTerm, setSearchTerm] = useState("");
-  const { data, error, isLoading } = useSWR<{ applications: HiredApplication[] }>(
+  const { data, error, isLoading } = useSWR<HiredApplication[]>(
     "/api/admin/applications?status=Hired",
     fetcher
   );
@@ -39,12 +39,12 @@ export default function HiredPage() {
   const [deleteApplicationId, setDeleteApplicationId] = useState<string | null>(null);
 
   const handleView = (id: string) => {
-    const application = data?.applications.find((app: HiredApplication) => app.id === id);
+    const application = data?.find((app: HiredApplication) => app.id === id);
     setViewApplication(application || null);
   };
 
   const handleEdit = (id: string) => {
-    const application = data?.applications.find((app: HiredApplication) => app.id === id);
+    const application = data?.find((app: HiredApplication) => app.id === id);
     setEditApplication(application || null);
   };
 
@@ -74,11 +74,11 @@ export default function HiredPage() {
     }
   };
 
-  const filteredData = data?.applications.filter((app: HiredApplication) =>
+  const filteredData = (data ?? []).filter((app: HiredApplication) =>
     Object.values(app).some((value) =>
       String(value).toLowerCase().includes(searchTerm.toLowerCase())
     )
-  ) ?? [];
+  );
 
   if (error) return <div>Failed to load hired candidates</div>;
   if (isLoading) return <div>Loading...</div>;

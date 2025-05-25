@@ -27,7 +27,7 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function DisqualifiedPage() {
   const [searchTerm, setSearchTerm] = useState("");
-  const { data, error, isLoading } = useSWR<{ applications: DisqualifiedApplication[] }>(
+  const { data, error, isLoading } = useSWR<DisqualifiedApplication[]>(
     "/api/admin/applications?status=Disqualified",
     fetcher
   );
@@ -37,12 +37,12 @@ export default function DisqualifiedPage() {
   const [deleteApplicationId, setDeleteApplicationId] = useState<string | null>(null);
 
   const handleView = (id: string) => {
-    const application = data?.applications.find((app: DisqualifiedApplication) => app.id === id);
+    const application = data?.find((app: DisqualifiedApplication) => app.id === id);
     setViewApplication(application || null);
   };
 
   const handleEdit = (id: string) => {
-    const application = data?.applications.find((app: DisqualifiedApplication) => app.id === id);
+    const application = data?.find((app: DisqualifiedApplication) => app.id === id);
     setEditApplication(application || null);
   };
 
@@ -73,11 +73,11 @@ export default function DisqualifiedPage() {
     }
   };
 
-  const filteredData = data?.applications.filter((app: DisqualifiedApplication) =>
+  const filteredData = (data ?? []).filter((app: DisqualifiedApplication) =>
     Object.values(app).some((value) =>
       String(value).toLowerCase().includes(searchTerm.toLowerCase())
     )
-  ) ?? [];
+  );
 
   if (error) return <div>Failed to load disqualified candidates</div>;
   if (isLoading) return <div>Loading...</div>;

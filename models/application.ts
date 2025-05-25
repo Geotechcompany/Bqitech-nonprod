@@ -4,7 +4,11 @@ const applicationSchema = new mongoose.Schema({
   name: String,
   email: { type: String, required: true },
   position: { type: String, required: true },
-  status: { type: String, default: 'Applied' },
+  status: { 
+    type: String, 
+    enum: ['PENDING', 'REVIEWED', 'ACCEPTED', 'REJECTED'], 
+    default: 'PENDING' 
+  },
   appliedDate: { type: Date, default: Date.now },
   shortlistedDate: Date,
   answers: [{

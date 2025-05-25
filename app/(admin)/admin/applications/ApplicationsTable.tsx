@@ -17,13 +17,14 @@ interface ApplicationsTableProps {
   onView: (id: string) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  structureType: 'new' | 'old';
 }
 
 const isUUID = (str: string) => 
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
 
-export function ApplicationsTable({ applications, jobTitles, onView, onEdit, onDelete }: ApplicationsTableProps) {
-  const columns: Column<Application>[] = [
+export function ApplicationsTable({ applications, jobTitles, onView, onEdit, onDelete, structureType }: ApplicationsTableProps) {
+  const columns: Column<Application>[] = structureType === 'new' ? [
     { 
       header: "Applicant", 
       accessor: (row: Application) => {
@@ -94,6 +95,17 @@ export function ApplicationsTable({ applications, jobTitles, onView, onEdit, onD
         <pre className="whitespace-pre-wrap text-sm">{value}</pre>
       )
     }
+  ] : [
+    { header: "Applicant", accessor: (row) => row.name },
+    { header: "Email", accessor: (row) => row.email },
+    { header: "Position", accessor: (row) => row.position },
+    { header: "Status", accessor: (row) => row.status },
+    { header: "Experience", accessor: (row) => row.experience },
+    { header: "Location", accessor: (row) => row.location },
+    { header: "Salary", accessor: (row) => row.salary },
+    { header: "COTS Exp", accessor: (row) => row.cotsExperience },
+    { header: "SQL/JS Exp", accessor: (row) => row.sqlJavaScriptExperience },
+    { header: "Report Dev", accessor: (row) => row.reportDevelopmentExperience }
   ];
 
   return (

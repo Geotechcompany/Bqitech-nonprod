@@ -55,7 +55,7 @@ export async function submitApplication(data: z.infer<typeof submitApplicationSc
         answer: answer.answer
       })),
       appliedDate: new Date(),
-      status: 'Applied',
+      status: 'New',
       position: job?.title || parsedData.jobId,
     };
 
