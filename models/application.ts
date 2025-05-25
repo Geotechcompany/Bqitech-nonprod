@@ -12,7 +12,17 @@ const applicationSchema = new mongoose.Schema({
     answer: String
   }],
   cvUrl: String,
-}, { timestamps: true });
+  jobId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Job',
+    required: true
+  },
+  applicantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+}, { timestamps: true, strictPopulate: false });
 
 export const Application = mongoose.models.Application || 
   mongoose.model('Application', applicationSchema);
@@ -29,4 +39,6 @@ export interface ApplicationDocument extends mongoose.Document {
     answer: string;
   }>;
   cvUrl?: string;
+  jobId: mongoose.Types.ObjectId;
+  applicantId: mongoose.Types.ObjectId;
 } 

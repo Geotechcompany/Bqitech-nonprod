@@ -21,10 +21,14 @@ export async function GET() {
     await connectToDatabase();
     
     const applications = await Application.find()
-      .populate('jobId', 'title')
-      .populate('userId', 'name email')
-      .sort({ createdAt: -1 })
-      .lean();
+      .populate({
+        path: 'jobId',
+        select: 'title location salaryRange'
+      })
+      .populate({
+        path: 'applicantId',
+        select: 'name email'
+      });
 
     return NextResponse.json(applications);
   } catch (error) {

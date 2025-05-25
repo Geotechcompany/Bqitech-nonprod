@@ -28,9 +28,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
       if (!session) {
         router.push('/admin/login');
-      } else if (session.user.role !== "ADMIN" && !pathname?.includes('/login')) {
+      } else if (session.user.role !== "ADMIN") {
         toast.error("You don't have admin access");
-        router.push('/');
+        router.push('/admin/login');
       }
     };
 
