@@ -32,12 +32,7 @@ export function LoginForm({ providers = {} }: { providers: any }) {
       }
 
       if (result?.ok) {
-        const session = await getSession()
-        if (session?.user?.role === "ADMIN") {
-          router.push("/dashboard")
-        } else {
-          router.push("/dashboard")
-        }
+        window.location.href = "/dashboard"
       }
     } catch (error) {
       toast.error(error.message || "Login failed", {
