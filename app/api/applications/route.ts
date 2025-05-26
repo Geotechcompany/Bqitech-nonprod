@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
         $match: {
           "answers": {
             $elemMatch: {
-              "questionText": "Email",
+              "questionText": { $regex: /^email$/i },
               "answer": userEmail
             }
           }
@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
       },
       {
         $project: {
+          _id: { $toString: "$_id" },
           name: 1,
           email: 1,
           phoneNumber: 1,
@@ -40,23 +41,21 @@ export async function GET(request: NextRequest) {
           cvUrl: 1,
           jobId: 1,
           answers: {
-            $filter: {
+            $map: {
               input: "$answers",
               as: "answer",
-              cond: { $ne: ["$$answer.questionText", "Email"] }
+              in: {
+                questionId: { $toString: "$$answer.questionId" },
+                questionText: "$$answer.questionText",
+                answer: "$$answer.answer"
+              }
             }
           }
         }
       }
     ]);
 
-    return NextResponse.json({
-      applications: applications.map(app => ({
-        ...app,
-        id: app._id.toString(),
-        _id: undefined,
-      }))
-    });
+    return NextResponse.json({ applications });
   } catch (error) {
     console.error("Error fetching applications:", error);
     return NextResponse.json(
