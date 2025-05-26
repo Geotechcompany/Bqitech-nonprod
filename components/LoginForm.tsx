@@ -34,7 +34,7 @@ export function LoginForm({ providers = {} }: { providers: any }) {
       if (result?.ok) {
         const session = await getSession()
         if (session?.user?.role === "ADMIN") {
-          router.push("/admin/overview")
+          router.push("/dashboard")
         } else {
           router.push("/dashboard")
         }
