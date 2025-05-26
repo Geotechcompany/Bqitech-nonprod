@@ -40,12 +40,34 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   try {
     const body = await request.json();
     
+    // Add status transition logic
+    const updatePayload: Record<string, any> = {
+      ...body,
+      // Clear dates when status changes
+      shortlistedDate: undefined,
+      technicalAssessmentDate: undefined,
+      interviewDate: undefined
+    };
+
+    // Set appropriate dates based on status
+    switch(body.status) {
+      case 'Shortlisted':
+        updatePayload.shortlistedDate = new Date();
+        break;
+      case 'Technical Assessment':
+        updatePayload.technicalAssessmentDate = new Date();
+        break;
+      case 'Interviewing':
+        updatePayload.interviewDate = new Date();
+        break;
+      case 'Hired':
+        updatePayload.hiredDate = new Date();
+        break;
+    }
+
     const updatedApplication = await Application.findByIdAndUpdate(
       params.id,
-      {
-        ...body,
-        shortlistedDate: body.status === 'Shortlisted' ? new Date() : null,
-      },
+      updatePayload,
       { new: true, runValidators: true }
     ).select('-__v').lean() as FlattenMaps<ApplicationDocument>;
 

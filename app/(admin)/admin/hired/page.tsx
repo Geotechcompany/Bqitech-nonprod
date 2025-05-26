@@ -9,12 +9,6 @@ import { ViewApplicationModal } from "@/components/admin/ViewApplicationModal";
 import { DeleteApplicationModal } from "@/components/admin/DeleteApplicationModal";
 import { Application } from "@/types/application";
 
-interface HiredApplication extends Application {
-  hireDate: string;
-  startDate: string;
-  salary: string;
-}
-
 const columns = [
   { header: "Name", accessor: "name" },
   { header: "Email", accessor: "email" },
@@ -29,22 +23,22 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function HiredPage() {
   const [searchTerm, setSearchTerm] = useState("");
-  const { data, error, isLoading } = useSWR<HiredApplication[]>(
-    "/api/admin/applications?status=Hired",
+  const { data, error, isLoading, mutate } = useSWR<Application[]>(
+    "/api/admin/hired",
     fetcher
   );
 
-  const [viewApplication, setViewApplication] = useState<HiredApplication | null>(null);
+  const [viewApplication, setViewApplication] = useState<Application | null>(null);
   const [editApplication, setEditApplication] = useState<Application | null>(null);
   const [deleteApplicationId, setDeleteApplicationId] = useState<string | null>(null);
 
   const handleView = (id: string) => {
-    const application = data?.find((app: HiredApplication) => app.id === id);
+    const application = data?.find((app: Application) => app.id === id);
     setViewApplication(application || null);
   };
 
   const handleEdit = (id: string) => {
-    const application = data?.find((app: HiredApplication) => app.id === id);
+    const application = data?.find((app: Application) => app.id === id);
     setEditApplication(application || null);
   };
 
@@ -60,6 +54,7 @@ export default function HiredPage() {
         body: JSON.stringify(updatedApplication),
       });
       setEditApplication(null);
+      mutate();
     } catch (error) {
       console.error("Failed to update application:", error);
     }
@@ -74,7 +69,7 @@ export default function HiredPage() {
     }
   };
 
-  const filteredData = (data ?? []).filter((app: HiredApplication) =>
+  const filteredData = (Array.isArray(data) ? data : []).filter((app: Application) =>
     Object.values(app).some((value) =>
       String(value).toLowerCase().includes(searchTerm.toLowerCase())
     )

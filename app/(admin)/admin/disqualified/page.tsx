@@ -9,17 +9,12 @@ import { ViewApplicationModal } from "@/components/admin/ViewApplicationModal";
 import { DeleteApplicationModal } from "@/components/admin/DeleteApplicationModal";
 import { Application } from "@/types/application";
 
-interface DisqualifiedApplication extends Application {
-  disqualificationDate: string;
-  disqualificationReason: string;
-}
-
 const columns = [
   { header: "Name", accessor: "name" },
   { header: "Email", accessor: "email" },
   { header: "Position", accessor: "position" },
-  { header: "Disqualified Date", accessor: "disqualificationDate" },
-  { header: "Reason", accessor: "disqualificationReason" },
+  { header: "Disqualified Date", accessor: "disqualifiedDate" },
+  { header: "Reason", accessor: "disqualifiedReason" },
   { header: "Status", accessor: "status" },
 ];
 
@@ -27,22 +22,22 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function DisqualifiedPage() {
   const [searchTerm, setSearchTerm] = useState("");
-  const { data, error, isLoading } = useSWR<DisqualifiedApplication[]>(
-    "/api/admin/applications?status=Disqualified",
+  const { data, error, isLoading, mutate } = useSWR<Application[]>(
+    "/api/admin/disqualified",
     fetcher
   );
 
-  const [viewApplication, setViewApplication] = useState<DisqualifiedApplication | null>(null);
+  const [viewApplication, setViewApplication] = useState<Application | null>(null);
   const [editApplication, setEditApplication] = useState<Application | null>(null);
   const [deleteApplicationId, setDeleteApplicationId] = useState<string | null>(null);
 
   const handleView = (id: string) => {
-    const application = data?.find((app: DisqualifiedApplication) => app.id === id);
+    const application = data?.find((app: Application) => app.id === id);
     setViewApplication(application || null);
   };
 
   const handleEdit = (id: string) => {
-    const application = data?.find((app: DisqualifiedApplication) => app.id === id);
+    const application = data?.find((app: Application) => app.id === id);
     setEditApplication(application || null);
   };
 
@@ -56,11 +51,11 @@ export default function DisqualifiedPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updatedApplication),
-      })
-      setEditApplication(null)
-      // Optionally, you can refetch the data here to update the UI
+      });
+      setEditApplication(null);
+      mutate();
     } catch (error) {
-      console.error("Failed to update application:", error)
+      console.error("Failed to update application:", error);
     }
   };
 
@@ -73,7 +68,7 @@ export default function DisqualifiedPage() {
     }
   };
 
-  const filteredData = (data ?? []).filter((app: DisqualifiedApplication) =>
+  const filteredData = (data ?? []).filter((app: Application) =>
     Object.values(app).some((value) =>
       String(value).toLowerCase().includes(searchTerm.toLowerCase())
     )

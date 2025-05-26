@@ -54,17 +54,20 @@ export function ApplicationsTable({ applications, jobTitles, onView, onEdit, onD
     { 
       header: "Position", 
       accessor: (row: Application) => {
-        // Check if position is a UUID and look up job title
+        // First check if we have a direct position value
+        if (row.position && !isUUID(row.position)) {
+          return row.position;
+        }
+        
+        // If position is a UUID, look up job title
         if (row.position && isUUID(row.position)) {
           return jobTitles[row.position] || row.position;
         }
         
-        // Fallback to direct value or answers
-        return row.position ||
-          row.answers?.find(a => 
-            a.questionText.toLowerCase().includes('position')
-          )?.answer ||
-          'N/A';
+        // Fallback to answers
+        return row.answers?.find(a => 
+          a.questionText.toLowerCase().includes('position')
+        )?.answer || 'N/A';
       },
       cell: (value: string) => value
     },

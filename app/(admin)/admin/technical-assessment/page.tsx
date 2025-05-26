@@ -25,8 +25,8 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function TechnicalAssessmentPage() {
   const [searchTerm, setSearchTerm] = useState("");
-  const { data, error, isLoading } = useSWR<TechnicalAssessmentApplication[]>(
-    "/api/admin/applications?status=Technical Assessment",
+  const { data, error, isLoading, mutate } = useSWR<TechnicalAssessmentApplication[]>(
+    "/api/admin/technical-assessment",
     fetcher
   );
 
@@ -49,12 +49,6 @@ export default function TechnicalAssessmentPage() {
   };
 
   const handleSaveEdit = async (updatedApplication: Application) => {
-    const typedApplication = updatedApplication as TechnicalAssessmentApplication;
-    if (!typedApplication.technicalAssessmentDate) {
-      console.error('Assessment date is required');
-      return;
-    }
-    
     try {
       await fetch(`/api/admin/applications/${updatedApplication.id}`, {
         method: "PUT",
@@ -62,6 +56,7 @@ export default function TechnicalAssessmentPage() {
         body: JSON.stringify(updatedApplication),
       });
       setEditApplication(null);
+      mutate();
     } catch (error) {
       console.error("Failed to update application:", error);
     }

@@ -5,10 +5,10 @@ import { Application } from '@/models/application';
 export async function GET() {
   try {
     await mongoose.connect(process.env.MONGODB_URI!);
-    const shortlisted = await Application.find({
-      shortlistedDate: { $ne: null }
+    const shortlisted = await Application.find({ 
+      status: 'Shortlisted'
     })
-    .select('id name email position shortlistedDate')
+    .select('id name email position shortlistedDate status')
     .lean();
     
     return NextResponse.json(shortlisted);

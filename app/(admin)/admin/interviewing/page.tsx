@@ -9,10 +9,6 @@ import { ViewApplicationModal } from "@/components/admin/ViewApplicationModal";
 import { DeleteApplicationModal } from "@/components/admin/DeleteApplicationModal";
 import { Application } from "@/types/application";
 
-interface InterviewingApplication extends Application {
-  interviewDate: string;
-}
-
 const columns = [
   { header: "Name", accessor: "name" },
   { header: "Email", accessor: "email" },
@@ -25,8 +21,8 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function InterviewingPage() {
   const [searchTerm, setSearchTerm] = useState("");
-  const { data, error, isLoading } = useSWR<Application[]>(
-    "/api/admin/applications?status=Interviewing",
+  const { data, error, isLoading, mutate } = useSWR<Application[]>(
+    "/api/admin/interviewing",
     fetcher
   );
 
@@ -35,12 +31,12 @@ export default function InterviewingPage() {
   const [deleteApplicationId, setDeleteApplicationId] = useState<string | null>(null);
 
   const handleView = (id: string) => {
-    const application = data?.find((app: InterviewingApplication) => app.id === id);
+    const application = data?.find((app: Application) => app.id === id);
     setViewApplication(application || null);
   };
 
   const handleEdit = (id: string) => {
-    const application = data?.find((app: InterviewingApplication) => app.id === id);
+    const application = data?.find((app: Application) => app.id === id);
     setEditApplication(application || null);
   };
 
@@ -56,7 +52,7 @@ export default function InterviewingPage() {
         body: JSON.stringify(updatedApplication),
       });
       setEditApplication(null);
-      // Optionally, you can refetch the data here to update the UI
+      mutate();
     } catch (error) {
       console.error("Failed to update application:", error);
     }

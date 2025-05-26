@@ -6,10 +6,14 @@ import mongoose from 'mongoose';
 
 const predefinedStatuses = [
   'New',
+  'Applied',
+  'In Review',
+  'Technical Assessment',
   'Interviewing',
-  'Application',
-  'Disqualified',
-  'Hired'
+  'Hired',
+  'Rejected',
+  'Shortlisted',
+  'Disqualified'
 ];
 
 export async function GET() {

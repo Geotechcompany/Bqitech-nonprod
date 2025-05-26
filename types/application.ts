@@ -30,8 +30,7 @@ export interface Application {
     startDate?: string
     disqualifiedDate?: string
     disqualifiedReason?: string
-    answers?: Array<{
-      questionId: string;
+    answers: Array<{
       questionText: string;
       answer: string;
     }>;
