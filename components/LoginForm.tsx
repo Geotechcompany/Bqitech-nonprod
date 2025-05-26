@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useForm } from "react-hook-form"
-import { toast } from "react-hot-toast"
+import { toast } from "sonner"
 import { motion } from "framer-motion"
-import { Mail, Lock, Github, Chrome, ArrowRight, UserPlus } from "lucide-react"
+import { Mail, Lock, Github, Chrome, ArrowRight, UserPlus, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
@@ -40,7 +40,13 @@ export function LoginForm({ providers = {} }: { providers: any }) {
         }
       }
     } catch (error) {
-      toast.error(error.message || "Login failed. Please try again.")
+      toast.error(error.message || "Login failed", {
+        description: "Please check your credentials and try again",
+        action: {
+          label: 'Reset Password',
+          onClick: () => window.location.href = '/forgot-password'
+        },
+      })
     } finally {
       setIsLoading(false)
     }
@@ -50,83 +56,88 @@ export function LoginForm({ providers = {} }: { providers: any }) {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-      className="w-full"
+      className="w-full space-y-8"
     >
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <div className="text-center space-y-2">
+        <motion.h1
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-3xl font-bold"
+        >
+          Welcome Back
+        </motion.h1>
+        <p className="text-muted-foreground">
+          Sign in to your account
+        </p>
+      </div>
+
+      <motion.form
+        onSubmit={handleSubmit(onSubmit)}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="space-y-6"
+      >
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email" className="text-sm font-medium text-muted-foreground">
-              Email
-            </Label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="email"
-                type="email"
-                placeholder="Enter your email"
-                className="pl-10"
-                {...register("email", { required: true })}
-              />
-            </div>
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="Enter your email"
+              {...register("email", { required: true })}
+              className="h-12 focus:ring-2 focus:ring-[#31CDFF]"
+            />
           </div>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label htmlFor="password" className="text-sm font-medium text-muted-foreground">
-                Password
-              </Label>
+              <Label htmlFor="password">Password</Label>
               <Link
                 href="/forgot-password"
-                className="text-sm font-medium text-[#31CDFF] hover:text-[#31CDFF]/90 transition-colors"
+                className="text-sm font-medium text-[#31CDFF] hover:text-[#31CDFF]/90"
               >
                 Forgot password?
               </Link>
             </div>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter your password"
-                className="pl-10"
-                {...register("password", { required: true })}
-              />
-            </div>
+            <Input
+              id="password"
+              type="password"
+              placeholder="••••••••"
+              {...register("password", { required: true })}
+              className="h-12 focus:ring-2 focus:ring-[#31CDFF]"
+            />
           </div>
 
-          <Button 
-            type="submit" 
-            className="w-full bg-gradient-to-r from-[#31CDFF] to-blue-500 hover:from-[#31CDFF]/90 hover:to-blue-500/90 group"
+          <Button
+            type="submit"
+            className="w-full h-12 text-base bg-gradient-to-r from-[#31CDFF] to-blue-500 hover:from-[#31CDFF]/90 hover:to-blue-500/90"
             disabled={isLoading}
           >
-            {isLoading ? "Signing in..." : "Sign In"}
-            {!isLoading && <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />}
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Signing In...
+              </>
+            ) : (
+              <>
+                Sign In
+                <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </>
+            )}
           </Button>
         </div>
-
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
-          </div>
-         
-        </div>
-
-    
 
         <div className="text-center text-sm text-muted-foreground">
           Don't have an account?{" "}
           <Link
             href="/sign-up"
-            className="font-medium text-[#31CDFF] hover:text-[#31CDFF]/90 transition-colors"
+            className="font-medium text-[#31CDFF] hover:underline"
           >
-            <Button variant="ghost" className="gap-2">
-              <UserPlus className="h-4 w-4" />
-              Sign Up
-            </Button>
+            Sign up
           </Link>
         </div>
-      </form>
+      </motion.form>
     </motion.div>
   )
 } 

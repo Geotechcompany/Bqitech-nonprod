@@ -4,10 +4,16 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useForm } from "react-hook-form";
-import Select from 'react-select';
+import ReactSelect from 'react-select';
 import { Label } from "@/components/ui/label";
-import { Select as UISelect, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { X, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -47,8 +53,7 @@ export function EditQuestionModal({
   optionInput,
   handleAddOption,
   handleRemoveOption,
-  handleTypeChange: onTypeChange,
-  editOptionInput,
+  handleTypeChange,
   setEditOptionInput,
   setEditOptions
 }: {
@@ -64,7 +69,6 @@ export function EditQuestionModal({
   handleAddOption: (isEdit: boolean) => void;
   handleRemoveOption: (index: number, isEdit: boolean) => void;
   handleTypeChange: (type: "text" | "select" | "radio" | "boolean" | "file") => void;
-  editOptionInput: string;
   setEditOptionInput: (value: string) => void;
   setEditOptions: (options: string[]) => void;
 }) {
@@ -113,29 +117,21 @@ export function EditQuestionModal({
 
   useEffect(() => {
     if (questionData) {
-      const jobOptions = (questionData.jobIds || []).map((id: string, index: number) => ({
-        value: id,
-        label: (questionData.jobTitles?.[index] || 'Unknown Job')
+      const jobIdsOptions = questionData.jobTitles.map(job => ({
+        value: job._id,
+        label: job.title
       }));
-
-      // Handle different question types
-      let finalOptions = questionData.options || [];
-      if (questionData.type === 'boolean') {
-        finalOptions = ['Yes', 'No'];
-      }
 
       form.reset({
         ...questionData,
-        jobIds: jobOptions,
-        options: finalOptions,
-        type: questionData.type as "text" | "select" | "radio" | "boolean" | "file"
+        jobIds: jobIdsOptions,
+        options: questionData.options || [],
+        type: questionData.type
       });
-      
-      // Update local options state
-      setEditOptions(finalOptions);
-      setEditOptionInput('');
+
+      setEditOptions(questionData.options || []);
     }
-  }, [questionData, form]);
+  }, [questionData, form, setEditOptions]);
 
   if (isQuestionLoading) {
     return (
@@ -162,7 +158,7 @@ export function EditQuestionModal({
   };
 
   const handleLocalTypeChange = (type: "text" | "select" | "radio" | "boolean" | "file") => {
-    onTypeChange(type);
+    handleTypeChange(type);
     
     // Reset options based on type
     if (type === 'boolean') {
@@ -175,162 +171,172 @@ export function EditQuestionModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle>Edit Question</DialogTitle>
+          <DialogTitle className="text-xl font-semibold">Edit Question</DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="question"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Question Text</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="Enter question text" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+            <div className="grid grid-cols-2 gap-6">
+              {/* Job Associations */}
+              <FormField
+                name="jobIds"
+                render={({ field }) => (
+                  <FormItem className="col-span-2">
+                    <FormLabel>Associated Jobs</FormLabel>
+                    <FormControl>
+                      <ReactSelect
+                        isMulti
+                        options={jobOptions}
+                        value={field.value}
+                        onChange={field.onChange}
+                        className="react-select-container"
+                        classNamePrefix="react-select"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <FormField
-              control={form.control}
-              name="jobIds"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Associated Jobs</FormLabel>
-                  <FormControl>
+              {/* Question Text */}
+              <FormField
+                name="question"
+                render={({ field }) => (
+                  <FormItem className="col-span-2">
+                    <FormLabel>Question Text</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Question Type */}
+              <FormField
+                name="type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Question Type</FormLabel>
                     <Select
-                      options={jobOptions}
-                      isMulti
+                      onValueChange={field.onChange}
                       value={field.value}
-                      onChange={(selected) => 
-                        field.onChange(selected as Array<{ value: string; label: string }>)
-                      }
-                      className="react-select-container"
-                      classNamePrefix="react-select"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="text">Text</SelectItem>
+                        <SelectItem value="select">Dropdown</SelectItem>
+                        <SelectItem value="radio">Multiple Choice</SelectItem>
+                        <SelectItem value="boolean">Yes/No</SelectItem>
+                        <SelectItem value="file">File Upload</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <FormField
-              control={form.control}
-              name="required"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">Required</FormLabel>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
+              {/* Display Order */}
+              <FormField
+                name="order"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Display Order</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        {...field}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <FormField
-              control={form.control}
-              name="order"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Display Order</FormLabel>
-                  <FormControl>
-                    <Input 
-                      type="number" 
-                      {...field} 
-                      onChange={(e) => field.onChange(Number(e.target.value))}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="flex justify-end space-x-2">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => onOpenChange(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? 'Saving...' : 'Save Changes'}
-              </Button>
+              {/* Required Switch */}
+              <FormField
+                name="required"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col justify-end">
+                    <div className="flex items-center gap-3">
+                      <FormLabel>Required</FormLabel>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
+            {/* Options Section */}
             {showOptions && (
-              <div className="space-y-2">
-                <Label>Options</Label>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <FormLabel>Response Options</FormLabel>
+                  <span className="text-sm text-muted-foreground">
+                    {options.length} option(s) added
+                  </span>
+                </div>
+                
                 <div className="flex gap-2">
                   <Input
-                    value={editOptionInput}
+                    value={optionInput}
                     onChange={(e) => setEditOptionInput(e.target.value)}
-                    placeholder="Add option"
+                    placeholder="Add new option"
+                    onKeyPress={(e) => e.key === 'Enter' && handleAddOption(true)}
                   />
                   <Button
                     type="button"
                     onClick={() => handleAddOption(true)}
                     variant="outline"
+                    size="sm"
                   >
-                    Add
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Option
                   </Button>
                 </div>
-                <div className="flex flex-wrap gap-2">
+
+                <div className="grid grid-cols-1 gap-2">
                   {options.map((option, index) => (
-                    <div key={index} className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded">
-                      {option}
-                      <button
+                    <div key={index} className="flex items-center justify-between bg-muted/50 rounded-md px-3 py-2">
+                      <span className="text-sm">{option}</span>
+                      <Button
                         type="button"
                         onClick={() => handleRemoveOption(index, true)}
-                        className="text-red-500"
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 hover:text-red-700"
                       >
                         <X className="h-4 w-4" />
-                      </button>
+                      </Button>
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
-            <FormField
-              control={form.control}
-              name="type"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Question Type</FormLabel>
-                  <UISelect 
-                    onValueChange={(value) => {
-                      field.onChange(value);
-                      onTypeChange?.(value as any);
-                    }} 
-                    value={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select question type" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="text">Text</SelectItem>
-                      <SelectItem value="select">Dropdown</SelectItem>
-                      <SelectItem value="radio">Multiple Choice</SelectItem>
-                      <SelectItem value="boolean">Yes/No</SelectItem>
-                      <SelectItem value="file">File Upload</SelectItem>
-                    </SelectContent>
-                  </UISelect>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="flex justify-end gap-3 pt-6">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => onOpenChange(false)}
+              >
+                Discard Changes
+              </Button>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                {isLoading ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
           </form>
         </Form>
       </DialogContent>

@@ -573,7 +573,6 @@ export default function QuestionsManagementPage() {
         handleAddOption={handleAddOption}
         handleRemoveOption={handleRemoveOption}
         handleTypeChange={handleEditTypeChange}
-        editOptionInput={editOptionInput}
         setEditOptionInput={setEditOptionInput}
         setEditOptions={setEditOptions}
       />

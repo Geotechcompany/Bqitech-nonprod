@@ -5,6 +5,7 @@ import "./globals.css"
 import { ReactNode } from 'react'
 import { SessionProvider } from "next-auth/react"
 import { metadata } from './metadata'
+import { usePathname } from 'next/navigation'
 
 const inter = Inter({
   subsets: ["latin"],

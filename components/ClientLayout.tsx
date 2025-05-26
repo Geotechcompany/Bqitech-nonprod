@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import Loader from "@/components/Loader";
+import { usePathname } from 'next/navigation';
 
 export default function ClientLayout({
   children,
@@ -11,6 +12,8 @@ export default function ClientLayout({
   children: React.ReactNode;
 }) {
   const [isLoading, setIsLoading] = useState(true);
+  const pathname = usePathname();
+  const isAuthPage = ['/login', '/sign-up' , '/forgot-password'].some(path => pathname?.startsWith(path));
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -26,9 +29,9 @@ export default function ClientLayout({
         <Loader />
       ) : (
         <>
-          <Header />
+          {isAuthPage ? null : <Header />}
           <main className="flex-grow">{children}</main>
-          <Footer />
+          {isAuthPage ? null : <Footer />}
         </>
       )}
     </div>

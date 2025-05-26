@@ -1,6 +1,7 @@
 import { getProviders } from "next-auth/react"
 import { LoginForm } from "../../../components/LoginForm"
 import FloatingShapes from "../../../components/FloatingShapes"
+import { Zap } from "lucide-react"
 
 export default async function LoginPage() {
   let providers = {}
@@ -12,18 +13,31 @@ export default async function LoginPage() {
   }
   
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#31CDFF]/10 to-blue-500/10">
-      <FloatingShapes />
-      <div className="relative z-10 bg-background p-8 rounded-lg shadow-2xl w-full max-w-md">
-        <div className="text-center space-y-2">
-          <h2 className="text-3xl font-bold text-foreground">
-            Welcome Back
-          </h2>
-          <p className="text-muted-foreground">
-            Sign in to your account
-          </p>
+    <div className="min-h-screen grid lg:grid-cols-2">
+      {/* Left Panel - Gradient Background */}
+      <div className="hidden lg:block relative bg-gradient-to-br from-[#31CDFF] to-blue-600">
+        <div className="absolute inset-0 pattern-dots pattern-blue-500 pattern-bg-transparent pattern-opacity-20 pattern-size-4" />
+        <div className="relative h-full flex flex-col justify-between p-12 text-white">
+          <Zap className="w-12 h-12" />
+          <div className="space-y-4">
+            <h2 className="text-4xl font-bold">BQI Tech Portal</h2>
+            <p className="text-lg opacity-90">
+              Empowering innovation through secure access
+            </p>
+          </div>
+          <div className="flex gap-4 opacity-75">
+            <span className="text-sm">v2.4.0</span>
+            <span className="text-sm">•</span>
+            <span className="text-sm">Secure Login</span>
+          </div>
         </div>
-        <LoginForm providers={providers} />
+      </div>
+
+      {/* Right Panel - Login Form */}
+      <div className="flex items-center justify-center p-8 bg-background">
+        <div className="relative z-10 bg-background p-8 rounded-lg shadow-2xl w-full max-w-md">
+          <LoginForm providers={providers} />
+        </div>
       </div>
     </div>
   );

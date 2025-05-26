@@ -126,17 +126,7 @@ export default function AdminLoginPage() {
             </Button>
           </form>
 
-          <div className="text-center text-sm text-muted-foreground">
-            <p>
-              Having trouble?{" "}
-              <a
-                href="#"
-                className="font-medium text-primary hover:underline"
-              >
-                Reset password
-              </a>
-            </p>
-          </div>
+       
         </motion.div>
       </div>
     </div>

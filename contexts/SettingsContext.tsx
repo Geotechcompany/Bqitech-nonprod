@@ -9,6 +9,10 @@ interface SettingsContextType {
   autoLogout: number;
   tableRowsPerPage: number;
   sidebarCollapsed: boolean;
+  profile: {
+    name: string;
+    email: string;
+  };
   updateSettings: (settings: Partial<SettingsContextType>) => Promise<void>;
 }
 
@@ -21,13 +25,38 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     autoLogout: 30,
     tableRowsPerPage: 10,
     sidebarCollapsed: false,
+    profile: {
+      name: '',
+      email: ''
+    },
   });
+
+  const defaultSettings = {
+    emailNotifications: true,
+    pushNotifications: true,
+    autoLogout: 30,
+    tableRowsPerPage: 10,
+    sidebarCollapsed: false,
+    profile: {
+      name: '',
+      email: ''
+    },
+  };
 
   useEffect(() => {
     // Load settings from localStorage on mount
     const savedSettings = localStorage.getItem('adminSettings');
     if (savedSettings) {
-      setSettings(JSON.parse(savedSettings));
+      const parsedSettings = JSON.parse(savedSettings);
+      // Merge with default settings to ensure new properties exist
+      setSettings({
+        ...defaultSettings,
+        ...parsedSettings,
+        profile: {
+          ...defaultSettings.profile,
+          ...parsedSettings.profile
+        }
+      });
     }
   }, []);
 
