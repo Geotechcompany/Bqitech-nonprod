@@ -4,7 +4,7 @@
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { PasswordStrengthMeter } from "@/components/auth/password-strength-meter"
-import { cn } from "@/lib/utils"
+
 import zxcvbn from "zxcvbn"
 import { Button } from "@/components/ui/button"
 import { motion } from "framer-motion"
@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Zap } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useForm, FieldError } from "react-hook-form"
-import { toast } from "sonner"
+import toast from "react-hot-toast"
 
 // Add schema validation
 const formSchema = z.object({
@@ -48,6 +48,8 @@ export default function SignUpPage() {
 
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     setIsSubmitting(true)
+    const toastId = toast.loading('Creating account...')
+    
     try {
       const response = await fetch('/api/auth/signup', {
         method: 'POST',
@@ -61,18 +63,19 @@ export default function SignUpPage() {
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || errorData.message || 'Signup failed')
+        throw new Error(errorData.error || 'Signup failed')
       }
       
+      toast.success('Account created successfully! Redirecting...', { id: toastId })
       router.push('/dashboard')
     } catch (error) {
-      toast.error(error.message || 'Signup failed. Please try again.', {
-        duration: 10000,
-        action: {
-          label: 'Contact Support',
-          onClick: () => window.open('mailto:support@bqitech.com')
-        },
-      })
+      toast.error(
+        error.message || 'Signup failed. Please try again or contact support.',
+        { 
+          id: toastId,
+          duration: 5000
+        }
+      )
     } finally {
       setIsSubmitting(false)
     }
