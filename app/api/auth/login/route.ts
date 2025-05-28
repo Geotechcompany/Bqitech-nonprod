@@ -1,6 +1,7 @@
 import { connectToDatabase } from "@/lib/mongodb";
 
 import { User } from "@/models/user";
+import { Token } from "@/models/token";
 
 import { NextResponse } from "next/server";
 import { generateEmailVerificationToken } from "@/lib/tokens";
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
     if (!user.emailVerified) {
       // Generate and store new verification token
       const { token, expires } = generateEmailVerificationToken();
-      await conn.models.Token.create({
+      await Token.create({
         userId: user._id,
         token,
         type: 'EMAIL_VERIFICATION',

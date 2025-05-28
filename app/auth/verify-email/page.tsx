@@ -12,6 +12,7 @@ import { z } from 'zod'
 import toast, { Toaster } from 'react-hot-toast'
 import OtpInput from 'react-otp-input'
 import FloatingShapes from "@/components/FloatingShapes"
+import { Controller } from 'react-hook-form'
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -35,24 +36,28 @@ export default function EmailVerificationPage() {
   const searchParams = useSearchParams()
   const email = searchParams.get('email')
   const tokenParam = searchParams.get('token')
+  const [error, setError] = useState('')
 
-  const { handleSubmit, formState: { errors } } = useForm({
-    resolver: zodResolver(otpSchema)
+  const { handleSubmit, formState: { errors }, control, setError: setFormError } = useForm<z.infer<typeof otpSchema>>({
+    resolver: zodResolver(otpSchema),
+    defaultValues: {
+      code: ''
+    }
   })
 
   useEffect(() => {
     if (otp.length === 6) {
       handleSubmit(onSubmit)()
     }
-  }, [otp])
+  }, [otp, handleSubmit])
 
-  const onSubmit = async () => {
+  const onSubmit = async (data: z.infer<typeof otpSchema>) => {
     setStatus('loading')
     try {
       const response = await fetch('/api/auth/verify-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: otp })
+        body: JSON.stringify({ token: data.code })
       })
 
       if (!response.ok) {
@@ -85,6 +90,11 @@ export default function EmailVerificationPage() {
     } catch (error) {
       toast.error(error.message || 'Failed to resend code')
     }
+  }
+
+  const handleInputChange = (value: string) => {
+    setOtp(value)
+    if (error) setError('')
   }
 
   return (
@@ -121,30 +131,46 @@ export default function EmailVerificationPage() {
 
             <CardContent>
               <motion.form 
-                onSubmit={handleSubmit(onSubmit)}
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  if (otp.length === 6) {
+                    handleSubmit(onSubmit)()
+                  }
+                }}
                 variants={childVariants}
                 className="space-y-6"
               >
                 <div className="space-y-2">
-                  <OtpInput
-                    value={otp}
-                    onChange={setOtp}
-                    numInputs={6}
-                    renderInput={(props) => (
-                      <input
-                        {...props}
-                        className="!w-10 h-12 sm:!w-12 sm:h-14 text-center border rounded-md 
-                                 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg sm:text-xl"
-                        disabled={status === 'loading'}
+                  <Controller
+                    name="code"
+                    control={control}
+                    render={({ field }) => (
+                      <OtpInput
+                        {...field}
+                        value={otp}
+                        onChange={(value) => {
+                          field.onChange(value);
+                          setOtp(value);
+                          if (error) setError('');
+                        }}
+                        numInputs={6}
+                        renderInput={(props) => (
+                          <input
+                            {...props}
+                            className="!w-10 h-12 sm:!w-12 sm:h-14 text-center border rounded-md 
+                                     focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg sm:text-xl"
+                            disabled={status === 'loading'}
+                          />
+                        )}
+                        containerStyle="flex justify-center gap-2 sm:gap-4"
+                        inputType="number"
+                        shouldAutoFocus
                       />
                     )}
-                    containerStyle="flex justify-center gap-2 sm:gap-4"
-                    inputType="number"
-                    shouldAutoFocus
                   />
-                  {errors.code?.message && (
+                  {errors.code && (
                     <p className="text-sm text-destructive text-center">
-                      {errors.code.message.toString()}
+                      {errors.code.message}
                     </p>
                   )}
                 </div>

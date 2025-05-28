@@ -5,7 +5,7 @@ import { Token } from '@/models/token'
 
 export async function POST(request: Request) {
   try {
-    const conn = await connectToDatabase()
+    const { db } = await connectToDatabase()
     const { token } = await request.json()
 
     if (!token) {
@@ -15,11 +15,15 @@ export async function POST(request: Request) {
       )
     }
 
-    const verificationToken = await conn.models.Token.findOne({
-      token: { $regex: new RegExp(`^${token}$`, 'i') },
+    // Exact match with case sensitivity
+    const verificationToken = await Token.findOne({
+      token: token,
       type: 'EMAIL_VERIFICATION',
       expires: { $gt: new Date() }
-    })
+    }).lean()
+
+    console.log('Looking for token:', token)
+    console.log('Found token:', verificationToken)
 
     if (!verificationToken) {
       return NextResponse.json(
@@ -41,7 +45,7 @@ export async function POST(request: Request) {
       User.findByIdAndUpdate(user._id, { 
         $set: { emailVerified: new Date() }
       }),
-      conn.models.Token.deleteMany({
+      Token.deleteMany({
         userId: user._id,
         type: 'EMAIL_VERIFICATION'
       })

@@ -8,7 +8,9 @@ const UserSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
   phoneNumber: String,
-
+  emailVerified: { type: Date },
+  emailVerificationToken: String,
+  emailVerificationExpires: Date
 });
 
 export const User = mongoose.models.User || mongoose.model("User", UserSchema); 

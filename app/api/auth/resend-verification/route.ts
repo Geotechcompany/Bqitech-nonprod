@@ -4,12 +4,15 @@ import { User } from '@/models/user'
 import { Token } from '@/models/token'
 import { generateEmailVerificationToken } from '@/lib/tokens'
 import { sendVerificationEmail } from '@/lib/mailer'
+import mongoose from 'mongoose'
 
 export async function POST(request: Request) {
   try {
-    const conn = await connectToDatabase()
-    const { email } = await request.json()
+    // Connect to MongoDB first
+    await connectToDatabase()
 
+    const { email } = await request.json()
+    
     if (!email) {
       return NextResponse.json(
         { error: 'Email is required' },
@@ -17,41 +20,39 @@ export async function POST(request: Request) {
       )
     }
 
+    // Find user by email
     const user = await User.findOne({ email })
+    
     if (!user) {
       return NextResponse.json(
-        { error: 'No user found with this email' },
+        { error: 'User not found' },
         { status: 404 }
       )
     }
 
-    // Revoke existing tokens
-    await conn.models.Token.deleteMany({
-      userId: user._id,
-      type: 'EMAIL_VERIFICATION'
-    })
-
-    // Generate new token
+    // Generate new verification token
     const { token, expires } = generateEmailVerificationToken()
-    await conn.models.Token.create({
+
+    // Store token in separate collection
+    await Token.create({
       userId: user._id,
       token,
       type: 'EMAIL_VERIFICATION',
-      expires
+      expires: new Date(expires)
     })
 
     // Send verification email
-    await sendVerificationEmail(email, token)
+    await sendVerificationEmail(user.email, token)
 
-    return NextResponse.json({
-      success: true,
-      message: 'New verification code sent'
-    })
+    return NextResponse.json(
+      { message: 'Verification email resent' },
+      { status: 200 }
+    )
 
   } catch (error) {
     console.error('Resend verification error:', error)
     return NextResponse.json(
-      { error: 'Failed to resend verification code' },
+      { error: 'Failed to resend verification email' },
       { status: 500 }
     )
   }

@@ -30,38 +30,13 @@ if (!cached) {
 }
 
 export async function connectToDatabase() {
-  if (cached.conn) return cached.conn;
-  
-  if (mongoose.connection.readyState === 1) return;
-  
-  try {
-    await mongoose.connect(process.env.MONGODB_URI!, {
-      serverSelectionTimeoutMS: 10000,
-      socketTimeoutMS: 45000,
-      maxPoolSize: 10,
-      minPoolSize: 2,
-      heartbeatFrequencyMS: 10000,
-      waitQueueTimeoutMS: 15000
-    });
+  if (mongoose.connection.readyState >= 1) return { db: mongoose.connection.db };
 
-    mongoose.connection.on('error', (err) => {
-      console.error('MongoDB connection error:', err);
-      if (err.name === 'MongoNetworkError') {
-        setTimeout(connectToDatabase, 5000);
-      }
-    });
-    
-    mongoose.connection.on('disconnected', () => {
-      console.warn('MongoDB disconnected. Attempting reconnect...');
-      setTimeout(connectToDatabase, 5000);
-    });
+  const conn = await mongoose.connect(process.env.MONGODB_URI!, {
+    serverSelectionTimeoutMS: 5000
+  });
 
-  } catch (error) {
-    console.error('Initial connection failed:', error);
-    throw error;
-  }
-
-  return cached.conn;
+  return { db: conn.connection.db };
 }
 
 export default connectToDatabase; 
