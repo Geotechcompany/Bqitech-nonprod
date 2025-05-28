@@ -19,8 +19,6 @@ import { useForm, FieldError } from "react-hook-form"
 import toast from "react-hot-toast"
 import { Turnstile } from "@marsidev/react-turnstile"
 import { rateLimit } from '@/lib/rate-limit'
-import { generateEmailVerificationToken } from '@/lib/tokens'
-import { sendVerificationEmail } from '@/lib/email'
 import ReCAPTCHA from "react-google-recaptcha"
 
 // Add schema validation

@@ -62,12 +62,31 @@ export async function POST(req: Request) {
 
     // Generate and store verification token
     const { token: verificationToken, expires } = generateEmailVerificationToken()
-    await Token.create({
-      userId: user._id,
-      token: verificationToken,
-      type: 'EMAIL_VERIFICATION',
-      expires: new Date(expires)
-    })
+
+    // Add validation for token generation
+    if (!verificationToken || !expires) {
+      console.error('Token generation failed')
+      return NextResponse.json(
+        { error: 'Failed to generate verification token' },
+        { status: 500 }
+      )
+    }
+
+    // Add error handling for token storage
+    try {
+      await Token.create({
+        userId: user._id,
+        token: verificationToken,
+        type: 'EMAIL_VERIFICATION',
+        expires: new Date(expires)
+      })
+    } catch (storageError) {
+      console.error('Token storage failed:', storageError)
+      return NextResponse.json(
+        { error: 'Failed to store verification token' },
+        { status: 500 }
+      )
+    }
 
     // Send verification email
     await sendVerificationEmail(email, verificationToken)
