@@ -30,6 +30,8 @@ if (!cached) {
 }
 
 export async function connectToDatabase() {
+  if (cached.conn) return cached.conn;
+  
   if (mongoose.connection.readyState === 1) return;
   
   try {
@@ -58,6 +60,8 @@ export async function connectToDatabase() {
     console.error('Initial connection failed:', error);
     throw error;
   }
+
+  return cached.conn;
 }
 
 export default connectToDatabase; 
