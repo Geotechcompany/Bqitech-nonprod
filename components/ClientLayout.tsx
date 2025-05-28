@@ -13,7 +13,7 @@ export default function ClientLayout({
 }) {
   const [isLoading, setIsLoading] = useState(true);
   const pathname = usePathname();
-  const isAuthPage = ['/login', '/sign-up' , '/forgot-password' , '/admin/login'].some(path => pathname?.startsWith(path));
+  const isAuthPage = ['/login', '/sign-up' , '/forgot-password' , '/admin/login' , '/auth/verify-email'].some(path => pathname?.startsWith(path));
 
   useEffect(() => {
     const timer = setTimeout(() => {
