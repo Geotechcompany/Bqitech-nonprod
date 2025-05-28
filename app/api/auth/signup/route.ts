@@ -4,6 +4,9 @@ import connectToDatabase from '@/lib/mongodb'
 import mongoose from 'mongoose'
 import { User } from '@/models/user'
 import axios from 'axios'
+import { generateEmailVerificationToken } from '@/lib/tokens'
+import { sendVerificationEmail } from '@/lib/mailer'
+import { Token } from '@/models/token'
 
 const verifyCaptcha = async (token: string) => {
   const response = await axios.post(
@@ -56,6 +59,18 @@ export async function POST(req: Request) {
       password: hashedPassword,
       role: 'USER'
     })
+
+    // Generate and store verification token
+    const { token: verificationToken, expires } = generateEmailVerificationToken()
+    await Token.create({
+      userId: user._id,
+      token: verificationToken,
+      type: 'EMAIL_VERIFICATION',
+      expires: new Date(expires)
+    })
+
+    // Send verification email
+    await sendVerificationEmail(email, verificationToken)
 
     return NextResponse.json({
       message: 'User created successfully',

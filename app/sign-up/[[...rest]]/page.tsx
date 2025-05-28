@@ -131,23 +131,8 @@ export default function SignUpPage() {
         throw new Error(responseData.error || 'Registration failed. Please try again.')
       }
 
-      // Generate verification token
-      const { token, expires } = generateEmailVerificationToken()
-      
-      // Store token in database
-      await fetch('/api/auth/store-verification-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: responseData.userId,
-          token,
-          expires
-        })
-      })
-
-      // Send verification email
-      await sendVerificationEmail(data.email, token)
-
+      // Remove client-side token generation and storage
+      // Keep only the redirection
       toast.success('Verification code sent! Check your email.', { 
         id: toastId,
         duration: 5000 
