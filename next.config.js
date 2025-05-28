@@ -22,16 +22,17 @@ const nextConfig = {
         const cspDirectives = [
             `default-src 'self'`,
             `script-src 'self' ${isProduction ? '' : "'unsafe-inline' 'unsafe-eval'"} https://js.hcaptcha.com`,
+            `script-src-elem 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/`,
             `style-src 'self' 'unsafe-inline'`,
             `img-src 'self' data: blob:`,
-            `connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.dev https://clerk-telemetry.com https://*.googletagmanager.com https://www.googletagmanager.com https://www.google-analytics.com https://accounts.google.com https://hcaptcha.com https://sentry.hcaptcha.com ${process.env.NODE_ENV === 'development' ? 'ws://localhost:3000/_next/webpack-hmr' : ''}`,
-            `frame-src https://newassets.hcaptcha.com`,
+            `connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.dev https://clerk-telemetry.com https://*.googletagmanager.com https://www.googletagmanager.com https://www.google-analytics.com https://accounts.google.com https://hcaptcha.com https://sentry.hcaptcha.com ${process.env.NODE_ENV === 'development' ? 'ws://localhost:3000/_next/webpack-hmr' : ''} https://organic-hound-41949.upstash.io`,
+            `frame-src https://newassets.hcaptcha.com https://hcaptcha.com https://*.hcaptcha.com https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/`,
             `font-src 'self' data:`
         ];
 
         if (isProduction) {
             cspDirectives.push(
-                `script-src-elem 'self' https://www.googletagmanager.com`
+                `script-src-elem 'self' https://www.googletagmanager.com https://js.hcaptcha.com`
             );
         }
 

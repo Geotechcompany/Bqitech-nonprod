@@ -22,7 +22,11 @@ export default function RootLayout({
     <SessionProvider>
       <html lang="en" className={inter.className}>
         <head>
-          {/* No Content-Security-Policy meta tags */}
+          <link 
+            rel="preload" 
+            href="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX" 
+            as="script"
+          />
         </head>
         <body>
           <ClientWrapper>

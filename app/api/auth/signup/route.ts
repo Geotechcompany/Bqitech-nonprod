@@ -6,18 +6,12 @@ import { User } from '@/models/user'
 import axios from 'axios'
 
 const verifyCaptcha = async (token: string) => {
-  try {
-    const response = await axios.post(
-      'https://hcaptcha.com/siteverify',
-      `secret=${process.env.HCAPTCHA_SECRET_KEY}&response=${token}`,
-      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-    )
-    return response.data.success
-  } catch (error) {
-    console.error('CAPTCHA verification failed:', error)
-    return false
-  }
-}
+  const response = await axios.post(
+    'https://www.google.com/recaptcha/api/siteverify',
+    `secret=${process.env.RECAPTCHA_SECRET_KEY}&response=${token}`
+  );
+  return response.data.success;
+};
 
 export async function POST(req: Request) {
   try {

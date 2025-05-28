@@ -21,7 +21,7 @@ import { Turnstile } from "@marsidev/react-turnstile"
 import { rateLimit } from '@/lib/rate-limit'
 import { generateEmailVerificationToken } from '@/lib/tokens'
 import { sendVerificationEmail } from '@/lib/email'
-import HCaptcha from "@hcaptcha/react-hcaptcha"
+import ReCAPTCHA from "react-google-recaptcha"
 
 // Add schema validation
 const formSchema = z.object({
@@ -93,15 +93,14 @@ export default function SignUpPage() {
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     const toastId = toast.loading('Creating account...')
     try {
-      // Add CAPTCHA validation
-      if (!data.token) {
-        throw new Error('Please complete the security check')
-      }
-
-      // Rate limiting
-      const identifier = data.email
-      const { success } = await rateLimit.limit(identifier)
+      // Rate limiting via API
+      const limitResponse = await fetch('/api/rate-limit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: data.email })
+      })
       
+      const { success } = await limitResponse.json()
       if (!success) {
         throw new Error("Too many attempts. Please try again later.")
       }
@@ -319,23 +318,9 @@ export default function SignUpPage() {
             </div>
 
             {/* CAPTCHA Component */}
-            <HCaptcha
-              sitekey={process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY!}
-              onVerify={(token) => setValue("token", token)}
-              onExpire={() => {
-                setValue("token", "")
-                setCaptchaKey(Date.now())
-              }}
-              onError={(error) => {
-                console.error("hCaptcha Error:", error)
-                setError("token", { 
-                  message: "Security check failed. Please try again." 
-                })
-              }}
-              theme="light"
-              languageOverride="en"
-              reCaptchaCompat={false}
-              key={captchaKey}
+            <ReCAPTCHA
+              sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY!}
+              onChange={(token) => setValue("token", token)}
             />
 
             <Button
