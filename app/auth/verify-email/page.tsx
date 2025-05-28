@@ -37,6 +37,7 @@ export default function EmailVerificationPage() {
   const email = searchParams.get('email')
   const tokenParam = searchParams.get('token')
   const [error, setError] = useState('')
+  const [initialEmailSent, setInitialEmailSent] = useState(false)
 
   const { handleSubmit, formState: { errors }, control, setError: setFormError } = useForm<z.infer<typeof otpSchema>>({
     resolver: zodResolver(otpSchema),
@@ -50,6 +51,33 @@ export default function EmailVerificationPage() {
       handleSubmit(onSubmit)()
     }
   }, [otp, handleSubmit])
+
+  useEffect(() => {
+    const sendInitialVerification = async () => {
+      if (email && !tokenParam && !initialEmailSent && status === 'idle') {
+        try {
+          setStatus('loading')
+          const response = await fetch('/api/auth/resend-verification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+          })
+
+          if (!response.ok) throw new Error('Failed to send initial verification')
+          
+          toast.success('Verification code sent! Check your email.')
+        } catch (error) {
+          toast.error(error.message || 'Failed to send verification email')
+        } finally {
+          setStatus('idle')
+          setInitialEmailSent(true)
+        }
+      }
+    }
+
+    const debounceTimer = setTimeout(sendInitialVerification, 500)
+    return () => clearTimeout(debounceTimer)
+  }, [email, tokenParam, initialEmailSent, status])
 
   const onSubmit = async (data: z.infer<typeof otpSchema>) => {
     setStatus('loading')
@@ -66,7 +94,15 @@ export default function EmailVerificationPage() {
 
       setStatus('success')
       toast.success('Email verified successfully!')
-      setTimeout(()   => window.location.href = '/dashboard', 2000)
+
+      // Refresh auth state
+      await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ update: true })
+      })
+
+      window.location.href = '/dashboard'
     } catch (error) {
       setStatus('error')
       toast.error(error.message || 'Verification failed')
@@ -76,8 +112,11 @@ export default function EmailVerificationPage() {
 
   const handleResendCode = async () => {
     try {
-      if (!email) throw new Error('No email provided for resend')
+      if (!email || status === 'loading') {
+        throw new Error('Operation in progress')
+      }
       
+      setStatus('loading')
       const response = await fetch('/api/auth/resend-verification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -89,6 +128,8 @@ export default function EmailVerificationPage() {
       toast.success('New verification code sent!')
     } catch (error) {
       toast.error(error.message || 'Failed to resend code')
+    } finally {
+      setStatus('idle')
     }
   }
 
@@ -201,7 +242,7 @@ export default function EmailVerificationPage() {
                   onClick={handleResendCode}
                   disabled={status === 'loading'}
                 >
-                  Resend code
+                  {status === 'loading' ? 'Sending...' : 'Resend code'}
                 </Button>
               </p>
             </CardFooter>

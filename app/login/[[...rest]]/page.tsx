@@ -1,5 +1,5 @@
 import { getProviders } from "next-auth/react"
-import { LoginForm } from "../../../components/LoginForm"
+import LoginWrapper from "../LoginWrapper"
 import FloatingShapes from "../../../components/FloatingShapes"
 import { Zap } from "lucide-react"
 
@@ -36,7 +36,7 @@ export default async function LoginPage() {
       {/* Right Panel - Login Form */}
       <div className="flex items-center justify-center p-8 bg-background">
         <div className="relative z-10 bg-background p-8 rounded-lg shadow-2xl w-full max-w-md">
-          <LoginForm providers={providers} />
+          <LoginWrapper providers={providers} />
         </div>
       </div>
     </div>

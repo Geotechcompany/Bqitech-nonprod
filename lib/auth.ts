@@ -16,21 +16,24 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
-        await mongoose.connect(process.env.MONGODB_URI!);
-        
-        const user = await User.findOne({ email: credentials?.email });
-        if (!user) return null;
+        try {
+          await connectToDatabase();
+          const user = await User.findOne({ email: credentials.email });
 
-        // Add password verification
-        const isValid = await bcrypt.compare(credentials?.password!, user.password);
-        if (!isValid) return null;
+          if (!user) {
+            throw new Error("User does not exist");
+          }
 
-        return {
-          id: user._id.toString(),
-          email: user.email,
-          name: user.name,
-          role: user.role
-        };
+          const isValid = await bcrypt.compare(credentials.password, user.password);
+          if (!isValid) {
+            throw new Error("Incorrect password");
+          }
+
+          return user;
+        } catch (error) {
+          console.error("Auth error:", error);
+          throw new Error(error.message || "Authentication failed");
+        }
       }
     }),
     GoogleProvider({
@@ -44,16 +47,33 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, user }) {
-      if (user) {
-        token.role = user.role;
+      // Add database refresh on every JWT callback
+      await mongoose.connect(process.env.MONGODB_URI!);
+      const dbUser = await User.findById(token.id || user?.id);
+      
+      if (dbUser) {
+        return {
+          ...token,
+          id: dbUser._id.toString(),
+          email: dbUser.email,
+          name: dbUser.name,
+          role: dbUser.role,
+          emailVerified: dbUser.emailVerified
+        };
       }
+      
       return token;
     },
     async session({ session, token }) {
-      if (token) {
-        session.user.role = token.role;
+      return {
+        ...session,
+        user: {
+          ...session.user,
+          id: token.id,
+          role: token.role,
+          emailVerified: token.emailVerified
+        }
       }
-      return session;
     }
   },
   pages: {

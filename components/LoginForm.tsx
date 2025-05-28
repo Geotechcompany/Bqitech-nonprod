@@ -12,36 +12,59 @@ import Link from "next/link"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { getSession } from "next-auth/react"
+import { z } from "zod"
+import { zodResolver } from "@hookform/resolvers/zod"
 
-export function LoginForm({ providers = {} }: { providers: any }) {
-  const { register, handleSubmit } = useForm()
+const formSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters")
+});
+
+export function LoginForm({ 
+  providers,
+  onError 
+}: { 
+  providers: any,
+  onError?: (error: string) => void 
+}) {
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  });
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
-  const onSubmit = async (data: any) => {
+  const onSubmit = async (data: z.infer<typeof formSchema>) => {
     setIsLoading(true)
     try {
       const result = await signIn("credentials", {
-        redirect: false,
-        email: data.email,
-        password: data.password,
+        ...data,
+        redirect: false
       })
 
       if (result?.error) {
-        throw new Error(result.error)
+        const errorMessage = result.error.includes("does not exist") || 
+                            result.error.includes("Incorrect password")
+                          ? "Invalid email or password"
+                          : result.error;
+        
+        onError?.(errorMessage);
       }
 
+      const session = await getSession()
+      
       if (result?.ok) {
-        window.location.href = "/dashboard"
+        if (!session?.user?.emailVerified) {
+          router.push(`/auth/verify-email?email=${encodeURIComponent(data.email)}`)
+        } else {
+          window.location.href = "/dashboard"
+        }
       }
     } catch (error) {
-      toast.error(error.message || "Login failed", {
-        description: "Please check your credentials and try again",
-        action: {
-          label: 'Reset Password',
-          onClick: () => window.location.href = '/forgot-password'
-        },
-      })
+      onError?.(error.message || "Login failed")
     } finally {
       setIsLoading(false)
     }
@@ -67,7 +90,7 @@ export function LoginForm({ providers = {} }: { providers: any }) {
       </div>
 
       <motion.form
-        onSubmit={handleSubmit(onSubmit)}
+        onSubmit={form.handleSubmit(onSubmit)}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
@@ -80,7 +103,7 @@ export function LoginForm({ providers = {} }: { providers: any }) {
               id="email"
               type="email"
               placeholder="Enter your email"
-              {...register("email", { required: true })}
+              {...form.register("email", { required: true })}
               className="h-12 focus:ring-2 focus:ring-[#31CDFF]"
             />
           </div>
@@ -99,7 +122,7 @@ export function LoginForm({ providers = {} }: { providers: any }) {
               id="password"
               type="password"
               placeholder="••••••••"
-              {...register("password", { required: true })}
+              {...form.register("password", { required: true })}
               className="h-12 focus:ring-2 focus:ring-[#31CDFF]"
             />
           </div>
