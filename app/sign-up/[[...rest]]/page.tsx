@@ -9,25 +9,31 @@ import zxcvbn from "zxcvbn"
 import { Button } from "@/components/ui/button"
 import { motion } from "framer-motion"
 import Link from "next/link"
-import { useState } from "react"
-import { Loader2 } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Loader2, CheckCircle, XCircle, Eye, EyeOff } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Zap } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useForm, FieldError } from "react-hook-form"
 import toast from "react-hot-toast"
+import { Turnstile } from "@marsidev/react-turnstile"
+import { rateLimit } from '@/lib/rate-limit'
+import { generateEmailVerificationToken } from '@/lib/tokens'
+import { sendVerificationEmail } from '@/lib/email'
+import HCaptcha from "@hcaptcha/react-hcaptcha"
 
 // Add schema validation
 const formSchema = z.object({
-  firstName: z.string().min(2, "First name must be at least 2 characters"),
-  lastName: z.string().min(2, "Last name must be at least 2 characters"),
+  firstName: z.string().min(2, "First name must be at least 2 characters").max(50),
+  lastName: z.string().min(2, "Last name must be at least 2 characters").max(50),
   email: z.string().email("Invalid email address"),
   password: z.string()
-    .min(8, "Password must be at least 8 characters")
-    .refine(password => zxcvbn(password).score >= 2, 
-      "Password is too weak"),
-  confirmPassword: z.string()
+    .min(12, "Password must be at least 12 characters")
+    .refine(password => zxcvbn(password).score >= 3, 
+      "Password is too weak (minimum strength: 3/4)"),
+  confirmPassword: z.string(),
+  token: z.string().min(20, "Security check required")
 }).refine(data => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"]
@@ -38,7 +44,7 @@ export default function SignUpPage() {
   const router = useRouter()
   
   // Add form initialization here
-  const { register, handleSubmit, formState: { errors }, watch } = useForm({
+  const { register, handleSubmit, formState: { errors }, watch, setError, setValue } = useForm({
     resolver: zodResolver(formSchema)
   })
 
@@ -46,36 +52,112 @@ export default function SignUpPage() {
   const password = watch("password", "")
   const passwordStrength = zxcvbn(password)
 
+  // Add state for captcha
+  const [captchaKey, setCaptchaKey] = useState(Date.now())
+
+  // Add new state variables at the top of the component
+  const [emailQuery, setEmailQuery] = useState('')
+  const [isEmailAvailable, setIsEmailAvailable] = useState<boolean | null>(null)
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false)
+
+  // Add this useEffect hook for email availability check
+  useEffect(() => {
+    const checkEmailAvailability = async () => {
+      if (!emailQuery || !z.string().email().safeParse(emailQuery).success) {
+        setIsEmailAvailable(null)
+        return
+      }
+      
+      setIsCheckingEmail(true)
+      try {
+        const res = await fetch(`/api/auth/check-email?email=${encodeURIComponent(emailQuery)}`)
+        if (!res.ok) throw new Error('Email check failed')
+        const data = await res.json()
+        setIsEmailAvailable(data.available)
+      } catch (error) {
+        console.error('Email availability check failed:', error)
+        setIsEmailAvailable(null)
+      } finally {
+        setIsCheckingEmail(false)
+      }
+    }
+
+    const debounceTimer = setTimeout(checkEmailAvailability, 500)
+    return () => clearTimeout(debounceTimer)
+  }, [emailQuery])
+
+  // Add showPassword state
+  const [showPassword, setShowPassword] = useState(false)
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false)
+
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
-    setIsSubmitting(true)
     const toastId = toast.loading('Creating account...')
-    
     try {
+      // Add CAPTCHA validation
+      if (!data.token) {
+        throw new Error('Please complete the security check')
+      }
+
+      // Rate limiting
+      const identifier = data.email
+      const { success } = await rateLimit.limit(identifier)
+      
+      if (!success) {
+        throw new Error("Too many attempts. Please try again later.")
+      }
+
+      // Final email check
+      const emailCheck = await fetch(`/api/auth/check-email?email=${encodeURIComponent(data.email)}`)
+      if (!emailCheck.ok || !(await emailCheck.json()).available) {
+        throw new Error('This email is already registered')
+      }
+
+      setIsSubmitting(true)
+      
+      // Add error handling for the fetch request
       const response = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: `${data.firstName} ${data.lastName}`,
           email: data.email,
-          password: data.password
+          password: data.password,
+          token: data.token
         })
       })
 
+      const responseData = await response.json()
+      
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Signup failed')
+        throw new Error(responseData.error || 'Registration failed. Please try again.')
+      }
+
+      // Send verification email
+      const verificationToken = await generateEmailVerificationToken(data.email)
+      await sendVerificationEmail(data.email, verificationToken.token)
+
+      toast.success('Verification email sent! Please check your inbox.', { 
+        id: toastId,
+        duration: 5000 
+      })
+      router.push('/auth/verify-email')
+    } catch (error) {
+      console.error('Signup error:', error)
+      setCaptchaKey(Date.now())
+      toast.error(error.message || 'Account creation failed', { 
+        id: toastId,
+        duration: 4000
+      })
+      
+      if (error.message.includes('captcha') || error.message.includes('security')) {
+        setError("token", { message: "Security check failed. Please try again." })
       }
       
-      toast.success('Account created successfully! Redirecting...', { id: toastId })
-      router.push('/dashboard')
-    } catch (error) {
-      toast.error(
-        error.message || 'Signup failed. Please try again or contact support.',
-        { 
-          id: toastId,
-          duration: 5000
-        }
-      )
+      if (error.message.includes('email')) {
+        setEmailQuery('')
+        setIsEmailAvailable(null)
+        setError("email", { message: error.message })
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -158,15 +240,30 @@ export default function SignUpPage() {
               </div>
             </div>
 
-            {/* Email Field */}
+            {/* Email Field with status indicators */}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                {...register("email")}
-                className="h-12 focus:ring-2 focus:ring-[#31CDFF]"
-              />
+              <div className="relative">
+                <Input
+                  id="email"
+                  type="email"
+                  {...register("email")}
+                  onChange={(e) => {
+                    register("email").onChange(e)
+                    setEmailQuery(e.target.value)
+                  }}
+                  className="h-12 focus:ring-2 focus:ring-[#31CDFF] pr-10"
+                />
+                <div className="absolute right-3 top-3">
+                  {isCheckingEmail ? (
+                    <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                  ) : isEmailAvailable === true ? (
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                  ) : isEmailAvailable === false ? (
+                    <XCircle className="h-5 w-5 text-red-500" />
+                  ) : null}
+                </div>
+              </div>
               {errors.email && (
                 <p className="text-sm text-red-500">{(errors.email as FieldError).message}</p>
               )}
@@ -175,13 +272,33 @@ export default function SignUpPage() {
             {/* Password Field with Strength Meter */}
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                {...register("password")}
-                className="h-12 focus:ring-2 focus:ring-[#31CDFF]"
-              />
-              <PasswordStrengthMeter strengthResult={passwordStrength} />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  {...register("password")}
+                  className="h-12 focus:ring-2 focus:ring-[#31CDFF] pr-10"
+                  onFocus={() => setIsPasswordFocused(true)}
+                  onBlur={() => setIsPasswordFocused(false)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+              {password.length > 0 && (
+                <PasswordStrengthMeter 
+                  password={password}
+                  strengthResult={passwordStrength} 
+                />
+              )}
               {errors.password && (
                 <p className="text-sm text-red-500">{(errors.password as FieldError).message}</p>
               )}
@@ -200,6 +317,26 @@ export default function SignUpPage() {
                 <p className="text-sm text-red-500">{(errors.confirmPassword as FieldError).message}</p>
               )}
             </div>
+
+            {/* CAPTCHA Component */}
+            <HCaptcha
+              sitekey={process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY!}
+              onVerify={(token) => setValue("token", token)}
+              onExpire={() => {
+                setValue("token", "")
+                setCaptchaKey(Date.now())
+              }}
+              onError={(error) => {
+                console.error("hCaptcha Error:", error)
+                setError("token", { 
+                  message: "Security check failed. Please try again." 
+                })
+              }}
+              theme="light"
+              languageOverride="en"
+              reCaptchaCompat={false}
+              key={captchaKey}
+            />
 
             <Button
               type="submit"

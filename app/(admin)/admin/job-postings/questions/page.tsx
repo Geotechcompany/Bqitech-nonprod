@@ -65,10 +65,7 @@ interface Question {
 }
 
 const questionSchema = z.object({
-  jobIds: z.array(z.object({
-    value: z.string(),
-    label: z.string()
-  })).min(1, "At least one job must be selected"),
+  jobIds: z.array(z.string()).min(1, "At least one job must be selected"),
   question: z.string().min(1, "Question is required"),
   type: z.enum(["text", "select", "radio", "boolean", "file"]),
   options: z.array(z.string()).superRefine((val, ctx) => {
@@ -107,6 +104,13 @@ const questionTypeOptions = [
   { value: 'file', label: 'File Upload' }
 ];
 
+const fetchQuestions = async (searchTerm?: string) => {
+  const url = `/api/admin/questions${searchTerm ? `?search=${encodeURIComponent(searchTerm)}` : ''}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to fetch questions');
+  return res.json();
+};
+
 export default function QuestionsManagementPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -123,24 +127,18 @@ export default function QuestionsManagementPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [questionToDelete, setQuestionToDelete] = useState<string | null>(null);
 
-  const { data: jobs, isLoading: isLoadingJobs } = useQuery({
+  const { data: jobs } = useQuery({
     queryKey: ['admin-jobs'],
     queryFn: async () => {
       const res = await fetch('/api/admin/jobs');
       if (!res.ok) throw new Error('Failed to fetch jobs');
       return res.json();
-    },
-    staleTime: 60 * 1000
+    }
   });
 
-  const { data: questions = [], isLoading } = useQuery({
-    queryKey: ['admin-questions'],
-    queryFn: async () => {
-      const res = await fetch('/api/admin/questions');
-      if (!res.ok) throw new Error('Failed to fetch questions');
-      return res.json();
-    },
-    enabled: !!jobs
+  const { data: questions, isLoading, refetch: refetchQuestions } = useQuery({
+    queryKey: ['admin-questions', searchTerm],
+    queryFn: () => fetchQuestions(searchTerm)
   });
 
   const addForm = useForm<QuestionFormValues>({
@@ -174,7 +172,7 @@ export default function QuestionsManagementPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...data,
-          jobIds: data.jobIds.map(j => j.value),
+          jobIds: data.jobIds,
           options: data.options 
         }),
       });
@@ -203,7 +201,7 @@ export default function QuestionsManagementPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...data,
-          jobIds: data.jobIds.map(j => j.value),
+          jobIds: data.jobIds,
           options: data.options
         }),
       });
@@ -478,27 +476,19 @@ export default function QuestionsManagementPage() {
   };
 
   // Convert jobs to options
-  const jobOptions: OptionType[] = jobs?.map(job => ({
-    value: job.id,
-    label: job.title,
+  const jobOptions = jobs?.map(job => ({
+    value: job._id,
+    label: job.title
   })) || [];
 
   const handleEditClick = (question: Question) => {
     setCurrentQuestion(question);
-    
-    // Map job IDs to options with labels from jobTitles
-    const jobOptions = question.jobIds.map((id, index) => ({
-      value: id,
-      label: question.jobTitles?.[index] || 'Unknown Job'
-    }));
-
     editForm.reset({
       ...question,
-      jobIds: jobOptions,
+      jobIds: question.jobIds,
       options: question.options || [],
       type: question.type as "text" | "select" | "radio" | "boolean" | "file"
     });
-    
     setEditOptions(question.options || []);
     setIsEditOpen(true);
   };
@@ -548,6 +538,7 @@ export default function QuestionsManagementPage() {
       <AddQuestionModal
         open={isAddOpen}
         onOpenChange={setIsAddOpen}
+        refetchQuestions={refetchQuestions}
         onSubmit={onAddSubmit}
         isLoading={addQuestionMutation.isPending}
         jobOptions={jobOptions}

@@ -36,21 +36,6 @@ export const metadata: Metadata = {
       },
     ],
   },
-  other: {
-    'Content-Security-Policy': `
-      default-src 'self';
-      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googletagmanager.com https://accounts.google.com;
-      style-src 'self' 'unsafe-inline';
-      img-src 'self' data: https: blob:;
-      font-src 'self' data:;
-      connect-src 'self' 
-        https://*.googletagmanager.com 
-        https://www.googletagmanager.com
-        https://accounts.google.com
-        ${process.env.NODE_ENV === 'development' ? 'ws://localhost:3000/_next/webpack-hmr' : ''};
-      frame-src 'self' https://accounts.google.com;
-      worker-src 'self' blob:;
-    `.replace(/\n/g, ' ').trim()
-  }
+  other: {}
 };
 

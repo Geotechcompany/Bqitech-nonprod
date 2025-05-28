@@ -19,12 +19,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const questionSchema = z.object({
-  jobIds: z.array(z.object({
-    value: z.string(),
-    label: z.string()
-  })).min(1, "At least one job must be selected"),
+  jobIds: z.array(z.string()).min(1, "At least one job must be selected"),
   question: z.string().min(1, "Question is required"),
   type: z.enum(["text", "select", "radio", "boolean", "file"]),
   options: z.array(z.string()).optional(),
@@ -33,7 +31,7 @@ const questionSchema = z.object({
 });
 
 interface QuestionFormValues {
-  jobIds: Array<{ value: string; label: string }>;
+  jobIds: string[];
   question: string;
   type: "text" | "select" | "radio" | "boolean" | "file";
   options?: string[];
@@ -99,16 +97,16 @@ export function EditQuestionModal({
       }
 
       const question = await questionRes.json();
-      const associations = await associationsRes.json();
 
-      // Find matching association
-      const association = associations.find(
-        (a: any) => a.questionId === questionId
-      );
+      // Transform the API response to match frontend expectations
+      const transformedQuestion = {
+        ...question,
+        jobIds: question.jobIds.map((j: { _id: string }) => j._id) // Extract just the ID strings
+      };
 
       return {
-        ...question,
-        jobTitles: association?.jobTitles || []
+        ...transformedQuestion,
+        jobTitles: question.jobTitles || []
       };
     },
     enabled: open && !!questionId,
@@ -117,38 +115,24 @@ export function EditQuestionModal({
 
   useEffect(() => {
     if (questionData) {
-      const jobIdsOptions = questionData.jobTitles.map(job => ({
-        value: job._id,
-        label: job.title
-      }));
-
       form.reset({
         ...questionData,
-        jobIds: jobIdsOptions,
+        jobIds: questionData.jobIds || [],
         options: questionData.options || [],
         type: questionData.type
       });
-
       setEditOptions(questionData.options || []);
+      setEditOptionInput("");
+      
+      // Force update checkbox states
+      form.setValue('jobIds', questionData.jobIds, { shouldValidate: true });
     }
-  }, [questionData, form, setEditOptions]);
-
-  if (isQuestionLoading) {
-    return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[425px]">
-          <div className="flex justify-center items-center h-32">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
+  }, [questionData, form, setEditOptions, setEditOptionInput]);
 
   const handleSubmit = (values: QuestionFormValues) => {
     const finalValues = {
       ...values,
-      jobIds: values.jobIds.map(job => job.value),
+      jobIds: values.jobIds,
       options: values.type === 'boolean' ? ['Yes', 'No'] : form.getValues('options'),
       id: questionId,
       createdAt: fetchedQuestion?.createdAt,
@@ -160,13 +144,16 @@ export function EditQuestionModal({
   const handleLocalTypeChange = (type: "text" | "select" | "radio" | "boolean" | "file") => {
     handleTypeChange(type);
     
-    // Reset options based on type
     if (type === 'boolean') {
       form.setValue('options', ['Yes', 'No']);
       setEditOptions(['Yes', 'No']);
-    } else {
-      form.setValue('options', options);
+      setEditOptionInput('');
+    } else if (['text', 'file'].includes(type)) {
+      form.setValue('options', []);
+      setEditOptions([]);
+      setEditOptionInput('');
     }
+    // Keep existing options when switching between select/radio
   };
 
   return (
@@ -182,17 +169,35 @@ export function EditQuestionModal({
               <FormField
                 name="jobIds"
                 render={({ field }) => (
-                  <FormItem className="col-span-2">
+                  <FormItem className="space-y-4 col-span-2">
                     <FormLabel>Associated Jobs</FormLabel>
                     <FormControl>
-                      <ReactSelect
-                        isMulti
-                        options={jobOptions}
-                        value={field.value}
-                        onChange={field.onChange}
-                        className="react-select-container"
-                        classNamePrefix="react-select"
-                      />
+                      <div className="grid grid-cols-1 gap-3">
+                        {jobOptions.map((job) => (
+                          <div
+                            key={job.value}
+                            className="flex items-center space-x-3 bg-muted/50 rounded-lg p-3"
+                          >
+                            <Checkbox
+                              id={job.value}
+                              checked={field.value?.includes(job.value)}
+                              onCheckedChange={(checked) => {
+                                const currentValues = field.value || [];
+                                const newValues = checked 
+                                  ? [...currentValues, job.value]
+                                  : currentValues.filter(v => v !== job.value);
+                                field.onChange(newValues);
+                              }}
+                            />
+                            <Label
+                              htmlFor={job.value}
+                              className="text-sm font-medium leading-none"
+                            >
+                              {job.label}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -220,14 +225,19 @@ export function EditQuestionModal({
                   <FormItem>
                     <FormLabel>Question Type</FormLabel>
                     <Select
-                      onValueChange={field.onChange}
                       value={field.value}
+                      onValueChange={(value: "text" | "select" | "radio" | "boolean" | "file") => {
+                        field.onChange(value);
+                        handleLocalTypeChange(value);
+                      }}
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select type" />
-                      </SelectTrigger>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select question type" />
+                        </SelectTrigger>
+                      </FormControl>
                       <SelectContent>
-                        <SelectItem value="text">Text</SelectItem>
+                        <SelectItem value="text">Text Input</SelectItem>
                         <SelectItem value="select">Dropdown</SelectItem>
                         <SelectItem value="radio">Multiple Choice</SelectItem>
                         <SelectItem value="boolean">Yes/No</SelectItem>
@@ -293,12 +303,14 @@ export function EditQuestionModal({
                     onChange={(e) => setEditOptionInput(e.target.value)}
                     placeholder="Add new option"
                     onKeyPress={(e) => e.key === 'Enter' && handleAddOption(true)}
+                    disabled={form.watch('type') === 'boolean'}
                   />
                   <Button
                     type="button"
                     onClick={() => handleAddOption(true)}
                     variant="outline"
                     size="sm"
+                    disabled={form.watch('type') === 'boolean'}
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Add Option
@@ -309,15 +321,17 @@ export function EditQuestionModal({
                   {options.map((option, index) => (
                     <div key={index} className="flex items-center justify-between bg-muted/50 rounded-md px-3 py-2">
                       <span className="text-sm">{option}</span>
-                      <Button
-                        type="button"
-                        onClick={() => handleRemoveOption(index, true)}
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+                      {form.watch('type') !== 'boolean' && (
+                        <Button
+                          type="button"
+                          onClick={() => handleRemoveOption(index, true)}
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   ))}
                 </div>

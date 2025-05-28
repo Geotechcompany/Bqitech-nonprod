@@ -1,15 +1,24 @@
 import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import { JobPosting } from '@/models/jobPosting';
+import { isValidObjectId } from 'mongoose';
 
 export async function PATCH(
-  request: Request,
+  req: Request,
   { params }: { params: { id: string } }
 ) {
   try {
     await mongoose.connect(process.env.MONGODB_URI!);
     
-    const { isActive } = await request.json();
+    // Validate ID before any operations
+    if (!params?.id || !isValidObjectId(params.id)) {
+      return NextResponse.json(
+        { error: "Invalid or missing job posting ID" },
+        { status: 400 }
+      );
+    }
+
+    const { isActive } = await req.json();
 
     const updatedJob = await JobPosting.findByIdAndUpdate(
       params.id,

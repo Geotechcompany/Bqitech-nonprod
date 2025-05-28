@@ -76,7 +76,7 @@ export default function AdminLoginPage() {
           className="w-full max-w-md space-y-8"
         >
           <div className="text-center space-y-2">
-            <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+            <h1 className="text-3xl font-bold">Admin</h1>
             <p className="text-muted-foreground">
               Sign in to manage your organization
             </p>

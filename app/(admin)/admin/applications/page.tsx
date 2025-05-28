@@ -139,15 +139,19 @@ export default function ApplicationsPage() {
   if (error) return <div>Failed to load applications</div>;
   if (isLoading) return <div>Loading...</div>;
 
-  const filteredApplications = applications.filter(app => {
-    const matchesSearch = [app.name, app.email, app.position].some(field => 
-      field?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredApplications = applications
+    .filter(app => {
+      const matchesSearch = [app.name, app.email, app.position].some(field => 
+        field?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      const matchesPosition = !selectedPosition || app.position === selectedPosition;
+      const matchesStatus = !selectedStatus || app.status === selectedStatus;
+      
+      return matchesSearch && matchesPosition && matchesStatus;
+    })
+    .sort((a, b) => 
+      new Date(b.appliedDate).getTime() - new Date(a.appliedDate).getTime()
     );
-    const matchesPosition = !selectedPosition || app.position === selectedPosition;
-    const matchesStatus = !selectedStatus || app.status === selectedStatus;
-    
-    return matchesSearch && matchesPosition && matchesStatus;
-  });
 
   function handleView(id: string) {
     const application = applications.find((app) => app.id === id);

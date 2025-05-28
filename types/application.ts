@@ -22,7 +22,7 @@ export interface Application {
     status: string
     appliedDate: Date
     shortlistedDate?: string
-    assessmentDate?: string
+    assessmentDate?: Date
     assessmentScore?: number
     interviewDate?: string
     interviewer?: string
@@ -41,6 +41,7 @@ export interface Application {
       _id: string;
       title: string;
     };
+    assessmentResult?: string;
   }
   
   export interface ShortlistedCandidate extends Application {
@@ -48,7 +49,7 @@ export interface Application {
   }
   
   export interface TechnicalAssessmentCandidate extends Application {
-    assessmentDate: string // Ensure this is not optional for technical assessment candidates
+    assessmentDate: Date
   }
   
   export interface InterviewingCandidate extends Application {

@@ -1,230 +1,335 @@
 "use client";
 
 import { motion } from 'framer-motion';
-import { Users, FileText, CheckCircle, XCircle, UserCheck, Code, MessageSquare, ArrowRight, Calendar, ChevronRight, Bell, Ban } from 'lucide-react';
+import { Users, FileText, CheckCircle, XCircle, UserCheck, Code, MessageSquare, ArrowRight, ChevronDown, Clock, BarChart, Plus, ArrowUp, ArrowDown } from 'lucide-react';
 import useSWR from 'swr';
+import { useState } from 'react';
+import { Line } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
 import { Button } from "@/components/ui/button";
-import { useRouter } from 'next/navigation';
-import { useSession } from "next-auth/react"
-import { NotificationButton } from "@/components/NotificationButton"
-import Link from "next/link";
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { AdminPageLayout } from "@/components/admin/AdminPageLayout";
+import { Skeleton } from "@/components/ui/skeleton";
 
-// Update the overview fetcher to match MongoDB response format
-const overviewFetcher = async (url: string) => {
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+);
+
+// Unified fetcher with error handling
+const fetcher = async (url: string) => {
   const res = await fetch(url);
-  const data = await res.json();
-  return {
-    totalApplications: data.totalApplications,
-    shortlisted: data.shortlisted,
-    technicalAssessment: data.technical,
-    interviewing: data.interviewing,
-    hired: data.hired,
-    disqualified: data.disqualified
-  };
+  if (!res.ok) throw new Error('Failed to fetch data');
+  return res.json();
 };
 
-// Update applications fetcher to handle MongoDB transformed data
-const applicationsFetcher = async (url: string) => {
-  const res = await fetch(url);
-  const data = await res.json();
-  return Array.isArray(data) ? data : []; // Handles both array and object responses
-};
-
-// Update the Application interface to match MongoDB schema
 interface Application {
-  id: string
-  name: string
-  email: string
-  status: string
-  appliedDate: string
+  id: string;
+  name: string;
+  email: string;
+  position: string;
+  status: string;
+  appliedDate: Date;
 }
 
+const statusColors = {
+  New: 'bg-blue-100 text-blue-800',
+  Shortlisted: 'bg-green-100 text-green-800',
+  Interviewing: 'bg-purple-100 text-purple-800',
+  Hired: 'bg-emerald-100 text-emerald-800',
+  Rejected: 'bg-rose-100 text-rose-800',
+};
+
+const StatCard = ({ title, value, icon: Icon, trend, color }: {
+  title: string;
+  value: number;
+  icon: any;
+  trend?: number;
+  color: string;
+}) => (
+  <motion.div
+    whileHover={{ y: -4 }}
+    className="bg-background rounded-2xl border p-5 shadow-lg hover:shadow-xl transition-shadow"
+  >
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm font-medium text-muted-foreground mb-2">{title}</p>
+        <h3 className="text-3xl font-bold">{value.toLocaleString()}</h3>
+      </div>
+      <div className={`p-3 rounded-xl ${color} relative overflow-hidden`}>
+        <Icon className="h-6 w-6" />
+        <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent" />
+      </div>
+    </div>
+    {trend && (
+      <div className="flex items-center mt-4">
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+          trend > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+        }`}>
+          {trend > 0 ? (
+            <ArrowUp className="h-3 w-3 mr-1" />
+          ) : (
+            <ArrowDown className="h-3 w-3 mr-1" />
+          )}
+          {Math.abs(trend)}%
+        </span>
+        <span className="text-sm text-muted-foreground ml-2">vs last month</span>
+      </div>
+    )}
+  </motion.div>
+);
+
+const PipelineStage = ({ title, count, progress, icon: Icon, color }: {
+  title: string;
+  count: number;
+  progress: number;
+  icon: any;
+  color: string;
+}) => {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <motion.div
+      className="border rounded-xl p-5 bg-background shadow-sm hover:shadow-md transition-shadow"
+      animate={{ height: expanded ? 'auto' : '80px' }}
+    >
+      <div className="flex items-center justify-between cursor-pointer" onClick={() => setExpanded(!expanded)}>
+        <div className="flex items-center space-x-4">
+          <div className={`p-3 rounded-xl ${color} relative overflow-hidden`}>
+            <Icon className="h-6 w-6" />
+            <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent" />
+          </div>
+          <div>
+            <h4 className="font-semibold text-lg">{title}</h4>
+            <p className="text-sm text-muted-foreground">{count} candidates</p>
+          </div>
+        </div>
+        <ChevronDown className={`h-5 w-5 transform transition-transform ${
+          expanded ? 'rotate-180' : ''
+        }`} />
+      </div>
+      
+      {expanded && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="mt-5 space-y-4"
+        >
+          <Progress value={progress} className="h-2 bg-muted" />
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-muted-foreground">Conversion Rate</span>
+            <span className="font-medium">{Math.round(progress)}%</span>
+          </div>
+        </motion.div>
+      )}
+    </motion.div>
+  );
+};
+
 export default function OverviewPage() {
-  const router = useRouter();
-  const { data: session } = useSession()
-  
-  const { data: overviewData, error: overviewError, isLoading: isOverviewLoading } = 
-    useSWR('/api/admin/overview', overviewFetcher);
-  
-  const { data: recentApplications = [], error: applicationsError, isLoading: isApplicationsLoading } = 
-    useSWR('/api/admin/applications/recent', applicationsFetcher);
+  const { data: overviewData, error: overviewError, isLoading } = useSWR('/api/admin/overview', fetcher);
+  const { data: recentApplications = [] } = useSWR('/api/admin/applications/recent', fetcher);
+  const { data: trendData } = useSWR('/api/admin/trends', fetcher);
+  const [selectedApp, setSelectedApp] = useState<Application | null>(null);
 
-  if (overviewError || applicationsError) return <div>Failed to load data</div>;
-  if (isOverviewLoading || isApplicationsLoading) return <div>Loading...</div>;
-  if (!overviewData || !recentApplications) return <div>No data available</div>;
+  const chartData = {
+    labels: trendData?.labels || [],
+    datasets: [
+      {
+        label: 'Applications',
+        data: trendData?.values || [],
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+      },
+    ],
+  };
 
-  
-  
-  const overviewItems = [
-    { 
-      title: 'Total Applications', 
-      value: overviewData?.totalApplications || 0,
-      icon: FileText,
-      color: 'from-blue-400 to-blue-600',
-      href: '/admin/applications'
-    },
-    { 
-      title: 'Shortlisted', 
-      value: overviewData?.shortlisted || 0,
-      icon: CheckCircle,
-      color: 'from-green-400 to-green-600',
-      href: '/admin/shortlisted'
-    },
-    { 
-      title: 'Technical Assessment', 
-      value: overviewData?.technicalAssessment || 0,
-      icon: Code,
-      color: 'from-yellow-400 to-yellow-600',
-      href: '/admin/technical-assessment'
-    },
-    { 
-      title: 'Interviewing', 
-      value: overviewData?.interviewing || 0,
-      icon: MessageSquare,
-      color: 'from-purple-400 to-purple-600',
-      href: '/admin/interviewing'
-    },
-    { 
-      title: 'Hired', 
-      value: overviewData?.hired || 0,
-      icon: UserCheck,
-      color: 'from-indigo-400 to-indigo-600',
-      href: '/admin/hired'
-    },
-    { 
-      title: 'Disqualified', 
-      value: overviewData?.disqualified || 0,
-      icon: XCircle,
-      color: 'from-red-400 to-red-600',
-      href: '/admin/disqualified'
-    },
-  ];
+  if (isLoading) return (
+    <AdminPageLayout title="Dashboard Overview" className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-24" />)}
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Skeleton className="h-96 lg:col-span-2" />
+        <Skeleton className="h-96" />
+      </div>
+    </AdminPageLayout>
+  );
+
+  if (overviewError) return <div className="text-center py-8">Failed to load dashboard data</div>;
 
   return (
     <AdminPageLayout
-      title="Overview"
-      showSearch={false}
+      title="Dashboard Overview"
+      className="space-y-4"
+      headerActions={<Button size="sm" className="gap-1"><Plus className="h-4 w-4" /> New Job</Button>}
     >
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-        {overviewItems.map((item, index) => (
-          <Link key={item.title} href={item.href}>
-            <motion.div
-              className={`relative overflow-hidden rounded-2xl shadow-lg bg-gradient-to-br ${item.color} cursor-pointer`}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: index * 0.1 }}
-              whileHover={{ y: -5, scale: 1.02, transition: { duration: 0.2 } }}
-            >
-              <div className="absolute top-0 right-0 w-32 h-32 transform translate-x-16 -translate-y-16">
-                <div className="absolute inset-0 rounded-full bg-white opacity-10" />
-              </div>
-              <div className="relative p-6">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-4">
-                    <div className="p-3 bg-white/10 rounded-lg w-fit">
-                      <item.icon className="w-6 h-6 text-white" />
-                    </div>
-                    <p className="text-lg font-medium text-white/80">{item.title}</p>
-                    <h3 className="text-4xl font-bold text-white">{item.value}</h3>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </Link>
-        ))}
+      {/* Key Metrics Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+        <StatCard
+          title="Total Applications"
+          value={overviewData.totalApplications}
+          icon={FileText}
+          trend={12}
+          color="bg-blue-100/50 text-blue-600"
+        />
+        <StatCard
+          title="Shortlisted"
+          value={overviewData.shortlisted}
+          icon={UserCheck}
+          color="bg-green-100/50 text-green-600"
+        />
+        <StatCard
+          title="In Assessment"
+          value={overviewData.technicalAssessment}
+          icon={Code}
+          color="bg-amber-100/50 text-amber-600"
+        />
+        <StatCard
+          title="Interviewing"
+          value={overviewData.interviewing}
+          icon={MessageSquare}
+          color="bg-purple-100/50 text-purple-600"
+        />
+        <StatCard
+          title="Hired"
+          value={overviewData.hired}
+          icon={CheckCircle}
+          color="bg-emerald-100/50 text-emerald-600"
+        />
+        <StatCard
+          title="Disqualified"
+          value={overviewData.disqualified}
+          icon={XCircle}
+          color="bg-rose-100/50 text-rose-600"
+        />
       </div>
 
-      {/* Recent Applications Section */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.6 }}
-        className="bg-white rounded-2xl shadow-lg p-4 md:p-6 mt-6"
-      >
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-          <h2 className="text-xl md:text-2xl font-bold text-gray-800">Recent Applications</h2>
-          <Button
-            onClick={() => router.push('/admin/applications')}
-            variant="outline"
-            className="w-full sm:w-auto flex items-center justify-center gap-2 group"
-          >
-            View All
-            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-          </Button>
-        </div>
-
-        {recentApplications.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            No recent applications
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {recentApplications.slice(0, 5).map((app: Application) => (
-              <motion.div
-                key={app.id}
-                className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl hover:bg-gray-50 transition-colors border border-gray-100 gap-4"
-                whileHover={{ x: 5 }}
-              >
-                <div className="flex items-center gap-4 w-full sm:w-auto">
-                  <div className={`p-2 rounded-lg ${getStatusColor(app.status)}`}>
-                    {getStatusIcon(app.status)}
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-800">{app.name}</h3>
-                    <p className="text-sm text-gray-500">{app.email}</p>
-                  </div>
-                </div>
-                
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full sm:w-auto">
-                  <div className="flex items-center gap-2 text-gray-500">
-                    <Calendar className="w-4 h-4" />
-                    <span className="text-sm">
-                      {new Date(app.appliedDate).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => router.push(`/admin/applications/${app.id}`)}
-                    className="w-full sm:w-auto hover:bg-gray-100"
+      {/* Main Content Area */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-4">
+        {/* Recent Applications Card */}
+        <Card className="lg:col-span-2 ">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between ">
+              <CardTitle>Recent Applications</CardTitle>
+              <Button variant="ghost" size="sm" className="gap-1">
+                View All <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader className="bg-muted/50">
+                <TableRow>
+                  <TableHead>Candidate</TableHead>
+                  <TableHead>Position</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Applied</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {recentApplications.map((app: Application) => (
+                  <TableRow
+                    key={app.id}
+                    className="hover:bg-muted/50 cursor-pointer"
+                    onClick={() => setSelectedApp(app)}
                   >
-                    View Details
-                  </Button>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        )}
-      </motion.div>
+                    <TableCell>
+                      <div className="font-medium">{app.name}</div>
+                      <div className="text-sm text-muted-foreground">{app.email}</div>
+                    </TableCell>
+                    <TableCell>{app.position}</TableCell>
+                    <TableCell>
+                      <Badge className={statusColors[app.status as keyof typeof statusColors]}>
+                        {app.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {new Date(app.appliedDate).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        {/* Hiring Pipeline */}
+        <div className="space-y-3">
+          <PipelineStage
+            title="Hired"
+            count={overviewData.hired}
+            progress={(overviewData.hired / overviewData.totalApplications) * 100}
+            icon={CheckCircle}
+            color="bg-emerald-100/50 text-emerald-600"
+          />
+          <PipelineStage
+            title="Interviewing"
+            count={overviewData.interviewing}
+            progress={(overviewData.interviewing / overviewData.totalApplications) * 100}
+            icon={MessageSquare}
+            color="bg-purple-100/50 text-purple-600"
+          />
+          <PipelineStage
+            title="Technical Assessment"
+            count={overviewData.technicalAssessment}
+            progress={(overviewData.technicalAssessment / overviewData.totalApplications) * 100}
+            icon={Code}
+            color="bg-amber-100/50 text-amber-600"
+          />
+           <PipelineStage
+            title="Shortlisted"
+            count={overviewData.shortlisted}
+            progress={(overviewData.shortlisted / overviewData.totalApplications) * 100}
+            icon={UserCheck}
+            color="bg-green-100/50 text-green-600"
+          />
+        </div>
+      </div>
+
+      {/* Application Trends */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Application Trends</CardTitle>
+        </CardHeader>
+        <CardContent className="h-80">
+          <Line
+            data={chartData}
+            options={{
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { position: 'top' },
+                tooltip: { mode: 'index' }
+              },
+              scales: {
+                x: { grid: { display: false } },
+                y: { border: { dash: [4] } }
+              }
+            }}
+          />
+        </CardContent>
+      </Card>
     </AdminPageLayout>
   );
-}
-
-// Helper functions for status colors and icons
-function getStatusColor(status: string) {
-  switch (status) {
-    case "New": return "bg-blue-100 text-blue-600";
-    case "Shortlisted": return "bg-green-100 text-green-600";
-    case "Technical Assessment": return "bg-yellow-100 text-yellow-600";
-    case "Interviewing": return "bg-purple-100 text-purple-600";
-    case "Hired": return "bg-indigo-100 text-indigo-600";
-    case "Rejected": return "bg-red-100 text-red-600";
-    case "Disqualified": return "bg-pink-100 text-pink-600";
-    default: return "bg-gray-100 text-gray-600";
-  }
-}
-
-function getStatusIcon(status: string) {
-  switch (status) {
-    case "New": return <FileText className="w-5 h-5" />;
-    case "Shortlisted": return <CheckCircle className="w-5 h-5" />;
-    case "Technical Assessment": return <Code className="w-5 h-5" />;
-    case "Interviewing": return <MessageSquare className="w-5 h-5" />;
-    case "Hired": return <UserCheck className="w-5 h-5" />;
-    case "Rejected": return <XCircle className="w-5 h-5" />;
-    case "Disqualified": return <Ban className="w-5 h-5" />;
-    default: return <FileText className="w-5 h-5" />;
-  }
 }

@@ -1,5 +1,6 @@
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Search } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface AdminPageLayoutProps {
   title: string;
@@ -9,6 +10,8 @@ interface AdminPageLayoutProps {
   onSearch?: (value: string) => void;
   searchValue?: string;
   showSearch?: boolean;
+  className?: string;
+  headerActions?: React.ReactNode;
 }
 
 export function AdminPageLayout({
@@ -18,10 +21,12 @@ export function AdminPageLayout({
   filters,
   onSearch,
   searchValue,
-  showSearch = true
+  showSearch = true,
+  className,
+  headerActions
 }: AdminPageLayoutProps) {
   return (
-    <>
+    <div className={cn("flex-1 space-y-4 p-8 pt-6", className)}>
       <AdminPageHeader title={title} breadcrumb={title} />
       
       {/* Only show search section if showSearch is true */}
@@ -49,6 +54,6 @@ export function AdminPageLayout({
       <div className="p-6">
         {children}
       </div>
-    </>
+    </div>
   );
 } 

@@ -2,15 +2,15 @@
 
 import { motion } from 'framer-motion';
 import { FileText, CheckCircle, Code, MessageSquare, UserCheck, XCircle, ChevronRight, ArrowUpRightIcon } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
-import { Skeleton } from '@/components/ui/skeleton';
 import { useSession } from "next-auth/react";
-import { NotificationButton } from "@/components/NotificationButton";
+
 import { Application } from "@/types/application";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
+import useSWR from 'swr';
+import { api } from '@/lib/api';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface ApplicationStats {
   stats: {
@@ -25,16 +25,22 @@ interface ApplicationStats {
 
 export default function DashboardOverview() {
   const { data: session } = useSession();
-  const { data, isLoading } = useQuery<ApplicationStats>({
-    queryKey: ['applicationStats'],
-    queryFn: () => api.get('/user/application-stats').then(res => res.data)
-  });
+  
+  // Define SWR fetcher using existing API instance
+  const fetcher = (url: string) => api.get(url).then(res => res.data);
+
+  // Migrate application stats query
+  const { data, isLoading } = useSWR<ApplicationStats>(
+    '/user/application-stats',
+    fetcher
+  );
   const stats = data?.stats;
 
-  const { data: appsData } = useQuery<{ applications: Application[] }>({
-    queryKey: ['recentApplications'],
-    queryFn: () => api.get('/applications?limit=1').then(res => res.data),
-  });
+  // Migrate recent applications query
+  const { data: appsData } = useSWR<{ applications: Application[] }>(
+    '/applications?limit=1',
+    fetcher
+  );
 
   const latestApplication = appsData?.applications?.[0];
 
@@ -96,7 +102,7 @@ export default function DashboardOverview() {
         </div>
         
         <div className="flex items-center gap-4">
-          <NotificationButton variant="outline" />
+       
           
           <div className="flex items-center gap-3">
             <span className="text-sm font-medium text-gray-700 hidden sm:block">

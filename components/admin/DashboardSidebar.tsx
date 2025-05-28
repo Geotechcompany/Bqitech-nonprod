@@ -105,6 +105,11 @@ export default function DashboardSidebar({ isOpen, onClose }: DashboardSidebarPr
   const pathname = usePathname();
   const router = useRouter();
 
+  // Don't render sidebar on login page
+  if (pathname === '/admin/login') {
+    return null;
+  }
+
   const handleLogout = async () => {
     await signOut({ callbackUrl: '/' });
   };

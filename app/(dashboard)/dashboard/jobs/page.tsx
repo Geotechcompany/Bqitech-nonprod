@@ -78,7 +78,7 @@ export default function JobListingsPage() {
                 </Button>
                 <Button
                   variant="outline"
-                  onClick={() => router.push(`/careers/jobs`)}
+                  onClick={() => window.location.href = `/careers/jobs`}
                   className="px-4 py-2 border border-gray-200 hover:border-gray-300 rounded-lg text-gray-600 hover:text-gray-800 transition-colors duration-200"
                 >
                   View Details

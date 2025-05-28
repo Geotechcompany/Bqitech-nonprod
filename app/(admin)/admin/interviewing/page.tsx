@@ -1,21 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AdminPageLayout } from "@/components/admin/AdminPageLayout";
-import DataTable from "@/components/admin/DataTable";
+import { InterviewingTable } from "@/components/admin/InterviewingTable";
 import useSWR from "swr";
 import { EditApplicationModal } from "@/components/admin/EditApplicationModal";
 import { ViewApplicationModal } from "@/components/admin/ViewApplicationModal";
 import { DeleteApplicationModal } from "@/components/admin/DeleteApplicationModal";
 import { Application } from "@/types/application";
-
-const columns = [
-  { header: "Name", accessor: "name" },
-  { header: "Email", accessor: "email" },
-  { header: "Position", accessor: "position" },
-  { header: "Interview Date", accessor: "interviewDate" },
-  { header: "Status", accessor: "status" },
-];
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -25,10 +17,10 @@ export default function InterviewingPage() {
     "/api/admin/interviewing",
     fetcher
   );
-
   const [viewApplication, setViewApplication] = useState<Application | null>(null);
   const [editApplication, setEditApplication] = useState<Application | null>(null);
   const [deleteApplicationId, setDeleteApplicationId] = useState<string | null>(null);
+  const [jobTitles, setJobTitles] = useState<Record<string, string>>({});
 
   const handleView = (id: string) => {
     const application = data?.find((app: Application) => app.id === id);
@@ -67,7 +59,7 @@ export default function InterviewingPage() {
     }
   };
 
-  const filteredData = (data ?? []).filter((app: Application) =>
+  const filteredData = (Array.isArray(data) ? data : []).filter((app: Application) =>
     Object.values(app).some((value) =>
       String(value).toLowerCase().includes(searchTerm.toLowerCase())
     )
@@ -84,12 +76,18 @@ export default function InterviewingPage() {
       onSearch={setSearchTerm}
     >
       <div className="overflow-x-auto">
-        <DataTable
-          columns={columns}
-          data={filteredData}
-          onView={handleView}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
+        <InterviewingTable
+          applications={filteredData}
+          jobTitles={jobTitles}
+          onView={(id) => {
+            const application = data?.find((app) => app.id === id);
+            setViewApplication(application || null);
+          }}
+          onEdit={(id) => {
+            const application = data?.find((app) => app.id === id);
+            setEditApplication(application || null);
+          }}
+          onDelete={(id) => setDeleteApplicationId(id)}
         />
       </div>
 
