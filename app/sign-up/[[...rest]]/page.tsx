@@ -131,15 +131,28 @@ export default function SignUpPage() {
         throw new Error(responseData.error || 'Registration failed. Please try again.')
       }
 
-      // Send verification email
-      const verificationToken = await generateEmailVerificationToken(data.email)
-      await sendVerificationEmail(data.email, verificationToken.token)
+      // Generate verification token
+      const { token, expires } = generateEmailVerificationToken()
+      
+      // Store token in database
+      await fetch('/api/auth/store-verification-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: responseData.userId,
+          token,
+          expires
+        })
+      })
 
-      toast.success('Verification email sent! Please check your inbox.', { 
+      // Send verification email
+      await sendVerificationEmail(data.email, token)
+
+      toast.success('Verification code sent! Check your email.', { 
         id: toastId,
         duration: 5000 
       })
-      router.push('/auth/verify-email')
+      router.push(`/auth/verify-email?email=${encodeURIComponent(data.email)}`)
     } catch (error) {
       console.error('Signup error:', error)
       setCaptchaKey(Date.now())

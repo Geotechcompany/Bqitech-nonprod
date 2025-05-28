@@ -10,20 +10,20 @@ export async function POST(request: Request) {
 
     if (!token) {
       return NextResponse.json(
-        { error: 'Verification token is required' },
+        { error: 'Verification code is required' },
         { status: 400 }
       )
     }
 
     const verificationToken = await conn.models.Token.findOne({
-      token,
+      token: { $regex: new RegExp(`^${token}$`, 'i') },
       type: 'EMAIL_VERIFICATION',
       expires: { $gt: new Date() }
     })
 
     if (!verificationToken) {
       return NextResponse.json(
-        { error: 'Invalid or expired verification token' },
+        { error: 'Invalid or expired verification code' },
         { status: 400 }
       )
     }
