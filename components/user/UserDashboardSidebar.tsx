@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   BarChart2,
   FileText,
@@ -11,9 +12,13 @@ import {
   Settings,
   LogOut,
   X,
-  LayoutDashboard,
+  Sun,
+  Moon,
+  Menu,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
+import { useTheme } from "@/contexts/ThemeContext";
+import { cn } from "@/lib/utils"; // Assuming you have a utility class helper
 
 const tabs = [
   {
@@ -42,13 +47,11 @@ const tabs = [
   },
 ];
 
-export default function UserDashboardSidebar({
-  onClose,
-}: {
-  onClose?: () => void;
-}) {
+export default function UserDashboardSidebar({ onClose }) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const { theme, toggleTheme } = useTheme();
 
   const handleLogout = async () => {
     await signOut({ redirect: false });
@@ -56,59 +59,113 @@ export default function UserDashboardSidebar({
   };
 
   return (
-    <aside className="bg-white shadow-md p-6 h-full relative">
-      <div className="flex items-center mb-6 border-b pb-4">
-        <Image
-          src="/bqilogo.png"
-          alt="BQI Tech Logo"
-          width={40}
-          height={40}
-          className="mr-2"
-        />
-        <h1 className="text-xl font-bold text-gray-800">BQI Tech</h1>
+    <aside className={cn(
+      "bg-white dark:bg-gray-850 shadow-lg h-full relative transition-all duration-300 ease-in-out",
+      isCollapsed ? "w-20" : "w-64"
+    )}>
+      <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-700">
+        {!isCollapsed && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex items-center"
+          >
+            <Image
+              src="/bqilogo.png"
+              alt="BQI Tech Logo"
+              width={40}
+              height={40}
+              className="mr-2 rounded-lg"
+            />
+            <h1 className="text-xl font-bold text-gray-800 dark:text-white">BQI Tech</h1>
+          </motion.div>
+        )}
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
       </div>
+
+      <div className="p-4 space-y-4">
+        <div className="bg-blue-100/50 dark:bg-blue-900/30 backdrop-blur-sm p-4 rounded-xl border border-blue-200/50 dark:border-blue-800/50">
+          {!isCollapsed ? (
+            <>
+              <p className="text-sm text-blue-800 dark:text-blue-200">Used capacity: 60%</p>
+              <button className="mt-2 w-full bg-blue-500/90 hover:bg-blue-600 text-white text-sm font-medium py-2 px-3 rounded-lg transition-all">
+                Upgrade plan
+              </button>
+            </>
+          ) : (
+            <div className="h-10 flex items-center justify-center">
+              <span className="text-blue-500 text-lg font-bold">60%</span>
+            </div>
+          )}
+        </div>
+
+        <nav className="space-y-1">
+          {tabs.map((tab) => (
+            <motion.div
+              key={tab.id}
+              className={cn(
+                "rounded-xl overflow-hidden",
+                pathname === tab.href
+                  ? "bg-blue-50/50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-200"
+                  : "text-gray-600 dark:text-gray-400 hover:bg-gray-100/50 dark:hover:bg-gray-700/50"
+              )}
+              whileHover={{ scale: 1.02 }}
+            >
+              <Link
+                href={tab.href}
+                className={cn(
+                  "flex items-center px-4 py-3 group",
+                  isCollapsed ? "justify-center" : "justify-start"
+                )}
+                onClick={onClose}
+              >
+                <tab.icon className="w-5 h-5 flex-shrink-0" />
+                {!isCollapsed && (
+                  <span className="ml-3 text-sm font-medium whitespace-nowrap">
+                    {tab.label}
+                  </span>
+                )}
+              </Link>
+            </motion.div>
+          ))}
+        </nav>
+      </div>
+
+      <div className={cn(
+        "absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100 dark:border-gray-700",
+        isCollapsed ? "flex flex-col items-center space-y-3" : "flex justify-between items-center"
+      )}>
+        <button
+          onClick={toggleTheme}
+          className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-2 rounded-lg hover:bg-gray-100/50 dark:hover:bg-gray-700/50"
+        >
+          {theme === 'dark' ? (
+            <Sun className="w-5 h-5" />
+          ) : (
+            <Moon className="w-5 h-5" />
+          )}
+        </button>
+        <button
+          onClick={handleLogout}
+          className="text-red-500 hover:text-red-700 dark:hover:text-red-300 p-2 rounded-lg hover:bg-gray-100/50 dark:hover:bg-gray-700/50"
+        >
+          <LogOut className="w-5 h-5" />
+        </button>
+      </div>
+
       {onClose && (
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+          className="absolute top-5 right-4 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
         >
           <X className="w-6 h-6" />
         </button>
       )}
-      <nav className="space-y-2">
-        {tabs.map((tab) => (
-          <motion.div
-            key={tab.id}
-            className={`rounded-lg ${
-              pathname === tab.href
-                ? "bg-blue-100 text-blue-800"
-                : "text-gray-600 hover:bg-gray-100"
-            }`}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <Link
-              href={tab.href}
-              className="flex items-center w-full px-4 py-2"
-              onClick={onClose}
-            >
-              <tab.icon className="w-5 h-5 mr-3" />
-              {tab.label}
-            </Link>
-          </motion.div>
-        ))}
-      </nav>
-      <div className="absolute bottom-0 left-0 right-0 p-4">
-        <motion.button
-          className="flex items-center justify-center w-full bg-red-500 text-white px-4 py-2 rounded-full hover:bg-red-600 transition-colors"
-          onClick={handleLogout}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <LogOut className="w-5 h-5 mr-2" />
-          Logout
-        </motion.button>
-      </div>
     </aside>
   );
 }

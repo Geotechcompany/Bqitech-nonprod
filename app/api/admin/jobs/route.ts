@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { JobPosting } from "@/models/jobPosting";
+import { connectToDatabase } from "@/lib/mongodb";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    await mongoose.connect(process.env.MONGODB_URI!);
-
-    const jobs = await JobPosting.find()
-      .select('_id title')
-      .lean();
+    const { db } = await connectToDatabase();
     
+    const jobs = await db.collection('jobpostings').find()
+      .project({ _id: 1, title: 1 })
+      .toArray();
+
     return NextResponse.json(jobs);
   } catch (error) {
     console.error("Failed to fetch jobs:", error);
@@ -19,28 +20,29 @@ export async function GET() {
       { error: "Failed to fetch jobs" },
       { status: 500 }
     );
-  } finally {
-    await mongoose.disconnect();
   }
 }
 
 export async function POST(request: Request) {
   try {
+    const { db } = await connectToDatabase();
     const body = await request.json();
-    await mongoose.connect(process.env.MONGODB_URI!);
-
-    const job = await JobPosting.create(body);
-    return NextResponse.json(job);
+    
+    const result = await db.collection('jobpostings').insertOne(body);
+    
+    if (!result.acknowledged) {
+      throw new Error('Failed to create job');
+    }
+    
+    return NextResponse.json({ 
+      _id: result.insertedId,
+      ...body
+    });
   } catch (error) {
     console.error("Failed to create job:", error);
     return NextResponse.json(
-      { 
-        error: "Failed to create job",
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
+      { error: "Failed to create job" },
       { status: 500 }
     );
-  } finally {
-    await mongoose.disconnect();
   }
 } 

@@ -63,3 +63,25 @@ export const sendVerificationEmail = async (email: string, token: string) => {
     `
   })
 }
+
+export async function sendPasswordResetEmail(email: string, token: string) {
+  const resetUrl = `${process.env.NEXTAUTH_URL}/reset-password?token=${token}`;
+
+  await sendEmail({
+    to: email,
+    subject: 'BQI Tech Password Reset Request',
+    body: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #2563eb;">Password Reset Request</h2>
+        <p>We received a request to reset your BQI Tech account password. Click the button below to proceed:</p>
+        <a href="${resetUrl}" 
+           style="display: inline-block; padding: 12px 24px; background-color: #2563eb; 
+                  color: white; text-decoration: none; border-radius: 4px; margin: 20px 0;">
+          Reset Password
+        </a>
+        <p>This link will expire in 1 hour.</p>
+        <p style="color: #6b7280;">If you didn't request this password reset, please ignore this email.</p>
+      </div>
+    `
+  });
+}

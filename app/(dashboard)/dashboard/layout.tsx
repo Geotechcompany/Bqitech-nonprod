@@ -33,7 +33,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
       {/* Sidebar */}
       <div className="hidden md:flex md:flex-shrink-0">
-        <UserDashboardSidebar />
+        <UserDashboardSidebar onClose={() => {}} />
       </div>
 
       {/* Mobile Sidebar */}

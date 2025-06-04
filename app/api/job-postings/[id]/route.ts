@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import mongoose from 'mongoose';
 import { JobPosting } from '@/models/jobPosting';
+import { connectToDatabase } from '@/lib/mongodb';
 
 // Ensure schema has all required fields
 const updateSchema = async () => {
@@ -46,10 +47,12 @@ const updateSchema = async () => {
 
 export async function GET() {
   try {
-    await mongoose.connect(process.env.MONGODB_URI!);
-    await updateSchema();
+    const { db } = await connectToDatabase();
     
-    const jobPostings = await JobPosting.find().lean();
+    const jobPostings = await db.collection('jobpostings')
+      .find()
+      .toArray();
+
     return NextResponse.json(jobPostings);
   } catch (error) {
     console.error("Failed to fetch job postings:", error);
@@ -57,8 +60,6 @@ export async function GET() {
       { error: "Failed to fetch job postings" },
       { status: 500 }
     );
-  } finally {
-    await mongoose.disconnect();
   }
 }
 

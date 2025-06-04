@@ -3,9 +3,11 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { getSession } from "next-auth/react";
 import DashboardSidebar from '@/components/admin/DashboardSidebar';
+import MobileDashboardSidebar from '@/components/admin/MobileDashboardSidebar';
 import { Menu } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { toast } from "react-hot-toast";
+import { useSettings } from "@/contexts/SettingsContext";
 
 declare module "next-auth" {
   interface User {
@@ -19,6 +21,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
+  const { sidebarCollapsed } = useSettings();
 
   useEffect(() => {
     const checkSession = async () => {
@@ -55,10 +58,26 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               <Menu size={24} />
             </button>
           </div>
-          <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+          
+          {/* Desktop Sidebar */}
+          <DashboardSidebar 
+            isOpen={sidebarOpen} 
+            onClose={() => setSidebarOpen(false)}
+            className="hidden md:block"
+          />
+          
+          {/* Mobile Sidebar */}
+          <MobileDashboardSidebar
+            isOpen={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+          />
         </>
       )}
-      <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-4 md:p-8">
+      <main className={`
+        flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-4 md:p-8
+        transition-all duration-300 ease-in-out
+        ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'}
+      `}>
         {children}
       </main>
     </div>

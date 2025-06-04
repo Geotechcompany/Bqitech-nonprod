@@ -6,6 +6,9 @@ import connectToDatabase from "@/lib/mongodb"
 import { User } from "@/models/user"
 import bcrypt from "bcryptjs"
 import mongoose from "mongoose"
+import { isConnected } from "@/lib/mongodb"
+
+import GitHub from "next-auth/providers/github";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -17,22 +20,33 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         try {
-          await connectToDatabase();
-          const user = await User.findOne({ email: credentials.email });
+          const { db } = await connectToDatabase();
+          
+          if (!db) throw new Error('Database not connected');
 
-          if (!user) {
-            throw new Error("User does not exist");
-          }
+          const user = await db.collection('users').findOne({
+            email: credentials.email
+          });
 
-          const isValid = await bcrypt.compare(credentials.password, user.password);
-          if (!isValid) {
-            throw new Error("Incorrect password");
-          }
+          if (!user) return null;
 
-          return user;
+          const isValid = await bcrypt.compare(
+            credentials.password,
+            user.password
+          );
+
+          if (!isValid) return null;
+
+          return {
+            id: user._id.toString(),
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            _persist: true
+          };
         } catch (error) {
-          console.error("Auth error:", error);
-          throw new Error(error.message || "Authentication failed");
+          console.error('Auth error:', error);
+          return null;
         }
       }
     }),
@@ -43,26 +57,39 @@ export const authOptions: NextAuthOptions = {
     GitHubProvider({
       clientId: process.env.GITHUB_CLIENT_ID,
       clientSecret: process.env.GITHUB_CLIENT_SECRET
-    })
+    }),
+    GitHub({
+      clientId: process.env.GITHUB_ID,
+      clientSecret: process.env.GITHUB_SECRET,
+    }),
   ],
   callbacks: {
     async jwt({ token, user }) {
-      // Add database refresh on every JWT callback
-      await mongoose.connect(process.env.MONGODB_URI!);
-      const dbUser = await User.findById(token.id || user?.id);
-      
-      if (dbUser) {
-        return {
+      try {
+        if (!(await isConnected())) {
+          await connectToDatabase();
+        }
+        
+        const userId = (token.id || user?.id) as string;
+        if (!userId) return token;
+
+        const { db } = await connectToDatabase();
+        const dbUser = await db.collection('users').findOne({ 
+          _id: new mongoose.Types.ObjectId(userId)
+        });
+
+        return dbUser ? {
           ...token,
           id: dbUser._id.toString(),
           email: dbUser.email,
           name: dbUser.name,
           role: dbUser.role,
-          emailVerified: dbUser.emailVerified
-        };
+          _persist: true
+        } : token;
+      } catch (error) {
+        console.error('JWT error:', error);
+        return token;
       }
-      
-      return token;
     },
     async session({ session, token }) {
       return {

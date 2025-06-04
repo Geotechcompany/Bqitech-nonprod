@@ -5,18 +5,14 @@ import { Job } from '@/models/job';
 
 export async function GET() {
   try {
-    await connectToDatabase();
+    const { db } = await connectToDatabase();
     
-    const applications = await Application.find({ 
-      status: 'Disqualified',
-      answers: { $exists: true, $not: { $size: 0 } }
-    })
-    .populate({
-      path: 'jobId',
-      select: 'title',
-      model: Job
-    })
-    .lean();
+    const applications = await db.collection('applications')
+      .find({ 
+        status: 'Disqualified',
+        answers: { $exists: true, $not: { $size: 0 } }
+      })
+      .toArray();
 
     const transformed = applications.map(app => ({
       id: app._id.toString(),
@@ -36,7 +32,7 @@ export async function GET() {
   } catch (error) {
     console.error('Failed to fetch disqualified candidates:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch disqualified candidates' },
+      { error: 'Database operation failed' },
       { status: 500 }
     );
   }

@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { AdminPageLayout } from "@/components/admin/AdminPageLayout";
 import { Skeleton } from "@/components/ui/skeleton";
+import Link from 'next/link';
 
 ChartJS.register(
   CategoryScale,
@@ -57,43 +58,46 @@ const statusColors = {
   Rejected: 'bg-rose-100 text-rose-800',
 };
 
-const StatCard = ({ title, value, icon: Icon, trend, color }: {
+const StatCard = ({ title, value, icon: Icon, trend, color, path }: {
   title: string;
   value: number;
   icon: any;
   trend?: number;
   color: string;
+  path: string;
 }) => (
-  <motion.div
-    whileHover={{ y: -4 }}
-    className="bg-background rounded-2xl border p-5 shadow-lg hover:shadow-xl transition-shadow"
-  >
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-sm font-medium text-muted-foreground mb-2">{title}</p>
-        <h3 className="text-3xl font-bold">{value.toLocaleString()}</h3>
+  <Link href={path} className="hover:opacity-90 transition-opacity">
+    <motion.div
+      whileHover={{ y: -4 }}
+      className="bg-background rounded-2xl border p-5 shadow-lg hover:shadow-xl transition-shadow cursor-pointer"
+    >
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-muted-foreground mb-2">{title}</p>
+          <h3 className="text-3xl font-bold">{value.toLocaleString()}</h3>
+        </div>
+        <div className={`p-3 rounded-xl ${color} relative overflow-hidden`}>
+          <Icon className="h-6 w-6" />
+          <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent" />
+        </div>
       </div>
-      <div className={`p-3 rounded-xl ${color} relative overflow-hidden`}>
-        <Icon className="h-6 w-6" />
-        <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent" />
-      </div>
-    </div>
-    {trend && (
-      <div className="flex items-center mt-4">
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-          trend > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-        }`}>
-          {trend > 0 ? (
-            <ArrowUp className="h-3 w-3 mr-1" />
-          ) : (
-            <ArrowDown className="h-3 w-3 mr-1" />
-          )}
-          {Math.abs(trend)}%
-        </span>
-        <span className="text-sm text-muted-foreground ml-2">vs last month</span>
-      </div>
-    )}
-  </motion.div>
+      {trend && (
+        <div className="flex items-center mt-4">
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+            trend > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+          }`}>
+            {trend > 0 ? (
+              <ArrowUp className="h-3 w-3 mr-1" />
+            ) : (
+              <ArrowDown className="h-3 w-3 mr-1" />
+            )}
+            {Math.abs(trend)}%
+          </span>
+          <span className="text-sm text-muted-foreground ml-2">vs last month</span>
+        </div>
+      )}
+    </motion.div>
+  </Link>
 );
 
 const PipelineStage = ({ title, count, progress, icon: Icon, color }: {
@@ -187,38 +191,43 @@ export default function OverviewPage() {
           title="Total Applications"
           value={overviewData.totalApplications}
           icon={FileText}
-          trend={12}
           color="bg-blue-100/50 text-blue-600"
+          path="/admin/applications"
         />
         <StatCard
           title="Shortlisted"
           value={overviewData.shortlisted}
           icon={UserCheck}
           color="bg-green-100/50 text-green-600"
+          path="/admin/shortlisted"
         />
         <StatCard
           title="In Assessment"
           value={overviewData.technicalAssessment}
           icon={Code}
           color="bg-amber-100/50 text-amber-600"
-        />
-        <StatCard
-          title="Interviewing"
-          value={overviewData.interviewing}
-          icon={MessageSquare}
-          color="bg-purple-100/50 text-purple-600"
+          path="/admin/assessments"
         />
         <StatCard
           title="Hired"
           value={overviewData.hired}
           icon={CheckCircle}
           color="bg-emerald-100/50 text-emerald-600"
+          path="/admin/hired"
+        />
+        <StatCard
+          title="Interviewing"
+          value={overviewData.interviewing}
+          icon={MessageSquare}
+          color="bg-purple-100/50 text-purple-600"
+          path="/admin/interviewing"
         />
         <StatCard
           title="Disqualified"
           value={overviewData.disqualified}
           icon={XCircle}
           color="bg-rose-100/50 text-rose-600"
+          path="/admin/rejected"
         />
       </div>
 

@@ -12,6 +12,7 @@ interface AdminPageLayoutProps {
   showSearch?: boolean;
   className?: string;
   headerActions?: React.ReactNode;
+  breadcrumb?: string;
 }
 
 export function AdminPageLayout({
