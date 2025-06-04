@@ -3,10 +3,15 @@ import connectToDatabase from '@/lib/mongodb';
 import { Application } from '@/models/application';
 
 export async function GET() {
-  await connectToDatabase();
-  
   try {
-    const stats = await Application.aggregate([
+    const { db } = await connectToDatabase();
+    
+    const stats = await db.collection('applications').aggregate([
+      {
+        $match: {
+          answers: { $exists: true, $not: { $size: 0 } }
+        }
+      },
       {
         $facet: {
           totalApplications: [{ $count: "count" }],
@@ -17,7 +22,7 @@ export async function GET() {
           disqualified: [{ $match: { status: 'Disqualified' } }, { $count: "count" }]
         }
       }
-    ]);
+    ]).toArray();
 
     const result = {
       totalApplications: stats[0].totalApplications[0]?.count || 0,
