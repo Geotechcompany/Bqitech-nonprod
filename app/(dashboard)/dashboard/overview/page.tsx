@@ -32,14 +32,23 @@ export default function DashboardOverview() {
   // Migrate application stats query
   const { data, isLoading } = useSWR<ApplicationStats>(
     '/user/application-stats',
-    fetcher
+    fetcher,
+    {
+      refreshInterval: 30000,
+      revalidateOnFocus: true,
+      revalidateOnReconnect: true
+    }
   );
   const stats = data?.stats;
 
   // Migrate recent applications query
   const { data: appsData } = useSWR<{ applications: Application[] }>(
     '/applications?limit=1',
-    fetcher
+    fetcher,
+    {
+      refreshInterval: 30000,
+      dedupingInterval: 10000
+    }
   );
 
   const latestApplication = appsData?.applications?.[0];

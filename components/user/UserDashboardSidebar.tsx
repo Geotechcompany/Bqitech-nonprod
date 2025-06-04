@@ -19,6 +19,7 @@ import {
 import { signOut } from "next-auth/react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { cn } from "@/lib/utils"; // Assuming you have a utility class helper
+import useSWR from 'swr';
 
 const tabs = [
   {
@@ -47,15 +48,73 @@ const tabs = [
   },
 ];
 
+// Create interface for slot data
+interface ApplicationSlots {
+  used: number;
+  total: number;
+}
+
 export default function UserDashboardSidebar({ onClose }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
 
+  // Inside the component, add SWR hook
+  const { data: slotData } = useSWR<{
+    used: number;
+    total: number;
+    statusCounts: Record<string, number>;
+    currentStage: string;
+  }>('/api/user/application-slots', {
+    refreshInterval: 30000,
+    revalidateOnFocus: true
+  });
+
+  // Update current stage calculation
+  const stages = ['applied', 'shortlisted', 'technicalAssessment', 'interviewing', 'hired', 'disqualified'];
+  const currentStageIndex = stages.indexOf(slotData?.currentStage || 'applied');
+
+  // Calculate progress percentage
+  const progress = slotData ? (slotData.used / slotData.total) * 100 : 0;
+  const circumference = 2 * Math.PI * 40; // 2πr where r=40
+
   const handleLogout = async () => {
     await signOut({ redirect: false });
     router.push("/");
+  };
+
+  // Update status color mapping
+  const getStatusColor = (stage?: string) => {
+    switch(stage) {
+      case 'applied': return { bg: 'bg-gray-500', text: 'text-gray-600' };
+      case 'shortlisted': return { bg: 'bg-blue-500', text: 'text-blue-600' };
+      case 'technicalAssessment': return { bg: 'bg-yellow-500', text: 'text-yellow-600' };
+      case 'interviewing': return { bg: 'bg-purple-500', text: 'text-purple-600' };
+      case 'hired': return { bg: 'bg-green-500', text: 'text-green-600' };
+      case 'disqualified': return { bg: 'bg-red-500', text: 'text-red-600' };
+      default: return { bg: 'bg-gray-500', text: 'text-gray-600' };
+    }
+  };
+
+  // Update stage labels
+  const getStageLabel = (stage?: string) => {
+    const labels: Record<string, string> = {
+      applied: 'Applied',
+      shortlisted: 'Shortlisted',
+      technicalAssessment: 'Technical Review',
+      interviewing: 'Interviewing',
+      hired: 'Hired',
+      disqualified: 'Disqualified'
+    };
+    return labels[stage || 'applied'] || 'Applied';
+  };
+
+  // Update progress calculation functions
+  const calculateProgress = (stage?: string) => {
+    const stageOrder = ['applied', 'shortlisted', 'technicalAssessment', 'interviewing', 'hired'];
+    const index = stageOrder.indexOf(stage || 'applied');
+    return Math.min(((index + 1) / stageOrder.length) * 100, 100);
   };
 
   return (
@@ -91,15 +150,59 @@ export default function UserDashboardSidebar({ onClose }) {
       <div className="p-4 space-y-4">
         <div className="bg-blue-100/50 dark:bg-blue-900/30 backdrop-blur-sm p-4 rounded-xl border border-blue-200/50 dark:border-blue-800/50">
           {!isCollapsed ? (
-            <>
-              <p className="text-sm text-blue-800 dark:text-blue-200">Used capacity: 60%</p>
-              <button className="mt-2 w-full bg-blue-500/90 hover:bg-blue-600 text-white text-sm font-medium py-2 px-3 rounded-lg transition-all">
-                Upgrade plan
-              </button>
-            </>
+            <div className="flex items-center gap-4">
+              <div className="flex-1 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                    Hiring Progress
+                  </span>
+                  <span className={`text-xs font-semibold ${getStatusColor(slotData?.currentStage).text}`}>
+                    {getStageLabel(slotData?.currentStage)}
+                  </span>
+                </div>
+                
+                <div className="relative h-2.5 rounded-full bg-gray-200 dark:bg-gray-700">
+                  <div 
+                    className={`absolute h-full rounded-full transition-all duration-500 ${
+                      getStatusColor(slotData?.currentStage).bg
+                    }`}
+                    style={{ width: `${calculateProgress(slotData?.currentStage)}%` }}
+                  />
+                </div>
+                
+                <div className="flex justify-between text-xs text-gray-600 dark:text-gray-300">
+                  <span>{calculateProgress(slotData?.currentStage)}% Complete</span>
+                  <span>Stage: {currentStageIndex + 1}/5</span>
+                </div>
+              </div>
+              <div>
+           
+              </div>
+            </div>
           ) : (
-            <div className="h-10 flex items-center justify-center">
-              <span className="text-blue-500 text-lg font-bold">60%</span>
+            <div className="relative w-10 h-10 mx-auto">
+              <svg className="w-full h-full" viewBox="0 0 100 100">
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="40"
+                  className="stroke-current text-gray-200 dark:text-gray-700"
+                  strokeWidth="8"
+                  fill="none"
+                />
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="40"
+                  className="stroke-current text-blue-500 dark:text-blue-400"
+                  strokeWidth="8"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeDasharray="251.2"
+                  strokeDashoffset="100.48"
+                  transform="rotate(-90 50 50)"
+                />
+              </svg>
             </div>
           )}
         </div>
@@ -157,15 +260,6 @@ export default function UserDashboardSidebar({ onClose }) {
           <LogOut className="w-5 h-5" />
         </button>
       </div>
-
-      {onClose && (
-        <button
-          onClick={onClose}
-          className="absolute top-5 right-4 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-        >
-          <X className="w-6 h-6" />
-        </button>
-      )}
     </aside>
   );
 }

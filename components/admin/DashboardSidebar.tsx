@@ -32,27 +32,6 @@ import { useState } from "react";
 
 export const menuSections = [
   {
-    title: "Recruitment",
-    icon: BriefcaseBusiness,
-    items: [
-      {
-        name: "Job Postings",
-        href: "/admin/job-postings",
-        icon: ClipboardList,
-      },
-      {
-        name: "Applications",
-        href: "/admin/applications",
-        icon: Folder,
-      },
-      {
-        name: "Questions Bank",
-        href: "/admin/job-postings/questions",
-        icon: BrainCircuit,
-      },
-    ],
-  },
-  {
     title: "Candidates",
     icon: Users,
     items: [
@@ -83,6 +62,28 @@ export const menuSections = [
       },
     ],
   },
+  {
+    title: "Recruitment",
+    icon: BriefcaseBusiness,
+    items: [
+      {
+        name: "Job Postings",
+        href: "/admin/job-postings",
+        icon: ClipboardList,
+      },
+      {
+        name: "Applications",
+        href: "/admin/applications",
+        icon: Folder,
+      },
+      {
+        name: "Questions Bank",
+        href: "/admin/job-postings/questions",
+        icon: BrainCircuit,
+      },
+    ],
+  },
+
   {
     title: "Content",
     icon: BookText,
@@ -131,7 +132,7 @@ interface DashboardSidebarProps {
 export default function DashboardSidebar({ isOpen, onClose, className }: DashboardSidebarProps) {
   const { sidebarCollapsed, updateSettings } = useSettings();
   const pathname = usePathname();
-  const [expandedSection, setExpandedSection] = useState<string | null>(null);
+  const [expandedSection, setExpandedSection] = useState<string | null>('Candidates');
 
   if (pathname === '/admin/login') return null;
 
