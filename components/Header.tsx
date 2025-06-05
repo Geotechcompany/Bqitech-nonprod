@@ -72,12 +72,12 @@ export default function Header() {
               >
                 About
               </Link>
-              {/* <Link 
+              <Link 
                 href="/blog" 
                 className="flex items-center gap-1.5 text-[16px] font-medium hover:text-gray-600 rounded-md px-2 py-2"
               >
-                Blogs
-              </Link> */}
+                Blog
+              </Link>
             </nav>
 
             {/* Mobile Actions */}

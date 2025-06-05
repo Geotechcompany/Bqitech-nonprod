@@ -7,7 +7,7 @@ import { SessionProvider } from "next-auth/react"
 import { metadata } from './metadata'
 import { usePathname } from 'next/navigation'
 import { Toaster } from "react-hot-toast"
-import { ThemeProvider } from '@/contexts/ThemeContext'
+
 
 const inter = Inter({
   subsets: ["latin"],
@@ -21,7 +21,7 @@ export default function RootLayout({
 }) {
   return (
     <SessionProvider>
-      <ThemeProvider>
+   
         <html lang="en" className={inter.className}>
           <head>
             <link 
@@ -29,6 +29,7 @@ export default function RootLayout({
               href="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX" 
               as="script"
             />
+            <meta name="color-scheme" content="light dark" />
           </head>
           <body>
             <ClientWrapper>
@@ -46,7 +47,7 @@ export default function RootLayout({
             />
           </body>
         </html>
-      </ThemeProvider>
+    
     </SessionProvider>
   )
 }

@@ -17,7 +17,7 @@ import {
   Menu,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
-import { useTheme } from "@/contexts/ThemeContext";
+
 import { cn } from "@/lib/utils"; // Assuming you have a utility class helper
 import useSWR from 'swr';
 
@@ -58,7 +58,7 @@ export default function UserDashboardSidebar({ onClose }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const { theme, toggleTheme } = useTheme();
+ 
 
   // Inside the component, add SWR hook
   const { data: slotData } = useSWR<{
@@ -72,12 +72,19 @@ export default function UserDashboardSidebar({ onClose }) {
   });
 
   // Update current stage calculation
-  const stages = ['applied', 'shortlisted', 'technicalAssessment', 'interviewing', 'hired', 'disqualified'];
-  const currentStageIndex = stages.indexOf(slotData?.currentStage || 'applied');
+  const activeStages = ['applied', 'shortlisted', 'technicalAssessment', 'interviewing', 'hired'];
+  const currentStageIndex = activeStages.indexOf(slotData?.currentStage || 'applied');
 
   // Calculate progress percentage
   const progress = slotData ? (slotData.used / slotData.total) * 100 : 0;
   const circumference = 2 * Math.PI * 40; // 2πr where r=40
+
+  // Modified calculateProgress function
+  const calculateProgress = (stage?: string) => {
+    if (stage === 'disqualified') return 100; // Full progress for terminal state
+    const index = activeStages.indexOf(stage || 'applied');
+    return Math.min(((index + 1) / activeStages.length) * 100, 100);
+  };
 
   const handleLogout = async () => {
     await signOut({ redirect: false });
@@ -108,13 +115,6 @@ export default function UserDashboardSidebar({ onClose }) {
       disqualified: 'Disqualified'
     };
     return labels[stage || 'applied'] || 'Applied';
-  };
-
-  // Update progress calculation functions
-  const calculateProgress = (stage?: string) => {
-    const stageOrder = ['applied', 'shortlisted', 'technicalAssessment', 'interviewing', 'hired'];
-    const index = stageOrder.indexOf(stage || 'applied');
-    return Math.min(((index + 1) / stageOrder.length) * 100, 100);
   };
 
   return (
@@ -172,7 +172,11 @@ export default function UserDashboardSidebar({ onClose }) {
                 
                 <div className="flex justify-between text-xs text-gray-600 dark:text-gray-300">
                   <span>{calculateProgress(slotData?.currentStage)}% Complete</span>
-                  <span>Stage: {currentStageIndex + 1}/5</span>
+                  {slotData?.currentStage === 'disqualified' ? (
+                    <span className="text-red-600">Disqualified</span>
+                  ) : (
+                    <span>Stage: {currentStageIndex + 1}/{activeStages.length}</span>
+                  )}
                 </div>
               </div>
               <div>
@@ -243,16 +247,7 @@ export default function UserDashboardSidebar({ onClose }) {
         "absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100 dark:border-gray-700",
         isCollapsed ? "flex flex-col items-center space-y-3" : "flex justify-between items-center"
       )}>
-        <button
-          onClick={toggleTheme}
-          className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-2 rounded-lg hover:bg-gray-100/50 dark:hover:bg-gray-700/50"
-        >
-          {theme === 'dark' ? (
-            <Sun className="w-5 h-5" />
-          ) : (
-            <Moon className="w-5 h-5" />
-          )}
-        </button>
+    
         <button
           onClick={handleLogout}
           className="text-red-500 hover:text-red-700 dark:hover:text-red-300 p-2 rounded-lg hover:bg-gray-100/50 dark:hover:bg-gray-700/50"

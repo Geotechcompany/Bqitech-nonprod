@@ -1,28 +1,107 @@
 .animate-svg {
-  animation: scaleUp 3s infinite alternate;
+    animation: scaleUp 3s infinite alternate;
 }
 
 @keyframes scaleUp {
-  from {
-    transform: scale(1);
-  }
-  to {
-    transform: scale(1.1);
-  }
+    from {
+        transform: scale(1);
+    }
+    to {
+        transform: scale(1.1);
+    }
 }
 
 .path-bg {
-  stroke-dasharray: 5;
-  animation: dash 20s linear infinite;
+    stroke-dasharray: 5;
+    animation: dash 20s linear infinite;
 }
 
 .path-progress {
-  stroke-linecap: round;
-  stroke-linejoin: round;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
 @keyframes dash {
-  to {
-    stroke-dashoffset: -50;
-  }
+    to {
+        stroke-dashoffset: -50;
+    }
+}
+
+
+/* Add more dynamic blob variations */
+
+.clip-path-blob-4 {
+    clip-path: polygon(38% 0, 82% 35%, 100% 70%, 75% 100%, 25% 90%, 0% 70%, 0% 35%);
+    animation: float 25s ease-in-out infinite;
+}
+
+@keyframes blob-morph {
+    0% {
+        border-radius: 60% 40% 30% 70%/60% 30% 70% 40%
+    }
+    50% {
+        border-radius: 30% 60% 70% 40%/50% 60% 30% 60%
+    }
+    100% {
+        border-radius: 60% 40% 30% 70%/60% 30% 70% 40%
+    }
+}
+
+.organic-mask {
+    mask-image: url('/blob-mask.svg');
+    mask-size: contain;
+    mask-position: center;
+    animation: blob-morph 20s infinite linear;
+}
+
+
+/* Assuming there's a global style causing the separation */
+
+.visual-separation-line {
+    border-top: none;
+    /* Change or remove the border style */
+}
+
+@keyframes float {
+    0%,
+    100% {
+        transform: translateY(0) rotate(0deg);
+    }
+    50% {
+        transform: translateY(-20px) rotate(3deg);
+    }
+}
+
+@keyframes float-delayed {
+    0%,
+    100% {
+        transform: translateY(0) rotate(0deg);
+    }
+    50% {
+        transform: translateY(15px) rotate(-2deg);
+    }
+}
+
+.animate-float {
+    animation: float 8s ease-in-out infinite;
+}
+
+.animate-float-delayed {
+    animation: float-delayed 10s ease-in-out infinite;
+}
+
+.animate-gradient-shift {
+    animation: gradient-shift 15s ease infinite;
+}
+
+@keyframes gradient-shift {
+    0% {
+        background-position: 0% 50%;
+    }
+    50% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0% 50%;
+    }
 }

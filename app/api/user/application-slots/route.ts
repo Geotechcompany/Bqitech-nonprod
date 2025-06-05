@@ -14,18 +14,22 @@ export async function GET() {
     const { db } = await connectToDatabase();
     
     const pipeline = [
-      { $match: { 'user.email': session.user.email } },
+      { 
+        $match: { 
+          "user.email": session.user.email,
+          status: { $exists: true, $in: ["applied", "shortlisted", "technicalAssessment", "interviewing", "hired", "disqualified"] }
+        } 
+      },
       { 
         $group: {
-          _id: '$status',
+          _id: "$status",
           count: { $sum: 1 },
-          latestStatus: { $last: '$status' },
-          latestDate: { $max: '$appliedDate' }
+          latestDate: { $max: "$appliedDate" }
         }
       },
       {
         $project: {
-          status: '$_id',
+          status: "$_id",
           count: 1,
           _id: 0
         }
@@ -39,8 +43,14 @@ export async function GET() {
     // Get latest application status
     const latestApplication = await db.collection('applications')
       .findOne(
-        { 'user.email': session.user.email },
-        { sort: { appliedDate: -1 }, projection: { status: 1 } }
+        { 
+          "user.email": session.user.email,
+          status: { $exists: true }
+        },
+        { 
+          sort: { appliedDate: -1 },
+          projection: { status: 1 }
+        }
       );
 
     const statusCounts = statusData.reduce((acc, curr) => {
@@ -55,11 +65,17 @@ export async function GET() {
       projection: { planSlots: 1 }
     });
 
+    // Validate and normalize status
+    const validStatuses = ['applied', 'shortlisted', 'technicalAssessment', 'interviewing', 'hired', 'disqualified'];
+    const currentStage = validStatuses.includes(latestApplication?.status) 
+      ? latestApplication.status 
+      : 'applied';
+
     return NextResponse.json({
       used: statusData.reduce((sum, curr) => sum + curr.count, 0),
       total: user?.planSlots || 5,
       statusCounts,
-      currentStage: latestApplication?.status || 'applied'
+      currentStage
     });
 
   } catch (error) {
