@@ -50,7 +50,7 @@ const team = [
     image: "/Teams/lynn 2 1.jpg",
     social: {
       linkedin: "#",
-      github: "#"
+     
     }
   },
   {
@@ -60,7 +60,7 @@ const team = [
     image: "/Teams/Victor.jpg",
     social: {
       linkedin: "#",
-      github: "#"
+     
     }
   },
   {
@@ -69,8 +69,8 @@ const team = [
  
     image: "/Teams/Lovell.jpg",
     social: {
-      linkedin: "#",
-      github: "#"
+      linkedin: "https://www.linkedin.com/in/lovelloduor/",
+   
     }
   },
   {
@@ -117,8 +117,16 @@ const team = [
       linkedin: "#",
       github: "#"
     }
+  },
+  {
+    name: "Nigel Watunu",
+    role: "Operations",
+    image: "/Teams/Nigel.jpg",
+    social: {
+      linkedin: "#",
+      github: "#"
+    }
   }
-  
 ]
 
 export default function AboutPage() {
