@@ -23,8 +23,12 @@ export async function middleware(request: NextRequest) {
   }
 
   // Protect dashboard routes
-  if (pathname.startsWith("/dashboard") && !token) {
-    return NextResponse.redirect(new URL("/login", request.url));
+  if (pathname.startsWith("/dashboard") && token) {
+    if (!(token as JWTToken)?.user?.emailVerified) {
+      return NextResponse.redirect(
+        new URL(`/auth/verify-email?email=${encodeURIComponent(token.email)}`, request.url)
+      );
+    }
   }
 
   if (pathname.startsWith('/protected')) {
@@ -37,6 +41,6 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/dashboard/:path*"]
+  matcher: ["/admin/:path*", "/dashboard/:path*", "/protected/:path*"]
 };
 
