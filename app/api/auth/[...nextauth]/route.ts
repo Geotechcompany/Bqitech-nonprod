@@ -6,7 +6,7 @@ const handler = NextAuth(authOptions);
 export { handler as GET, handler as POST };
 
 const sessionCallback = {
-  async session({ session, user }) {
+  async session({ session, user }: { session: any, user: any }) {
     session.user.role = user.role;
     return session;
   }

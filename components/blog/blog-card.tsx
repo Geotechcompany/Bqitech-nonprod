@@ -15,38 +15,42 @@ const getImageUrl = (url: string) => {
 export function BlogCard({ post }: { post: BlogPost }) {
   return (
     <Link href={`/blog/${post.slug}`} className="group">
-      <article className="bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300">
-        <div className="relative h-48 w-full">
+      <article className="h-full bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col">
+        <div className="relative aspect-[16/9] w-full">
           <Image
             src={getImageUrl(post.imageUrl)}
             alt={post.title}
             fill
-            className="object-cover group-hover:scale-105 transition-transform duration-300"
+            className="object-cover group-hover:scale-105 transition-transform duration-500"
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            quality={85}
           />
-          <div className="absolute top-4 left-4">
-            <span className="px-3 py-1 text-sm font-medium text-white bg-[#31CDFF] rounded-full">
-              {post.category}
-            </span>
-          </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         </div>
         
-        <div className="p-6">
-          <div className="flex items-center gap-4 mb-3 text-sm text-gray-600 dark:text-gray-400">
-            <time dateTime={new Date(post.createdAt).toISOString()}>
-              {new Date(post.createdAt).toLocaleDateString()}
-            </time>
-            <span aria-hidden="true">•</span>
-            <span>{post.readTime}</span>
+        <div className="flex-1 p-5 sm:p-6">
+          <div className="flex items-center gap-3 mb-3">
+            <span className="px-2.5 py-0.5 text-sm font-medium text-[#31CDFF] bg-[#31CDFF]/10 rounded-full">
+              {post.category}
+            </span>
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              {post.readTime}
+            </span>
           </div>
           
-          <h3 className="text-xl font-bold mb-2 group-hover:text-[#31CDFF] transition-colors duration-300">
+          <h3 className="text-lg sm:text-xl font-bold mb-2 group-hover:text-[#31CDFF] transition-colors duration-300 line-clamp-2">
             {post.title}
           </h3>
           
-          <p className="text-gray-600 dark:text-gray-400 line-clamp-2">
+          <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-base line-clamp-2 mb-4">
             {post.excerpt}
           </p>
+
+          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mt-auto">
+            <time dateTime={new Date(post.createdAt).toISOString()}>
+              {new Date(post.createdAt).toLocaleDateString()}
+            </time>
+          </div>
         </div>
       </article>
     </Link>

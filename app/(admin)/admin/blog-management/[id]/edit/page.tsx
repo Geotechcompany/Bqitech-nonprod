@@ -8,42 +8,28 @@ import { AdminPageLayout } from "@/components/admin/AdminPageLayout"
 import { ArrowLeft, Loader } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { BlogPost } from "@/types/blog"
-import { useEffect } from "react"
 
-export default function BlogPostEditor() {
+export default function EditBlogPost() {
   const params = useParams()
   const router = useRouter()
-  const id = typeof params?.id === 'string' ? params.id : null
-  const isNew = id === "new"
+  const postId = params.id as string
 
   const { data: blogPost, isLoading, error } = useQuery({
-    queryKey: ['blog-post', id],
+    queryKey: ['blog-post', postId],
     queryFn: async () => {
-      if (isNew || !id) return null
-      const res = await fetch(`/api/admin/blog-posts/${id}`)
+      const res = await fetch(`/api/admin/blog-posts/${postId}`)
       if (!res.ok) {
         const error = await res.json()
         throw new Error(error.message || 'Failed to fetch post')
       }
-      const data = await res.json()
-      return data as BlogPost
-    },
-    enabled: !isNew && !!id,
-    retry: 2,
-    staleTime: 1000 * 60 * 5
+      return res.json() as Promise<BlogPost>
+    }
   })
 
   const handleSubmit = async (data: Partial<BlogPost>) => {
     try {
-      if (!isNew && !id) {
-        throw new Error('Blog post ID is required for updates')
-      }
-
-      const url = isNew ? "/api/admin/blog-posts" : `/api/admin/blog-posts/${id}`
-      const method = isNew ? "POST" : "PATCH"
-
-      const response = await fetch(url, {
-        method,
+      const response = await fetch(`/api/admin/blog-posts/${postId}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       })
@@ -62,29 +48,17 @@ export default function BlogPostEditor() {
     }
   }
 
-  useEffect(() => {
-    if (id === "new") {
-      router.replace("/admin/blog-management/new")
-    } else {
-      router.replace(`/admin/blog-management/${id}/view`)
-    }
-  }, [id, router])
-
-  // Handle invalid ID parameter
-  if (!isNew && !id) {
+  if (isLoading) {
     return (
-      <AdminPageLayout title="Error">
-        <div className="text-center py-8">
-          <h2 className="text-2xl font-bold mb-4">Invalid blog post ID</h2>
-          <Button onClick={() => router.push('/admin/blog-management')}>
-            Back to Posts
-          </Button>
+      <AdminPageLayout title="Loading...">
+        <div className="flex justify-center items-center py-8">
+          <Loader className="h-8 w-8 animate-spin" />
         </div>
       </AdminPageLayout>
     )
   }
 
-  if (!isNew && error) {
+  if (error || !blogPost) {
     return (
       <AdminPageLayout title="Error">
         <div className="text-center py-8">
@@ -100,31 +74,8 @@ export default function BlogPostEditor() {
     )
   }
 
-  if (!isNew && isLoading) {
-    return (
-      <AdminPageLayout title="Loading...">
-        <div className="flex justify-center items-center py-8">
-          <Loader className="h-8 w-8 animate-spin" />
-        </div>
-      </AdminPageLayout>
-    )
-  }
-
-  if (!isNew && !blogPost) {
-    return (
-      <AdminPageLayout title="Not Found">
-        <div className="text-center py-8">
-          <h2 className="text-2xl font-bold mb-4">Post not found</h2>
-          <Button onClick={() => router.push('/admin/blog-management')}>
-            Back to Posts
-          </Button>
-        </div>
-      </AdminPageLayout>
-    )
-  }
-
   return (
-    <AdminPageLayout title={isNew ? "Create Blog Post" : "Edit Blog Post"}>
+    <AdminPageLayout title="Edit Blog Post">
       <div className="h-full space-y-4">
         <div className="flex items-center gap-4">
           <Button 

@@ -46,24 +46,4 @@ export const columns = [
     header: "Created At", 
     accessor: (row: BlogPost) => new Date(row.createdAt).toLocaleDateString(),
   },
-  {
-    header: "Actions",
-    accessor: (row: BlogPost) => row.id,
-    cell: ({ row }: { row: BlogPost }) => (
-      <div className="flex gap-2">
-        <Button onClick={() => row.onView(row.id)}>
-          <Eye className="h-4 w-4" />
-        </Button>
-        <Button onClick={() => row.onEdit(row.id)}>
-          <Pencil className="h-4 w-4" />
-        </Button>
-        <Button 
-          onClick={() => row.onDelete(row.id)} 
-          variant="destructive"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
-    )
-  }
 ] 

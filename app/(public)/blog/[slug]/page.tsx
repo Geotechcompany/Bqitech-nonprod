@@ -1,85 +1,198 @@
 "use client"
 
-import { useParams } from "next/navigation"
-import { useQuery } from "@tanstack/react-query"
-import Image from "next/image"
-import Link from "next/link"
+import Image from 'next/image'
+import Link from 'next/link'
+import { ArrowLeft } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import type { BlogPost } from '@/app/types'
+import { BlogCard } from '@/components/blog/blog-card'
 
-interface BlogPost {
-  id: string
-  title: string
-  excerpt: string
-  content: string
-  imageUrl: string
-  category: string
-  readTime: string
-  slug: string
-  published: boolean
-  createdAt: string
+// Helper function to ensure valid image URL
+const getImageUrl = (url: string) => {
+  if (!url) return '/images/placeholder.jpg'
+  if (url.startsWith('http')) return url
+  if (url.startsWith('/')) return url
+  return `/${url}`
+}
+
+// Helper function to format content with proper spacing
+const formatContent = (content: string) => {
+  return content
+    .split('\n\n')
+    .map((paragraph, index) => (
+      <p key={index} className="mb-6 leading-relaxed">
+        {paragraph.trim()}
+      </p>
+    ))
 }
 
 export default function BlogPostPage() {
-  const { slug } = useParams()
-
-  // Helper function to ensure valid image URL
-  const getImageUrl = (url: string) => {
-    if (!url) return '/images/placeholder.jpg'
-    if (url.startsWith('http')) return url
-    if (url.startsWith('/')) return url
-    return `/${url}`
-  }
-
-  const { data: post, isLoading } = useQuery({
-    queryKey: ['blog-post', slug],
+  // Fetch current blog post
+  const { data: post, isLoading: isLoadingPost } = useQuery<BlogPost>({
+    queryKey: ['blog-post'],
     queryFn: async () => {
-      const res = await fetch(`/api/blog-posts/${slug}`)
+      const res = await fetch(`/api/blog-posts/${window.location.pathname.split('/').pop()}`)
       if (!res.ok) throw new Error('Failed to fetch post')
-      return res.json() as Promise<BlogPost>
+      return res.json()
     }
   })
 
-  if (isLoading) return <div className="container mx-auto py-12">Loading...</div>
-  if (!post) return <div className="container mx-auto py-12">Post not found</div>
+  // Fetch related posts
+  const { data: relatedPosts, isLoading: isLoadingRelated } = useQuery<BlogPost[]>({
+    queryKey: ['related-posts', post?.category],
+    queryFn: async () => {
+      const res = await fetch('/api/blog-posts')
+      if (!res.ok) throw new Error('Failed to fetch related posts')
+      const posts = await res.json()
+      return posts
+        .filter((p: BlogPost) => p.id !== post?.id && p.category === post?.category)
+        .slice(0, 3)
+    },
+    enabled: !!post
+  })
+
+  if (isLoadingPost) {
+    return (
+      <div className="min-h-screen  bg-gray-50 dark:bg-gray-900">
+        <div className="container mx-auto px-4 py-12">
+          <div className="max-w-4xl mx-auto">
+            <div className="animate-pulse space-y-8">
+              <div className="h-[60vh] bg-gray-200 rounded-2xl" />
+              <div className="space-y-4">
+                <div className="h-8 bg-gray-200 rounded w-3/4" />
+                <div className="h-4 bg-gray-200 rounded w-1/4" />
+                <div className="h-4 bg-gray-200 rounded w-full" />
+                <div className="h-4 bg-gray-200 rounded w-full" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!post) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="container mx-auto px-4 py-12">
+          <div className="max-w-4xl mx-auto text-center">
+            <h1 className="text-3xl font-bold mb-4">Post not found</h1>
+            <Link 
+              href="/blog"
+              className="text-[#31CDFF] hover:underline inline-flex items-center"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Blog
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <article className="container mx-auto px-4 py-16 max-w-4xl">
-      <Link 
-        href="/blog"
-        className="inline-flex items-center text-blue-600 hover:text-blue-800 mb-8"
-      >
-        ← Back to Blog
-      </Link>
-
-      <header className="mb-8">
-        <div className="flex items-center gap-4 mb-4">
-          <span className="px-3 py-1 text-sm font-medium text-white bg-[#31CDFF] rounded-full">
-            {post.category}
-          </span>
-          <time className="text-gray-600" dateTime={new Date(post.createdAt).toISOString()}>
-            {new Date(post.createdAt).toLocaleDateString()}
-          </time>
-          <span className="text-gray-600">•</span>
-          <span className="text-gray-600">{post.readTime}</span>
-        </div>
-        
-        <h1 className="text-4xl font-bold mb-4">{post.title}</h1>
-        <p className="text-xl text-gray-600">{post.excerpt}</p>
-      </header>
-
-      <div className="relative w-full h-[400px] mb-12">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Hero Section */}
+      <div className="relative h-[80vh] w-full -mt-[64px]">
         <Image
           src={getImageUrl(post.imageUrl)}
           alt={post.title}
           fill
-          className="object-cover rounded-2xl"
+          className="object-cover"
+          sizes="100vw"
           priority
+          quality={90}
         />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-black/20" />
+        <div className="absolute inset-0 flex items-end">
+          <div className="container mx-auto px-4 py-12 sm:py-16">
+            <div className="max-w-4xl mx-auto text-white mb-8">
+              <div className="flex flex-wrap items-center gap-4 mb-4 text-sm sm:text-base opacity-90">
+                <span className="px-3 py-1 bg-[#31CDFF] rounded-full font-medium">
+                  {post.category}
+                </span>
+                <time dateTime={new Date(post.createdAt).toISOString()}>
+                  {new Date(post.createdAt).toLocaleDateString()}
+                </time>
+                <span>•</span>
+                <span>{post.readTime}</span>
+              </div>
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
+                {post.title}
+              </h1>
+              <p className="text-lg sm:text-xl text-gray-200 max-w-3xl">
+                {post.excerpt}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div 
-        className="prose prose-lg max-w-none dark:prose-invert"
-        dangerouslySetInnerHTML={{ __html: post.content }}
-      />
-    </article>
+      {/* Content Section with Sidebar */}
+      <div className="container mx-auto px-4 py-12 sm:py-16">
+        <div className="flex flex-col lg:flex-row gap-12">
+          {/* Main Content */}
+          <div className="flex-1">
+            <Link 
+              href="/blog"
+              className="inline-flex items-center text-gray-600 dark:text-gray-400 hover:text-[#31CDFF] dark:hover:text-[#31CDFF] mb-8 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Blog
+            </Link>
+
+            <div className="prose prose-lg dark:prose-invert max-w-none">
+              {formatContent(post.content)}
+            </div>
+
+            {post.tags && post.tags.length > 0 && (
+              <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-800">
+                <h2 className="text-lg font-semibold mb-4">Tags</h2>
+                <div className="flex flex-wrap gap-2">
+                  {post.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="px-3 py-1 bg-gray-100 dark:bg-gray-800 rounded-full text-sm"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Sidebar with Related Posts */}
+          <div className="lg:w-80 xl:w-96">
+            <div className="sticky top-8">
+              <h2 className="text-xl font-bold mb-6">Related Articles</h2>
+              {isLoadingRelated ? (
+                <div className="space-y-4">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="animate-pulse">
+                      <div className="h-48 bg-gray-200 rounded-xl mb-3" />
+                      <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
+                      <div className="h-4 bg-gray-200 rounded w-1/2" />
+                    </div>
+                  ))}
+                </div>
+              ) : relatedPosts && relatedPosts.length > 0 ? (
+                <div className="space-y-6">
+                  {relatedPosts.map((relatedPost) => (
+                    <div key={relatedPost.id} className="relative">
+                      <BlogCard post={relatedPost} />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-600 dark:text-gray-400">
+                  No related articles found
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 } 
