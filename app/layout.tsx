@@ -7,6 +7,8 @@ import { SessionProvider } from "next-auth/react"
 import { metadata } from './metadata'
 import { usePathname } from 'next/navigation'
 import { Toaster } from "react-hot-toast"
+import { Toaster as SonnerToaster } from 'sonner'
+import { Providers } from './providers'
 
 
 const inter = Inter({
@@ -22,7 +24,7 @@ export default function RootLayout({
   return (
     <SessionProvider>
    
-        <html lang="en" className={inter.className}>
+        <html lang="en" className={inter.className} suppressHydrationWarning>
           <head>
             <link 
               rel="preload" 
@@ -32,19 +34,12 @@ export default function RootLayout({
             <meta name="color-scheme" content="light dark" />
           </head>
           <body>
-            <ClientWrapper>
-              {children}
-            </ClientWrapper>
-            <Toaster
-              position="top-center"
-              toastOptions={{
-                style: {
-                  background: '#fff',
-                  color: '#374151',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
-                }
-              }}
-            />
+            <Providers>
+              <ClientWrapper>
+                {children}
+              </ClientWrapper>
+              <Toaster />
+            </Providers>
           </body>
         </html>
     

@@ -1,36 +1,38 @@
 import { NextResponse } from 'next/server'
-import { z } from 'zod'
+import { connectToDatabase } from '@/lib/mongodb'
 import { User } from '@/models/user'
-import connectToDatabase from '@/lib/mongodb'
 
-export async function GET(req: Request) {
+export async function GET(request: Request) {
   try {
-    await connectToDatabase()
-    
-    const { searchParams } = new URL(req.url)
+    const { searchParams } = new URL(request.url)
     const email = searchParams.get('email')
 
-    // Validate email format
-    if (!email || !z.string().email().safeParse(email).success) {
+    if (!email) {
       return NextResponse.json(
-        { error: "Invalid email address" },
+        { error: 'Email parameter is required' },
         { status: 400 }
       )
     }
 
-    // Check email existence
-    const user = await User.findOne({ email }).lean()
-    
+    await connectToDatabase()
+
+    const user = await User.findOne({ email })
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      )
+    }
+
     return NextResponse.json({
-      available: !user
-    }, { 
-      status: user ? 409 : 200 
+      isVerified: user.emailVerified || false
     })
-    
+
   } catch (error) {
-    console.error('Email check error:', error)
+    console.error('Error checking email verification:', error)
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }

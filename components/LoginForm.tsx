@@ -1,24 +1,23 @@
 "use client"
 
-import { signIn } from "next-auth/react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { useForm } from "react-hook-form"
-import { toast } from "sonner"
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { signIn } from 'next-auth/react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import * as z from 'zod'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { toast } from 'sonner'
+import { Loader } from '@/components/ui/loader'
 import { motion } from "framer-motion"
-import { Mail, Lock, Github, Chrome, ArrowRight, UserPlus, Loader2 } from "lucide-react"
+import { Mail, Lock, Github, Chrome, ArrowRight, UserPlus } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { getSession } from "next-auth/react"
-import { z } from "zod"
-import { zodResolver } from "@hookform/resolvers/zod"
 
 const formSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters")
-});
+  email: z.string().email('Please enter a valid email address'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+})
 
 export function LoginForm({ 
   providers,
@@ -27,44 +26,47 @@ export function LoginForm({
   providers: any,
   onError?: (error: string) => void 
 }) {
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
-  });
-  const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const [isLoading, setIsLoading] = useState(false)
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+  })
 
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
-    setIsLoading(true)
     try {
-      const result = await signIn("credentials", {
-        ...data,
-        redirect: false
+      setIsLoading(true)
+
+      const result = await signIn('credentials', {
+        email: data.email,
+        password: data.password,
+        redirect: false,
       })
 
       if (result?.error) {
-        const errorMessage = result.error.includes("does not exist") || 
-                            result.error.includes("Incorrect password")
-                          ? "Invalid email or password"
-                          : result.error;
-        
-        onError?.(errorMessage);
+        toast.error(result.error)
+        onError?.(result.error)
+        return
       }
-
-      const session = await getSession()
       
       if (result?.ok) {
-        if (!session?.user?.emailVerified) {
+        // Check email verification status from API
+        const verificationCheck = await fetch('/api/auth/check-email?email=' + encodeURIComponent(data.email))
+        const verificationData = await verificationCheck.json()
+
+        if (!verificationData.isVerified) {
           router.push(`/auth/verify-email?email=${encodeURIComponent(data.email)}`)
         } else {
           window.location.href = "/dashboard"
         }
       }
     } catch (error) {
-      onError?.(error.message || "Login failed")
+      console.error('Login error:', error)
+      toast.error('An error occurred during login. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -90,7 +92,7 @@ export function LoginForm({
       </div>
 
       <motion.form
-        onSubmit={form.handleSubmit(onSubmit)}
+        onSubmit={handleSubmit(onSubmit)}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
@@ -98,19 +100,22 @@ export function LoginForm({
       >
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
             <Input
-              id="email"
               type="email"
-              placeholder="Enter your email"
-              {...form.register("email", { required: true })}
-              className="h-12 focus:ring-2 focus:ring-[#31CDFF]"
+              placeholder="Email"
+              {...register('email')}
+              error={errors.email?.message}
             />
           </div>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label htmlFor="password">Password</Label>
+              <Input
+                type="password"
+                placeholder="Password"
+                {...register('password')}
+                error={errors.password?.message}
+              />
               <Link
                 href="/forgot-password"
                 className="text-sm font-medium text-[#31CDFF] hover:text-[#31CDFF]/90"
@@ -118,13 +123,6 @@ export function LoginForm({
                 Forgot password?
               </Link>
             </div>
-            <Input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              {...form.register("password", { required: true })}
-              className="h-12 focus:ring-2 focus:ring-[#31CDFF]"
-            />
           </div>
 
           <Button
@@ -134,7 +132,7 @@ export function LoginForm({
           >
             {isLoading ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader className="mr-2" />
                 Signing In...
               </>
             ) : (
