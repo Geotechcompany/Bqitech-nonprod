@@ -9,7 +9,7 @@
         --card-foreground: 222.2 84% 4.9%;
         --popover: 0 0% 100%;
         --popover-foreground: 222.2 84% 4.9%;
-        --primary: 222.2 47.4% 11.2%;
+        --primary: 221.2 83.2% 53.3%;
         --primary-foreground: 210 40% 98%;
         --secondary: 210 40% 96.1%;
         --secondary-foreground: 222.2 47.4% 11.2%;
@@ -21,7 +21,7 @@
         --destructive-foreground: 210 40% 98%;
         --border: 214.3 31.8% 91.4%;
         --input: 214.3 31.8% 91.4%;
-        --ring: 222.2 84% 4.9%;
+        --ring: 221.2 83.2% 53.3%;
         --radius: 0.5rem;
         --chart-1: 12 76% 61%;
         --chart-2: 173 58% 39%;
@@ -36,7 +36,7 @@
         --card-foreground: 210 40% 98%;
         --popover: 222.2 84% 4.9%;
         --popover-foreground: 210 40% 98%;
-        --primary: 210 40% 98%;
+        --primary: 217.2 91.2% 59.8%;
         --primary-foreground: 222.2 47.4% 11.2%;
         --secondary: 217.2 32.6% 17.5%;
         --secondary-foreground: 210 40% 98%;
@@ -48,7 +48,7 @@
         --destructive-foreground: 210 40% 98%;
         --border: 217.2 32.6% 17.5%;
         --input: 217.2 32.6% 17.5%;
-        --ring: 212.7 26.8% 83.9%;
+        --ring: 224.3 76.3% 48%;
         --chart-1: 220 70% 50%;
         --chart-2: 160 60% 45%;
         --chart-3: 30 80% 55%;
@@ -127,4 +127,139 @@ html {
 .pattern-dots {
     background-image: radial-gradient(currentColor 1px, transparent 1px);
     background-size: calc(10 * 1px) calc(10 * 1px);
+}
+
+
+/* TipTap Editor Styles */
+
+.ProseMirror {
+    >*+* {
+        margin-top: 0.75em;
+    }
+    ul,
+    ol {
+        padding: 0 1rem;
+    }
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        line-height: 1.1;
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+    }
+    code {
+        background-color: rgba(97, 97, 97, 0.1);
+        color: #616161;
+        padding: 0.25rem;
+        border-radius: 0.25rem;
+    }
+    pre {
+        background: #0D0D0D;
+        color: #FFF;
+        padding: 0.75rem 1rem;
+        border-radius: 0.5rem;
+        margin: 1rem 0;
+        code {
+            color: inherit;
+            padding: 0;
+            background: none;
+            font-size: 0.8rem;
+        }
+    }
+    img {
+        max-width: 100%;
+        height: auto;
+        margin: 1rem 0;
+        border-radius: 0.5rem;
+    }
+    blockquote {
+        padding-left: 1rem;
+        border-left: 2px solid rgba(13, 13, 13, 0.1);
+        margin: 1rem 0;
+    }
+    hr {
+        border: none;
+        border-top: 2px solid rgba(13, 13, 13, 0.1);
+        margin: 2rem 0;
+    }
+}
+
+
+/* Blog Content Styles */
+
+.prose {
+    @apply max-w-none;
+}
+
+.prose img {
+    @apply rounded-lg my-8 mx-auto;
+    max-height: 70vh;
+    width: auto;
+}
+
+.prose figure {
+    @apply my-8;
+}
+
+.prose figure>* {
+    @apply my-0;
+}
+
+.prose figure figcaption {
+    @apply text-center text-sm text-muted-foreground mt-2;
+}
+
+.prose pre {
+    @apply bg-muted p-4 rounded-lg overflow-x-auto;
+}
+
+.prose code {
+    @apply bg-muted px-1.5 py-0.5 rounded text-sm;
+}
+
+.prose pre code {
+    @apply bg-transparent p-0 text-sm;
+}
+
+.prose blockquote {
+    @apply border-l-4 border-primary pl-4 italic;
+}
+
+.prose blockquote p {
+    @apply text-muted-foreground;
+}
+
+
+/* Editor Styles */
+
+.ProseMirror {
+    @apply min-h-[500px] outline-none;
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+    @apply text-muted-foreground;
+    content: attr(data-placeholder);
+    float: left;
+    pointer-events: none;
+    height: 0;
+}
+
+.ProseMirror img {
+    @apply rounded-lg max-w-full h-auto my-8 mx-auto;
+    max-height: 70vh;
+}
+
+.ProseMirror img.ProseMirror-selectednode {
+    @apply outline outline-2 outline-primary;
+}
+
+.ProseMirror .image-resizer {
+    @apply hidden;
+}
+
+.ProseMirror img:hover .image-resizer {
+    @apply block;
 }

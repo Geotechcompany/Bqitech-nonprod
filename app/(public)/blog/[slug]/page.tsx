@@ -6,6 +6,8 @@ import { ArrowLeft } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import type { BlogPost } from '@/app/types'
 import { BlogCard } from '@/components/blog/blog-card'
+import { cn } from '@/lib/utils'
+import React from 'react'
 
 // Helper function to ensure valid image URL
 const getImageUrl = (url: string) => {
@@ -15,15 +17,87 @@ const getImageUrl = (url: string) => {
   return `/${url}`
 }
 
-// Helper function to format content with proper spacing
+// Helper function to format content with proper spacing and images
 const formatContent = (content: string) => {
-  return content
-    .split('\n\n')
-    .map((paragraph, index) => (
-      <p key={index} className="mb-6 leading-relaxed">
-        {paragraph.trim()}
-      </p>
-    ))
+  // Parse the HTML content
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(content, 'text/html')
+  
+  // Convert NodeList to Array for easier manipulation
+  const elements = Array.from(doc.body.children)
+  
+  return elements.map((element, index) => {
+    // Handle images
+    if (element.tagName.toLowerCase() === 'img') {
+      const src = element.getAttribute('src') || ''
+      const alt = element.getAttribute('alt') || ''
+      const className = element.getAttribute('class') || ''
+      
+      return (
+        <div key={index} className={cn("my-8 relative aspect-video w-full rounded-lg overflow-hidden", className)}>
+          <Image
+            src={getImageUrl(src)}
+            alt={alt}
+            fill
+            className="object-cover"
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          />
+        </div>
+      )
+    }
+
+    // Handle paragraphs with proper spacing
+    if (element.tagName.toLowerCase() === 'p') {
+      return React.createElement('p', {
+        key: index,
+        className: "prose prose-lg dark:prose-invert max-w-none my-6",
+        dangerouslySetInnerHTML: { __html: element.innerHTML }
+      })
+    }
+
+    // Handle headings
+    if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(element.tagName.toLowerCase())) {
+      return React.createElement(element.tagName.toLowerCase(), {
+        key: index,
+        className: "prose prose-lg dark:prose-invert max-w-none mt-8 mb-4",
+        dangerouslySetInnerHTML: { __html: element.innerHTML }
+      })
+    }
+
+    // Handle lists
+    if (['ul', 'ol'].includes(element.tagName.toLowerCase())) {
+      return React.createElement(element.tagName.toLowerCase(), {
+        key: index,
+        className: "prose prose-lg dark:prose-invert max-w-none my-6 list-inside",
+        dangerouslySetInnerHTML: { __html: element.innerHTML }
+      })
+    }
+
+    // Handle blockquotes
+    if (element.tagName.toLowerCase() === 'blockquote') {
+      return React.createElement('blockquote', {
+        key: index,
+        className: "prose prose-lg dark:prose-invert max-w-none my-6 pl-4 border-l-4 border-gray-300 dark:border-gray-700",
+        dangerouslySetInnerHTML: { __html: element.innerHTML }
+      })
+    }
+
+    // Handle code blocks
+    if (element.tagName.toLowerCase() === 'pre') {
+      return React.createElement('pre', {
+        key: index,
+        className: "prose prose-lg dark:prose-invert max-w-none my-6 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-x-auto",
+        dangerouslySetInnerHTML: { __html: element.innerHTML }
+      })
+    }
+    
+    // Handle other elements
+    return React.createElement('div', {
+      key: index,
+      className: "prose prose-lg dark:prose-invert max-w-none my-4",
+      dangerouslySetInnerHTML: { __html: element.outerHTML }
+    })
+  })
 }
 
 export default function BlogPostPage() {
