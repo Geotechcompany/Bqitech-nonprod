@@ -41,7 +41,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }, [router, pathname]);
 
   if (isLoading) {
-    return <div>Loading...</div>;
+    return <div className="flex items-center justify-center h-screen w-screen">Loading...</div>;
   }
 
   if (!session && !pathname?.includes('/login')) {
@@ -49,10 +49,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100 md:flex-row">
+    <div data-admin-page className="flex flex-col h-screen w-screen bg-gray-100 md:flex-row overflow-hidden">
       {session?.user?.role === "ADMIN" && (
         <>
-          <div className="md:hidden bg-white p-4 flex justify-between items-center">
+          <div className="md:hidden bg-white flex justify-between items-center h-16 px-4 flex-shrink-0 z-50">
             <h1 className="text-xl font-bold text-gray-800">BQI Tech HR</h1>
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-500">
               <Menu size={24} />
@@ -63,7 +63,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           <DashboardSidebar 
             isOpen={sidebarOpen} 
             onClose={() => setSidebarOpen(false)}
-            className="hidden md:block"
+            className="hidden md:block flex-shrink-0"
           />
           
           {/* Mobile Sidebar */}
@@ -74,11 +74,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         </>
       )}
       <main className={`
-        flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-4 md:p-8
+        flex-1 h-full w-full overflow-x-hidden overflow-y-auto bg-gray-100
         transition-all duration-300 ease-in-out
-        ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'}
+        ${session?.user?.role === "ADMIN" ? (sidebarCollapsed ? 'md:ml-20' : 'md:ml-64') : 'ml-0'}
       `}>
-        {children}
+        <div className="h-full w-full">
+          {children}
+        </div>
       </main>
     </div>
   );

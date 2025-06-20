@@ -64,6 +64,20 @@
     body {
         @apply bg-background text-foreground;
     }
+    /* Admin pages full-screen styles */
+    body:has([data-admin-page]) {
+        margin: 0 !important;
+        padding: 0 !important;
+        height: 100vh !important;
+        width: 100vw !important;
+        overflow: hidden !important;
+    }
+    html:has([data-admin-page]) {
+        margin: 0 !important;
+        padding: 0 !important;
+        height: 100vh !important;
+        width: 100vw !important;
+    }
 }
 
 
