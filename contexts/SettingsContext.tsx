@@ -2,8 +2,8 @@
 
 import { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from "react-hot-toast";
-import useSWR from 'swr';
-import { useSession } from "next-auth/react";
+import { useAuth } from './AuthContext';
+import { adminApi } from '@/lib/api-backend';
 
 interface SettingsContextType {
   emailNotifications: boolean;
@@ -19,90 +19,118 @@ interface SettingsContextType {
   theme: 'light' | 'dark';
   updateSettings: (settings: Partial<SettingsContextType>) => Promise<void>;
   updateTheme: (theme: 'light' | 'dark') => void;
+  isLoading: boolean;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
-// Add SWR fetcher
-const fetcher = (url: string) => fetch(url).then(res => res.json());
-
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
-  const { data, error, mutate } = useSWR('/api/admin/settings', fetcher, {
-    revalidateOnFocus: false,
-    refreshInterval: 300000 // 5 minutes
-  });
-
-  const { data: session, update } = useSession();
-
-  const [settings, setSettings] = useState<Omit<SettingsContextType, 'updateSettings'>>({
+  const { user, isAuthenticated, isAdmin } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const [settings, setSettings] = useState<Omit<SettingsContextType, 'updateSettings' | 'updateTheme' | 'isLoading'>>({
     // Initialize with default values
     emailNotifications: true,
     pushNotifications: true,
     autoLogout: 30,
-    tableRowsPerPage: 10,
+    tableRowsPerPage: 25,
     sidebarCollapsed: false,
     profile: {
       name: '',
       email: '',
       avatarUrl: ''
     },
-    theme: 'light',
-    updateTheme: (theme: 'light' | 'dark') => {}
+    theme: 'light'
   });
 
-  // Update local state when SWR data changes
+  // Load settings when user is authenticated and is admin
   useEffect(() => {
-    if (data) {
+    if (isAuthenticated && isAdmin) {
+      loadSettings();
+    } else {
+      setIsLoading(false);
+    }
+  }, [isAuthenticated, isAdmin]);
+
+  // Update profile when user data changes
+  useEffect(() => {
+    if (user) {
       setSettings(prev => ({
         ...prev,
-        ...data,
         profile: {
-          ...prev.profile,
-          ...data.profile
+          name: user.name || '',
+          email: user.email || '',
+          avatarUrl: prev.profile.avatarUrl
         }
       }));
     }
-  }, [data]);
+  }, [user]);
+
+  const loadSettings = async () => {
+    try {
+      setIsLoading(true);
+      const data = await adminApi.getSettings();
+      
+      if (data) {
+        setSettings(prev => ({
+          ...prev,
+          ...data,
+          profile: {
+            name: user?.name || '',
+            email: user?.email || '',
+            avatarUrl: data.profile?.avatarUrl || prev.profile.avatarUrl
+          }
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to load settings:', error);
+      // Don't show error toast on load failure, just use defaults
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const updateSettings = async (newSettings: Partial<SettingsContextType>) => {
     try {
-      const response = await fetch('/api/admin/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newSettings),
-      });
-
-      if (!response.ok) throw new Error('Failed to update settings');
+      // Optimistic update
+      const oldSettings = settings;
+      setSettings(prev => ({ ...prev, ...newSettings }));
       
-      if (newSettings.profile?.avatarUrl) {
-        await update({
-          ...session,
-          user: {
-            ...session?.user,
-            image: newSettings.profile.avatarUrl
-          }
-        });
-      }
-
-      mutate({ ...data, ...newSettings }, false);
+      await adminApi.updateSettings(newSettings);
       toast.success('Settings updated successfully');
     } catch (error) {
-      toast.error(error.message);
-      mutate();
+      // Revert on error
+      setSettings(settings);
+      console.error('Failed to update settings:', error);
+      toast.error('Failed to update settings');
       throw error;
     }
   };
 
   const updateTheme = (theme: 'light' | 'dark') => {
     setSettings(prev => ({ ...prev, theme }));
-    // Optional: Save to localStorage
+    // Save to localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('theme', theme);
+    }
   };
+
+  // Load theme from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem('theme') as 'light' | 'dark';
+      if (savedTheme) {
+        setSettings(prev => ({ ...prev, theme: savedTheme }));
+      }
+    }
+  }, []);
 
   return (
     <SettingsContext.Provider value={{ 
       ...settings, 
       updateSettings,
-      updateTheme 
+      updateTheme,
+      isLoading
     }}>
       {children}
     </SettingsContext.Provider>

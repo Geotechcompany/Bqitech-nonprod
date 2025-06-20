@@ -1,7 +1,8 @@
 "use client";
 
+import { useState, useEffect } from 'react';
+import { useAuth } from "@/contexts/AuthContext";
 import { AdminPageLayout } from "@/components/admin/AdminPageLayout";
-import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { 
   User,
@@ -13,13 +14,12 @@ import { UserManagementTable } from "@/components/admin/UserManagementTable";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { User as UserType } from "@/src/types/user";
 import { toast } from "react-hot-toast";
-import { useState } from "react";
 import { Pagination } from "@/components/Pagination";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { EditUserModal } from "@/components/admin/EditUserModal";
 
 export default function UserManagementPage() {
-  const { data: session } = useSession();
+  const { user } = useAuth();
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [selectedBulkAction, setSelectedBulkAction] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(1);

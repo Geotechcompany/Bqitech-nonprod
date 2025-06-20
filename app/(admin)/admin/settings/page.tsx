@@ -1,6 +1,5 @@
 "use client";
 
-
 import { motion } from 'framer-motion';
 import { AdminPageLayout } from "@/components/admin/AdminPageLayout";
 import { 
@@ -20,43 +19,72 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "react-hot-toast";
-import { useSettings } from "@/contexts/SettingsContext";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Camera } from "lucide-react";
-import { useSession } from "next-auth/react";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { adminApi } from "@/lib/api-backend";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 
-interface SettingsState {
+
+interface AdminSettings {
   emailNotifications: boolean;
   pushNotifications: boolean;
   autoLogout: number;
   tableRowsPerPage: number;
   sidebarCollapsed: boolean;
+  theme: string;
+  language: string;
 }
 
-export default function SettingsPage() {
-  const settings = useSettings();
-  const { data: session } = useSession();
+const defaultSettings: AdminSettings = {
+  emailNotifications: true,
+  pushNotifications: true,
+  autoLogout: 30,
+  tableRowsPerPage: 25,
+  sidebarCollapsed: false,
+  theme: 'light',
+  language: 'en'
+};
+
+function SettingsPageContent() {
+  const { user } = useAuth();
+  const [settings, setSettings] = useState<AdminSettings>(defaultSettings);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      setIsLoading(true);
+      
+
+      
+      const response = await adminApi.getSettings();
+      if (response) {
+        setSettings({ ...defaultSettings, ...response });
+      }
+    } catch (error) {
+      console.error('Failed to load settings:', error);
+      toast.error('Failed to load settings');
+      // Use default settings if loading fails
+      setSettings(defaultSettings);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSave = async () => {
     if (isSaving) return;
     setIsSaving(true);
     
     try {
-      const response = await fetch('/api/admin/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to save settings');
-      }
-      
+      await adminApi.updateSettings(settings);
       toast.success('Settings saved successfully');
     } catch (error) {
       console.error('Save error:', error);
@@ -66,12 +94,11 @@ export default function SettingsPage() {
     }
   };
 
-  const handleEmailNotificationChange = async (checked: boolean) => {
-    try {
-      await settings.updateSettings({ emailNotifications: checked });
-    } catch (error) {
-      // Error is already handled by the context
-    }
+  const updateSetting = <K extends keyof AdminSettings>(
+    key: K, 
+    value: AdminSettings[K]
+  ) => {
+    setSettings(prev => ({ ...prev, [key]: value }));
   };
 
   const SettingCard = ({ 
@@ -105,13 +132,27 @@ export default function SettingsPage() {
     </motion.div>
   );
 
+  if (isLoading) {
+    return (
+      <AdminPageLayout title="Settings" showSearch={false}>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+            <p>Loading settings...</p>
+          </div>
+        </div>
+      </AdminPageLayout>
+    );
+  }
+
   return (
     <AdminPageLayout
       title="Settings"
       showSearch={false}
-      className=" mx-auto px-4 md:px-6 lg:px-8"
+      className="mx-auto px-4 md:px-6 lg:px-8"
     >
       <div className="max-w-4xl mx-auto space-y-8">
+        {/* Profile Header */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -121,11 +162,10 @@ export default function SettingsPage() {
             <div className="relative group shrink-0">
               <Avatar className="h-32 w-32 md:h-40 md:w-40 ring-4 ring-white/80 shadow-lg">
                 <AvatarImage 
-                  src={settings.profile.avatarUrl || session?.user?.image}
                   className="object-cover"
                 />
                 <AvatarFallback>
-                  {session?.user?.name?.split(' ').map(n => n[0]).join('')}
+                  {user?.name?.split(' ').map(n => n[0]).join('') || 'A'}
                 </AvatarFallback>
               </Avatar>
               <label 
@@ -134,19 +174,36 @@ export default function SettingsPage() {
               >
                 <Camera className="h-8 w-8 text-white" />
               </label>
+              <input
+                id="avatarUpload"
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  // Handle avatar upload
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    toast('Avatar upload functionality coming soon');
+                  }
+                }}
+              />
             </div>
             
             <div className="space-y-2 text-center md:text-left">
               <h2 className="text-2xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
-                {settings.profile.name}
+                {user?.name || 'Admin User'}
               </h2>
               <p className="text-muted-foreground text-sm md:text-base">
-                {settings.profile.email}
+                {user?.email}
               </p>
+              <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                {user?.role || 'admin'}
+              </div>
             </div>
           </div>
         </motion.div>
 
+        {/* Settings Cards */}
         <div className="flex flex-col gap-6">
           <SettingCard
             icon={Layout}
@@ -159,7 +216,7 @@ export default function SettingsPage() {
                 <Select
                   value={settings.tableRowsPerPage.toString()}
                   onValueChange={(value) => 
-                    settings.updateSettings({ tableRowsPerPage: Number(value) })
+                    updateSetting('tableRowsPerPage', Number(value))
                   }
                 >
                   <SelectTrigger className="w-[180px]">
@@ -169,6 +226,23 @@ export default function SettingsPage() {
                     <SelectItem value="10">10 rows</SelectItem>
                     <SelectItem value="25">25 rows</SelectItem>
                     <SelectItem value="50">50 rows</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Theme</Label>
+                <Select
+                  value={settings.theme}
+                  onValueChange={(value) => updateSetting('theme', value)}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Theme" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="light">Light</SelectItem>
+                    <SelectItem value="dark">Dark</SelectItem>
+                    <SelectItem value="system">System</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -183,7 +257,7 @@ export default function SettingsPage() {
                 <Switch
                   checked={settings.sidebarCollapsed}
                   onCheckedChange={(checked) => 
-                    settings.updateSettings({ sidebarCollapsed: checked })
+                    updateSetting('sidebarCollapsed', checked)
                   }
                 />
               </div>
@@ -200,38 +274,91 @@ export default function SettingsPage() {
                 <div>
                   <Label className="font-medium">Email Notifications</Label>
                   <p className="text-sm text-muted-foreground">
-                    Receive updates via email
+                    Receive notifications via email
                   </p>
                 </div>
                 <Switch
                   checked={settings.emailNotifications}
-                  onCheckedChange={handleEmailNotificationChange}
+                  onCheckedChange={(checked) => 
+                    updateSetting('emailNotifications', checked)
+                  }
                 />
+              </div>
+
+              <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+                <div>
+                  <Label className="font-medium">Push Notifications</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Receive browser push notifications
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.pushNotifications}
+                  onCheckedChange={(checked) => 
+                    updateSetting('pushNotifications', checked)
+                  }
+                />
+              </div>
+            </div>
+          </SettingCard>
+
+          <SettingCard
+            icon={Shield}
+            title="Security"
+            description="Manage your security preferences"
+          >
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Auto Logout (minutes)</Label>
+                <Select
+                  value={settings.autoLogout.toString()}
+                  onValueChange={(value) => 
+                    updateSetting('autoLogout', Number(value))
+                  }
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Auto logout time" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="15">15 minutes</SelectItem>
+                    <SelectItem value="30">30 minutes</SelectItem>
+                    <SelectItem value="60">1 hour</SelectItem>
+                    <SelectItem value="120">2 hours</SelectItem>
+                    <SelectItem value="0">Never</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </SettingCard>
         </div>
 
-        <motion.div 
-          className="sticky bottom-6 z-10 flex justify-end"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
+        {/* Save Button */}
+        <div className="flex justify-end pt-6">
           <Button 
-            onClick={handleSave}
+            onClick={handleSave} 
             disabled={isSaving}
             size="lg"
-            className="rounded-full px-8 shadow-lg gap-2"
+            className="min-w-[120px]"
           >
             {isSaving ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Saving...
               </>
-            ) : 'Save Changes'}
+            ) : (
+              'Save Settings'
+            )}
           </Button>
-        </motion.div>
+        </div>
       </div>
     </AdminPageLayout>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <ProtectedRoute requireAdmin>
+      <SettingsPageContent />
+    </ProtectedRoute>
   );
 } 

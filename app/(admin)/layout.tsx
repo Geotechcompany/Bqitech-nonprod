@@ -6,8 +6,8 @@ export default function AdminRootLayout({
   children: ReactNode
 }) {
   return (
-    <html lang="en" className="h-full">
-      <body className="h-full m-0 p-0 overflow-hidden">{children}</body>
-    </html>
+    <div className="h-screen w-screen m-0 p-0 overflow-hidden" data-admin-layout>
+      {children}
+    </div>
   )
 }

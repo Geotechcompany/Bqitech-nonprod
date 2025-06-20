@@ -26,7 +26,7 @@ import {
   BarChart,
   HelpCircle,
 } from "lucide-react";
-import { signOut } from "next-auth/react";
+import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useState } from "react";
 
@@ -131,6 +131,7 @@ interface DashboardSidebarProps {
 
 export default function DashboardSidebar({ isOpen, onClose, className }: DashboardSidebarProps) {
   const { sidebarCollapsed, updateSettings } = useSettings();
+  const { logout } = useAuth();
   const pathname = usePathname();
   const [expandedSection, setExpandedSection] = useState<string | null>('Candidates');
 
@@ -275,7 +276,7 @@ export default function DashboardSidebar({ isOpen, onClose, className }: Dashboa
         whileTap={{ scale: 0.98 }}
       >
         <button
-          onClick={() => signOut({ callbackUrl: '/' })}
+          onClick={() => logout()}
           className="w-full flex items-center justify-center p-2 space-x-2 rounded-lg
                    bg-gradient-to-r from-sky-500 to-blue-600 text-white
                    hover:from-sky-600 hover:to-blue-700 transition-all

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAuth } from "@/lib/auth";
 import mongoose from "mongoose";
 import connectToDatabase from "@/lib/mongodb";
 import { Application } from "@/models/application";
@@ -9,14 +8,15 @@ export async function GET(request: NextRequest) {
   await connectToDatabase();
   
   try {
-    // Get authenticated user from NextAuth
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // Get authenticated user from custom auth
+    const authResult = await requireAuth(request);
+    
+    if (authResult instanceof Response) {
+      return authResult;
     }
 
-    // Use verified email from NextAuth session
-    const userEmail = session.user.email;
+    // Use verified email from authenticated user
+    const userEmail = authResult.email;
 
     const applications = await Application.aggregate([
       {

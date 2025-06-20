@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
+  const authResult = await requireAdmin(req);
   
-  if (!session?.user || (session.user as any).role !== "ADMIN") {
-    return new NextResponse("Unauthorized", { status: 401 });
+  if (authResult instanceof Response) {
+    return authResult; // Return the error response
   }
 
   try {
@@ -42,14 +41,15 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const session = await getServerSession(authOptions);
+  const authResult = await requireAdmin(req);
+  
+  if (authResult instanceof Response) {
+    return authResult;
+  }
+
   const { searchParams } = new URL(req.url);
   const userId = searchParams.get("id");
   const { role } = await req.json();
-
-  if (!session || session.user.role !== "ADMIN") {
-    return new NextResponse("Unauthorized", { status: 401 });
-  }
 
   if (!userId) {
     return new NextResponse("User ID required", { status: 400 });
@@ -85,12 +85,13 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const { name, email, role } = await req.json();
-
-  if (!session || session.user.role !== "ADMIN") {
-    return new NextResponse("Unauthorized", { status: 401 });
+  const authResult = await requireAdmin(req);
+  
+  if (authResult instanceof Response) {
+    return authResult;
   }
+
+  const { name, email, role } = await req.json();
 
   if (!name || !email || !role) {
     return new NextResponse("Missing required fields", { status: 400 });

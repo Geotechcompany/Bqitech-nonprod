@@ -2,8 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { Users, FileText, CheckCircle, XCircle, UserCheck, Code, MessageSquare, ArrowRight, ChevronDown, Clock, BarChart, Plus, ArrowUp, ArrowDown } from 'lucide-react';
-import useSWR from 'swr';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -23,6 +22,8 @@ import { Progress } from "@/components/ui/progress";
 import { AdminPageLayout } from "@/components/admin/AdminPageLayout";
 import { Skeleton } from "@/components/ui/skeleton";
 import Link from 'next/link';
+import { adminApi } from '@/lib/api-backend';
+import { toast } from 'react-hot-toast';
 
 ChartJS.register(
   CategoryScale,
@@ -34,13 +35,6 @@ ChartJS.register(
   Legend
 );
 
-// Unified fetcher with error handling
-const fetcher = async (url: string) => {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('Failed to fetch data');
-  return res.json();
-};
-
 interface Application {
   id: string;
   name: string;
@@ -50,12 +44,36 @@ interface Application {
   appliedDate: Date;
 }
 
+interface OverviewData {
+  applications: {
+    total: number;
+    new: number;
+    shortlisted: number;
+    interviewing: number;
+    hired: number;
+    rejected: number;
+    technical_assessment: number;
+    disqualified: number;
+    recent: number;
+  };
+  jobs: {
+    total: number;
+    active: number;
+  };
+  users: {
+    total: number;
+  };
+  status_breakdown: Array<{ _id: string; count: number }>;
+}
+
 const statusColors = {
   New: 'bg-blue-100 text-blue-800',
   Shortlisted: 'bg-green-100 text-green-800',
   Interviewing: 'bg-purple-100 text-purple-800',
   Hired: 'bg-emerald-100 text-emerald-800',
   Rejected: 'bg-rose-100 text-rose-800',
+  'Technical Assessment': 'bg-yellow-100 text-yellow-800',
+  Disqualified: 'bg-red-100 text-red-800',
 };
 
 const StatCard = ({ title, value, icon: Icon, trend, color, path }: {
@@ -148,17 +166,59 @@ const PipelineStage = ({ title, count, progress, icon: Icon, color }: {
 };
 
 export default function OverviewPage() {
-  const { data: overviewData, error: overviewError, isLoading } = useSWR('/api/admin/overview', fetcher);
-  const { data: recentApplications = [] } = useSWR('/api/admin/applications/recent', fetcher);
-  const { data: trendData } = useSWR('/api/admin/trends', fetcher);
-  const [selectedApp, setSelectedApp] = useState<Application | null>(null);
+  const [overviewData, setOverviewData] = useState<OverviewData | null>(null);
+  const [recentApplications, setRecentApplications] = useState<Application[]>([]);
+  const [trendData, setTrendData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Load all data in parallel
+      const [overviewResponse, recentAppsResponse, trendsResponse] = await Promise.allSettled([
+        adminApi.getOverview(),
+        adminApi.getApplications({ limit: 10 }),
+        adminApi.getTrends(30)
+      ]);
+
+      // Handle overview data
+      if (overviewResponse.status === 'fulfilled') {
+        setOverviewData(overviewResponse.value);
+      }
+
+      // Handle recent applications
+      if (recentAppsResponse.status === 'fulfilled') {
+        const apps = recentAppsResponse.value.applications || [];
+        setRecentApplications(apps.slice(0, 10));
+      }
+
+      // Handle trends data
+      if (trendsResponse.status === 'fulfilled') {
+        setTrendData(trendsResponse.value);
+      }
+
+    } catch (err) {
+      console.error('Failed to load dashboard data:', err);
+      setError('Failed to load dashboard data');
+      toast.error('Failed to load dashboard data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const chartData = {
-    labels: trendData?.labels || [],
+    labels: trendData?.trends?.map((t: any) => t._id) || [],
     datasets: [
       {
         label: 'Applications',
-        data: trendData?.values || [],
+        data: trendData?.trends?.map((t: any) => t.count) || [],
         borderColor: '#3b82f6',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
       },
@@ -166,179 +226,181 @@ export default function OverviewPage() {
   };
 
   if (isLoading) return (
-    <AdminPageLayout title="Dashboard Overview" className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-24" />)}
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Skeleton className="h-96 lg:col-span-2" />
-        <Skeleton className="h-96" />
+    <AdminPageLayout title="Dashboard Overview" showSearch={false}>
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-24" />)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Skeleton className="h-96 lg:col-span-2" />
+          <Skeleton className="h-96" />
+        </div>
       </div>
     </AdminPageLayout>
   );
 
-  if (overviewError) return <div className="text-center py-8">Failed to load dashboard data</div>;
+  if (error) return (
+    <AdminPageLayout title="Dashboard Overview" showSearch={false}>
+      <div className="text-center py-8">
+        <h2 className="text-2xl font-bold mb-4 text-red-600">Error</h2>
+        <p className="text-gray-600 mb-4">{error}</p>
+        <Button onClick={loadDashboardData}>Retry</Button>
+      </div>
+    </AdminPageLayout>
+  );
+
+  if (!overviewData) return null;
 
   return (
     <AdminPageLayout
       title="Dashboard Overview"
-      className="space-y-4"
-      headerActions={<Button size="sm" className="gap-1"><Plus className="h-4 w-4" /> New Job</Button>}
+      showSearch={false}
+      headerActions={
+        <Link href="/admin/job-postings/new">
+          <Button size="sm" className="gap-1">
+            <Plus className="h-4 w-4" /> New Job
+          </Button>
+        </Link>
+      }
     >
-      {/* Key Metrics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-        <StatCard
-          title="Total Applications"
-          value={overviewData.totalApplications}
-          icon={FileText}
-          color="bg-blue-100/50 text-blue-600"
-          path="/admin/applications"
-        />
-        <StatCard
-          title="Shortlisted"
-          value={overviewData.shortlisted}
-          icon={UserCheck}
-          color="bg-green-100/50 text-green-600"
-          path="/admin/shortlisted"
-        />
-        <StatCard
-          title="In Assessment"
-          value={overviewData.technicalAssessment}
-          icon={Code}
-          color="bg-amber-100/50 text-amber-600"
-          path="/admin/assessments"
-        />
-        <StatCard
-          title="Hired"
-          value={overviewData.hired}
-          icon={CheckCircle}
-          color="bg-emerald-100/50 text-emerald-600"
-          path="/admin/hired"
-        />
-        <StatCard
-          title="Interviewing"
-          value={overviewData.interviewing}
-          icon={MessageSquare}
-          color="bg-purple-100/50 text-purple-600"
-          path="/admin/interviewing"
-        />
-        <StatCard
-          title="Disqualified"
-          value={overviewData.disqualified}
-          icon={XCircle}
-          color="bg-rose-100/50 text-rose-600"
-          path="/admin/rejected"
-        />
-      </div>
-
-      {/* Main Content Area */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-4">
-        {/* Recent Applications Card */}
-        <Card className="lg:col-span-2 ">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between ">
-              <CardTitle>Recent Applications</CardTitle>
-              <Button variant="ghost" size="sm" className="gap-1">
-                View All <ArrowRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader className="bg-muted/50">
-                <TableRow>
-                  <TableHead>Candidate</TableHead>
-                  <TableHead>Position</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Applied</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recentApplications.map((app: Application) => (
-                  <TableRow
-                    key={app.id}
-                    className="hover:bg-muted/50 cursor-pointer"
-                    onClick={() => setSelectedApp(app)}
-                  >
-                    <TableCell>
-                      <div className="font-medium">{app.name}</div>
-                      <div className="text-sm text-muted-foreground">{app.email}</div>
-                    </TableCell>
-                    <TableCell>{app.position}</TableCell>
-                    <TableCell>
-                      <Badge className={statusColors[app.status as keyof typeof statusColors]}>
-                        {app.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {new Date(app.appliedDate).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                      })}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        {/* Hiring Pipeline */}
-        <div className="space-y-3">
-          <PipelineStage
+      <div className="space-y-6">
+        {/* Key Metrics Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+          <StatCard
+            title="Total Applications"
+            value={overviewData.applications.total}
+            icon={FileText}
+            color="bg-blue-100/50 text-blue-600"
+            path="/admin/applications"
+          />
+          <StatCard
+            title="Shortlisted"
+            value={overviewData.applications.shortlisted}
+            icon={UserCheck}
+            color="bg-green-100/50 text-green-600"
+            path="/admin/shortlisted"
+          />
+          <StatCard
+            title="Interviewing"
+            value={overviewData.applications.interviewing}
+            icon={MessageSquare}
+            color="bg-purple-100/50 text-purple-600"
+            path="/admin/interviewing"
+          />
+          <StatCard
             title="Hired"
-            count={overviewData.hired}
-            progress={(overviewData.hired / overviewData.totalApplications) * 100}
+            value={overviewData.applications.hired}
             icon={CheckCircle}
             color="bg-emerald-100/50 text-emerald-600"
+            path="/admin/hired"
+          />
+          <StatCard
+            title="Technical Assessment"
+            value={overviewData.applications.technical_assessment}
+            icon={Code}
+            color="bg-yellow-100/50 text-yellow-600"
+            path="/admin/technical-assessment"
+          />
+          <StatCard
+            title="Disqualified"
+            value={overviewData.applications.disqualified}
+            icon={XCircle}
+            color="bg-red-100/50 text-red-600"
+            path="/admin/disqualified"
+          />
+        </div>
+
+        {/* Charts and Recent Applications */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Applications Trend Chart */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart className="h-5 w-5" />
+                Application Trends (Last 30 Days)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {trendData?.trends ? (
+                <Line data={chartData} options={{ responsive: true, maintainAspectRatio: false }} height={300} />
+              ) : (
+                <div className="h-64 flex items-center justify-center text-gray-500">
+                  No trend data available
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recent Applications */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Recent Applications
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {recentApplications.length > 0 ? (
+                recentApplications.map((app) => (
+                  <div key={app.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{app.name}</p>
+                      <p className="text-sm text-muted-foreground truncate">{app.position}</p>
+                    </div>
+                    <Badge className={statusColors[app.status] || 'bg-gray-100 text-gray-800'}>
+                      {app.status}
+                    </Badge>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center text-gray-500 py-4">
+                  No recent applications
+                </div>
+              )}
+            </CardContent>
+            <CardFooter>
+              <Link href="/admin/applications" className="w-full">
+                <Button variant="outline" className="w-full">
+                  View All Applications
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </Link>
+            </CardFooter>
+          </Card>
+        </div>
+
+        {/* Pipeline Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <PipelineStage
+            title="New Applications"
+            count={overviewData.applications.new}
+            progress={85}
+            icon={FileText}
+            color="bg-blue-100/50 text-blue-600"
           />
           <PipelineStage
-            title="Interviewing"
-            count={overviewData.interviewing}
-            progress={(overviewData.interviewing / overviewData.totalApplications) * 100}
+            title="In Review"
+            count={overviewData.applications.shortlisted}
+            progress={65}
+            icon={UserCheck}
+            color="bg-green-100/50 text-green-600"
+          />
+          <PipelineStage
+            title="Interview Stage"
+            count={overviewData.applications.interviewing}
+            progress={45}
             icon={MessageSquare}
             color="bg-purple-100/50 text-purple-600"
           />
           <PipelineStage
-            title="Technical Assessment"
-            count={overviewData.technicalAssessment}
-            progress={(overviewData.technicalAssessment / overviewData.totalApplications) * 100}
-            icon={Code}
-            color="bg-amber-100/50 text-amber-600"
-          />
-           <PipelineStage
-            title="Shortlisted"
-            count={overviewData.shortlisted}
-            progress={(overviewData.shortlisted / overviewData.totalApplications) * 100}
-            icon={UserCheck}
-            color="bg-green-100/50 text-green-600"
+            title="Final Stage"
+            count={overviewData.applications.hired}
+            progress={25}
+            icon={CheckCircle}
+            color="bg-emerald-100/50 text-emerald-600"
           />
         </div>
       </div>
-
-      {/* Application Trends */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Application Trends</CardTitle>
-        </CardHeader>
-        <CardContent className="h-80">
-          <Line
-            data={chartData}
-            options={{
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: { position: 'top' },
-                tooltip: { mode: 'index' }
-              },
-              scales: {
-                x: { grid: { display: false } },
-                y: { border: { dash: [4] } }
-              }
-            }}
-          />
-        </CardContent>
-      </Card>
     </AdminPageLayout>
   );
 }

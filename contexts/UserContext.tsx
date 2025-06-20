@@ -1,14 +1,14 @@
 'use client'
 
 import { createContext, useContext } from 'react'
-import { useSession } from 'next-auth/react'
+import { useAuth } from './AuthContext'
 
 const UserContext = createContext({ user: null })
 
 export function UserProvider({ children }) {
-  const { data: session } = useSession()
+  const { user } = useAuth()
   return (
-    <UserContext.Provider value={{ user: session?.user }}>
+    <UserContext.Provider value={{ user }}>
       {children}
     </UserContext.Provider>
   )

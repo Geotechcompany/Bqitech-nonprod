@@ -1,14 +1,10 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import ClientHomePage from "@/components/ClientHomePage";
 import { ChatbotWidget } from "@/components/ChatbotWidget";
 
 export default async function HomePage() {
-  const session = await getServerSession(authOptions);
-
   return (
     <>
-      <ClientHomePage userId={session?.user?.id} />
+      <ClientHomePage />
       <ChatbotWidget />
     </>
   );

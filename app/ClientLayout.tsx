@@ -2,7 +2,6 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools"
-import { SessionProvider } from "next-auth/react"
 import { Toaster } from 'react-hot-toast'
 import { SettingsProvider } from "@/contexts/SettingsContext"
 import { JsonLd } from '@/components/JsonLd'
@@ -39,19 +38,17 @@ export function ClientWrapper({ children }: { children: React.ReactNode }) {
           `,
         }}
       />
-      <SettingsProvider>
-        <QueryClientProvider client={queryClient}>
-          <SessionProvider>
-            <ClientLayout>
-              {children}
-            </ClientLayout>
-            <CookieConsentBanner />
-          </SessionProvider>
-          <Toaster position="top-right" />
-          <ReactQueryDevtools initialIsOpen={false} />
-          <JsonLd />
-        </QueryClientProvider>
-      </SettingsProvider>
+      <QueryClientProvider client={queryClient}>
+        <SettingsProvider>
+          <ClientLayout>
+            {children}
+          </ClientLayout>
+          <CookieConsentBanner />
+        </SettingsProvider>
+        <Toaster position="top-right" />
+        <ReactQueryDevtools initialIsOpen={false} />
+        <JsonLd />
+      </QueryClientProvider>
     
     </>
   )

@@ -9,7 +9,7 @@ import CallToAction from "@/components/CallToAction";
 import { ComingSoon } from "./ComingSoon";
 
 interface ClientHomePageProps {
-  userId: string | null
+  userId?: string | null
 }
 
 export default function ClientHomePage({ userId }: ClientHomePageProps) {

@@ -1,45 +1,43 @@
-import { ChevronRight } from "lucide-react";
-import { NotificationButton } from "@/components/NotificationButton";
-import { useSession } from "next-auth/react";
+"use client";
+
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { Menu } from "lucide-react";
 
 interface AdminPageHeaderProps {
   title: string;
-  breadcrumb?: string;
-  children?: React.ReactNode;
+  onMenuClick?: () => void;
 }
 
-export function AdminPageHeader({ title, breadcrumb, children }: AdminPageHeaderProps) {
-  const { data: session } = useSession();
+export default function AdminPageHeader({ title, onMenuClick }: AdminPageHeaderProps) {
+  const { user, logout } = useAuth();
 
   return (
-    <div className="flex flex-col gap-4 mb-6 md:mb-8">
-      {/* Top Bar with Profile - Always Visible */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">{title}</h1>
-        
-        <div className="flex items-center gap-3">
-          <NotificationButton variant="ghost" />
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-gray-700">
-              {session?.user?.name || ''}
-            </span>
-            <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
-              {session?.user?.name?.charAt(0) || 'U'}
-            </div>
-          </div>
-        </div>
+    <div className="bg-white border-b px-6 py-4 flex items-center justify-between">
+      <div className="flex items-center gap-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onMenuClick}
+          className="md:hidden"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+        <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
       </div>
-
-      {/* Breadcrumb - Hidden on Mobile */}
-      {breadcrumb && (
-        <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">
-          <span>Admin</span>
-          <ChevronRight className="h-4 w-4" />
-          <span>{breadcrumb}</span>
-        </div>
-      )}
-
-      {children}
+      
+      <div className="flex items-center gap-3">
+        <span className="text-sm text-gray-600">
+          Welcome, {user?.name || 'Admin'}
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={logout}
+        >
+          Logout
+        </Button>
+      </div>
     </div>
   );
 } 
