@@ -3,12 +3,17 @@ services:
     name: bqitech-api
     env: python
     region: ohio
-    buildCommand: ./build.sh
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    buildCommand: chmod +x build.sh && ./build.sh
+    startCommand: cd /opt/render/project/src && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
     envVars:
       - key: PYTHON_VERSION
-        value: 3.12.0
+        value: 3.11.7
+      - key: PATH
+        value: /opt/render/project/src/.venv/bin:$PATH
+      - key: PYTHONPATH
+        value: /opt/render/project/src
       - key: MONGODB_URI
         sync: false
       - key: SECRET_KEY
