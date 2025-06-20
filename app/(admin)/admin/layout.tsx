@@ -2,6 +2,7 @@
 
 import { ReactNode, useState, useEffect } from 'react';
 import { useAuth } from "@/contexts/AuthContext";
+import { useSettings } from "@/contexts/SettingsContext";
 import DashboardSidebar from '@/components/admin/DashboardSidebar';
 import MobileDashboardSidebar from '@/components/admin/MobileDashboardSidebar';
 import { Menu } from 'lucide-react';
@@ -10,7 +11,7 @@ import { toast } from "react-hot-toast";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const { sidebarCollapsed } = useSettings();
   const { user, isLoading, isAuthenticated, isAdmin } = useAuth();
   const router = useRouter();
   const pathname = usePathname();

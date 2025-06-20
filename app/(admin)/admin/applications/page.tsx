@@ -1,14 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-
 import { ApplicationsTable } from "./ApplicationsTable";
 import useSWR from "swr";
 import { EditApplicationModal } from "@/components/admin/EditApplicationModal";
 import { ViewApplicationModal } from "@/components/admin/ViewApplicationModal";
 import { DeleteApplicationModal } from "@/components/admin/DeleteApplicationModal";
 import { Application } from "@/types/application";
-import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import { Button } from "@/components/ui/button";
 import { Download, Upload, FileText, Sheet } from "lucide-react";
 import {
@@ -17,6 +16,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { AdminPageLayout } from "@/components/admin/AdminPageLayout";
+import { TableSkeleton } from "@/components/ui/skeleton";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import { authService } from "@/lib/auth-backend";
 
 interface Column {
   header: string;
@@ -87,57 +91,148 @@ interface ApiError extends Error {
 }
 
 const fetcher = async (url: string) => {
-  const res = await fetch(url);
-  if (!res.ok) {
-    const error = new Error('Failed to fetch applications') as ApiError;
-    error.info = await res.json();
-    error.status = res.status;
-    throw error;
+  const session = authService.getSession();
+  if (!session) {
+    throw new Error('No authentication session');
   }
-  return res.json();
+
+  const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:8000';
+  const response = await fetch(`${baseUrl}/api${url}`, {
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.token}`,
+      'Accept': 'application/json'
+    }
+  });
+  
+  if (response.status === 401) {
+    // Token expired, try to refresh
+    const refreshed = await authService.refreshToken();
+    if (!refreshed) {
+      window.location.href = '/login';
+      throw new Error('Session expired');
+    }
+
+    // Retry with new token
+    const retryResponse = await fetch(`${baseUrl}/api${url}`, {
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${refreshed.access_token}`,
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!retryResponse.ok) {
+      throw new Error('Failed to fetch data');
+    }
+
+    const data = await retryResponse.json();
+    return data.applications;
+  }
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch data');
+  }
+  
+  const data = await response.json();
+  return data.applications;
 };
 
 export default function ApplicationsPage() {
+  const router = useRouter();
+  const { isAuthenticated, isAdmin, isLoading } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPosition, setSelectedPosition] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
-  const [selectedStructure, setSelectedStructure] = useState<'all' | 'old' | 'new'>('all');
   const [structureType, setStructureType] = useState<'new' | 'old'>('new');
-  const { data: applications = [], error, isLoading, mutate } = useSWR<Application[]>(
-    `/api/admin/${structureType === 'new' ? 'applications' : 'old-applications'}`,
+  const { data: applications = [], error, isLoading: isDataLoading, mutate } = useSWR<Application[]>(
+    isAuthenticated && isAdmin ? '/applications' : null,
     fetcher
   );
   const [viewApplication, setViewApplication] = useState<Application | null>(null);
   const [editApplication, setEditApplication] = useState<Application | null>(null);
   const [deleteApplicationId, setDeleteApplicationId] = useState<string | null>(null);
-  const [dynamicColumns, setDynamicColumns] = useState<Column[]>([]);
   const [jobTitles, setJobTitles] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!isLoading && (!isAuthenticated || !isAdmin)) {
+      router.push('/login');
+    }
+  }, [isLoading, isAuthenticated, isAdmin, router]);
 
   useEffect(() => {
     const fetchJobTitles = async () => {
       try {
-        const response = await fetch('/api/admin/jobs');
-        const jobs = await response.json();
-        const titles = jobs.reduce((acc: Record<string, string>, job: any) => {
-          acc[job.id] = job.title;
-          return acc;
-        }, {});
-        setJobTitles(titles);
+        const session = authService.getSession();
+        if (!session) return;
+
+        const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/jobs`, {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.token}`,
+            'Accept': 'application/json'
+          }
+        });
+
+        if (response.status === 401) {
+          const refreshed = await authService.refreshToken();
+          if (!refreshed) {
+            router.push('/login');
+            return;
+          }
+
+          // Retry with new token
+          const retryResponse = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/jobs`, {
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${refreshed.access_token}`,
+              'Accept': 'application/json'
+            }
+          });
+
+          if (!retryResponse.ok) return;
+
+          const data = await retryResponse.json();
+          const titles = data.jobs.reduce((acc: Record<string, string>, job: any) => {
+            acc[job.id] = job.title;
+            return acc;
+          }, {});
+          setJobTitles(titles);
+        } else if (response.ok) {
+          const data = await response.json();
+          const titles = data.jobs.reduce((acc: Record<string, string>, job: any) => {
+            acc[job.id] = job.title;
+            return acc;
+          }, {});
+          setJobTitles(titles);
+        }
       } catch (error) {
         console.error('Failed to fetch job titles:', error);
       }
     };
     
-    fetchJobTitles();
-  }, []);
+    if (isAuthenticated && isAdmin) {
+      fetchJobTitles();
+    }
+  }, [isAuthenticated, isAdmin, router]);
 
-  const allColumns = [
-    ...staticColumns,
-    ...getDynamicColumns(applications || [])
-  ];
+  if (isLoading || isDataLoading) {
+    return (
+      <AdminPageLayout title="Applications" showSearch={false}>
+        <TableSkeleton rows={10} columns={6} />
+      </AdminPageLayout>
+    );
+  }
+
+  if (!isAuthenticated || !isAdmin) {
+    return null; // Router will handle the redirect
+  }
 
   if (error) return <div>Failed to load applications</div>;
-  if (isLoading) return <div>Loading...</div>;
 
   const filteredApplications = applications
     .filter(app => {
@@ -169,11 +264,43 @@ export default function ApplicationsPage() {
 
   async function handleSaveEdit(updatedApplication: Application) {
     try {
-      await fetch(`/api/admin/applications/${updatedApplication.id}`, {
+      const session = authService.getSession();
+      if (!session) {
+        router.push('/login');
+        return;
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/${updatedApplication.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          'Authorization': `Bearer ${session.token}`,
+          'Accept': 'application/json'
+        },
+        credentials: 'include',
         body: JSON.stringify(updatedApplication),
       });
+
+      if (response.status === 401) {
+        const refreshed = await authService.refreshToken();
+        if (!refreshed) {
+          router.push('/login');
+          return;
+        }
+
+        // Retry with new token
+        await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/${updatedApplication.id}`, {
+          method: "PUT",
+          headers: { 
+            "Content-Type": "application/json",
+            'Authorization': `Bearer ${refreshed.access_token}`,
+            'Accept': 'application/json'
+          },
+          credentials: 'include',
+          body: JSON.stringify(updatedApplication),
+        });
+      }
+
       mutate();
       setEditApplication(null);
     } catch (error) {
@@ -183,7 +310,39 @@ export default function ApplicationsPage() {
 
   async function handleConfirmDelete(id: string) {
     try {
-      await fetch(`/api/admin/applications/${id}`, { method: "DELETE" });
+      const session = authService.getSession();
+      if (!session) {
+        router.push('/login');
+        return;
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/${id}`, {
+        method: "DELETE",
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${session.token}`,
+          'Accept': 'application/json'
+        }
+      });
+
+      if (response.status === 401) {
+        const refreshed = await authService.refreshToken();
+        if (!refreshed) {
+          router.push('/login');
+          return;
+        }
+
+        // Retry with new token
+        await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/${id}`, {
+          method: "DELETE",
+          credentials: 'include',
+          headers: {
+            'Authorization': `Bearer ${refreshed.access_token}`,
+            'Accept': 'application/json'
+          }
+        });
+      }
+
       mutate();
       setDeleteApplicationId(null);
     } catch (error) {
@@ -193,7 +352,10 @@ export default function ApplicationsPage() {
 
   return (
     <>
-      <AdminPageHeader title="Applications">
+      <AdminPageHeader title="Applications" />
+      
+      {/* Action Bar */}
+      <div className="bg-white border-b px-6 py-4">
         <div className="flex gap-2">
           <Button
             variant={structureType === 'new' ? 'default' : 'outline'}
@@ -218,9 +380,20 @@ export default function ApplicationsPage() {
                 const reader = new FileReader();
                 reader.onload = async (event) => {
                   const data = JSON.parse(event.target?.result as string);
-                  await fetch('/api/admin/applications/import', {
+                  const session = authService.getSession();
+                  if (!session) {
+                    router.push('/login');
+                    return;
+                  }
+
+                  await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/import`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${session.token}`,
+                      'Accept': 'application/json'
+                    },
+                    credentials: 'include',
                     body: JSON.stringify(data)
                   });
                   // Refresh data
@@ -248,7 +421,7 @@ export default function ApplicationsPage() {
             <DropdownMenuContent>
               <DropdownMenuItem asChild>
                 <a 
-                  href="/api/admin/applications/export?format=json"
+                  href={`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/export?format=json`}
                   className="cursor-pointer"
                 >
                   <FileText className="mr-2 h-4 w-4" />
@@ -257,7 +430,7 @@ export default function ApplicationsPage() {
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <a
-                  href="/api/admin/applications/export?format=csv"
+                  href={`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/export?format=csv`}
                   className="cursor-pointer"
                 >
                   <Sheet className="mr-2 h-4 w-4" />
@@ -266,7 +439,7 @@ export default function ApplicationsPage() {
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <a
-                  href="/api/admin/applications/export?format=xlsx"
+                  href={`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/export?format=xlsx`}
                   className="cursor-pointer"
                 >
                   <Sheet className="mr-2 h-4 w-4" />
@@ -276,7 +449,7 @@ export default function ApplicationsPage() {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </AdminPageHeader>
+      </div>
       
       {/* Sticky Search and Filter Section */}
       <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-sm border-b">
@@ -331,8 +504,6 @@ export default function ApplicationsPage() {
                 <option value="Hired">Hired</option>
                 <option value="Rejected">Rejected</option>
               </select>
-
-       
             </div>
           </div>
         </div>

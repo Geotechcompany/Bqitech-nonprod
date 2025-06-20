@@ -206,6 +206,9 @@ export const adminApi = {
   
   getTrends: (days?: number) =>
     backendApi.get('/api/admin/trends', { days }),
+  
+  getApplicationsByJob: () =>
+    backendApi.get('/api/admin/applications-by-job'),
 
   // Questions
   getQuestions: (jobId?: string) =>

@@ -27,6 +27,7 @@ import { Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { adminApi } from "@/lib/api-backend";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { FormSkeleton } from "@/components/ui/skeleton";
 
 
 interface AdminSettings {
@@ -135,12 +136,7 @@ function SettingsPageContent() {
   if (isLoading) {
     return (
       <AdminPageLayout title="Settings" showSearch={false}>
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-            <p>Loading settings...</p>
-          </div>
-        </div>
+        <FormSkeleton />
       </AdminPageLayout>
     );
   }

@@ -56,12 +56,12 @@ export function TechnicalAssessmentTable({ applications, jobTitles, onView, onEd
     },
     { 
       header: "Assessment Date", 
-      accessor: (row: Application) => new Date(row.assessmentDate),
-      cell: (date: Date) => date.toLocaleDateString()
+      accessor: (row: Application) => row.assessmentDate ? new Date(row.assessmentDate) : 'Not Scheduled',
+      cell: (value: Date | string) => value instanceof Date ? value.toLocaleDateString() : value
     },
     { 
       header: "Result", 
-      accessor: (row: Application) => row.assessmentResult || 'N/A'
+      accessor: (row: Application) => row.assessmentScore || 'Pending'
     },
     { 
       header: "CV", 
@@ -89,7 +89,65 @@ export function TechnicalAssessmentTable({ applications, jobTitles, onView, onEd
         </div>
       ) : (
         <table className="min-w-full divide-y divide-gray-200">
-          {/* Table structure similar to other components */}
+          <thead className="bg-gray-50">
+            <tr>
+              {columns.map((column, index) => (
+                <th
+                  key={index}
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  {column.header}
+                </th>
+              ))}
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {applications.map((application) => (
+              <tr key={application.id} className="hover:bg-gray-50">
+                {columns.map((column, colIndex) => (
+                  <td
+                    key={colIndex}
+                    className="px-6 py-4 whitespace-nowrap text-sm text-gray-900"
+                  >
+                    {(() => {
+                      const value = column.accessor(application);
+                      return column.cell 
+                        ? column.cell(value)
+                        : value instanceof Date 
+                          ? value.toLocaleDateString()
+                          : value;
+                    })()}
+                  </td>
+                ))}
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onView(application.id)}
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onEdit(application.id)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onDelete(application.id)}
+                  >
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
         </table>
       )}
     </div>

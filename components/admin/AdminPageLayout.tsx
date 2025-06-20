@@ -28,13 +28,13 @@ export function AdminPageLayout({
 }: AdminPageLayoutProps) {
   return (
     <div className={cn("h-full w-full flex flex-col bg-gray-100", className)}>
-      <div className="flex-shrink-0 px-6 pt-6 pb-4">
+      <div className="flex-shrink-0 px-4 md:px-6 pt-6 pb-4">
         <AdminPageHeader title={title} />
       </div>
       
       {/* Only show search section if showSearch is true */}
       {showSearch && (
-        <div className="flex-shrink-0 bg-white/80 backdrop-blur-sm border-b px-6 py-4">
+        <div className="flex-shrink-0 bg-white/80 backdrop-blur-sm border-b px-4 md:px-6 py-4">
           <div className="flex flex-col md:flex-row gap-3">
             <div className="relative flex-1">
               <input
@@ -52,7 +52,7 @@ export function AdminPageLayout({
       )}
 
       {/* Content Area */}
-      <div className="flex-1 overflow-auto px-6 pb-6">
+      <div className="flex-1 overflow-auto w-full">
         {children}
       </div>
     </div>

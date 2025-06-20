@@ -3,6 +3,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import ConnectionFailure
 import logging
 from .config import settings
+from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
 
@@ -30,16 +31,22 @@ async def connect_to_database():
         
     except ConnectionFailure as e:
         logger.error(f"Failed to connect to MongoDB: {e}")
-        logger.warning("Running without database - some features will be limited")
-        # Don't raise error, allow server to start without database
         _client = None
         _database = None
+        raise HTTPException(status_code=503, detail="Database connection failed")
+    except Exception as e:
+        logger.error(f"Unexpected error connecting to MongoDB: {e}")
+        _client = None
+        _database = None
+        raise HTTPException(status_code=503, detail="Database connection failed")
 
 async def close_database_connection():
     """Close database connection"""
-    global _client
+    global _client, _database
     if _client:
         _client.close()
+        _client = None
+        _database = None
         logger.info("Disconnected from MongoDB")
 
 async def disconnect_from_database():
@@ -49,9 +56,6 @@ async def disconnect_from_database():
 def get_database():
     """Get database instance"""
     global _database
-    if _database is None:
-        logger.warning("Database not connected - returning None")
-        return None
     return _database
 
 def is_connected():

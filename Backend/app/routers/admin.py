@@ -47,279 +47,6 @@ async def test_auth_endpoint(request: Request):
     except Exception as e:
         return {"error": f"Failed to parse session: {str(e)}", "session_header": session_header}
 
-
-
-# Applications endpoints
-@router.get("/applications")
-async def get_all_applications(
-    request: Request,
-    current_user: dict = Depends(get_current_admin_user),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
-    search: Optional[str] = Query(None),
-    status: Optional[str] = Query(None)
-):
-    """Get all applications with pagination and filtering"""
-    db = get_database()
-    
-    # Build filter query
-    filter_query = {}
-    if search:
-        filter_query["$or"] = [
-            {"name": {"$regex": search, "$options": "i"}},
-            {"email": {"$regex": search, "$options": "i"}},
-            {"position": {"$regex": search, "$options": "i"}}
-        ]
-    
-    if status:
-        filter_query["status"] = status
-    
-    # Get applications
-    applications_cursor = db.applications.find(filter_query).skip(skip).limit(limit).sort("appliedDate", -1)
-    applications = await applications_cursor.to_list(length=limit)
-    
-    # Get total count
-    total = await db.applications.count_documents(filter_query)
-    
-    # Convert all ObjectIds to strings
-    for app in applications:
-        convert_objectids_to_strings(app)
-        app["id"] = str(app["_id"])
-    
-    return {
-        "applications": applications,
-        "total": total,
-        "page": skip // limit + 1,
-        "totalPages": (total + limit - 1) // limit
-    }
-
-@router.get("/applications/recent")
-async def get_recent_applications(
-    current_user: dict = Depends(get_current_admin_user),
-    limit: int = Query(10, ge=1, le=50)
-):
-    """Get recent applications"""
-    db = get_database()
-    
-    applications_cursor = db.applications.find().sort("appliedDate", -1).limit(limit)
-    applications = await applications_cursor.to_list(length=limit)
-    
-    # Convert all ObjectIds to strings
-    for app in applications:
-        convert_objectids_to_strings(app)
-        app["id"] = str(app["_id"])
-        # Ensure appliedDate is properly formatted
-        if app.get("appliedDate"):
-            app["appliedDate"] = app["appliedDate"]
-    
-    return applications
-
-@router.get("/applications/{application_id}")
-async def get_application(
-    application_id: str,
-    request: Request,
-    current_user: dict = Depends(get_current_admin_user)
-):
-    """Get specific application by ID"""
-    db = get_database()
-    
-    try:
-        application = await db.applications.find_one({"_id": ObjectId(application_id)})
-        if not application:
-            raise HTTPException(status_code=404, detail="Application not found")
-        
-        # Convert all ObjectIds to strings
-        convert_objectids_to_strings(application)
-        application["id"] = str(application["_id"])
-        return application
-    except Exception as e:
-        raise HTTPException(status_code=400, detail="Invalid application ID")
-
-@router.put("/applications/{application_id}")
-async def update_application(
-    application_id: str,
-    update_data: Dict[str, Any],
-    request: Request,
-    current_user: dict = Depends(get_current_admin_user)
-):
-    """Update application status and details"""
-    db = get_database()
-    
-    try:
-        # Add timestamp for status changes
-        if "status" in update_data:
-            status = update_data["status"]
-            if status == "shortlisted":
-                update_data["shortlistedDate"] = datetime.utcnow()
-            elif status == "interviewing":
-                update_data["interviewingDate"] = datetime.utcnow()
-            elif status == "hired":
-                update_data["hiredDate"] = datetime.utcnow()
-            elif status == "rejected":
-                update_data["rejectedDate"] = datetime.utcnow()
-            elif status == "disqualified":
-                update_data["disqualifiedDate"] = datetime.utcnow()
-        
-        result = await db.applications.update_one(
-            {"_id": ObjectId(application_id)},
-            {"$set": update_data}
-        )
-        
-        if result.matched_count == 0:
-            raise HTTPException(status_code=404, detail="Application not found")
-        
-        return {"message": "Application updated successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-@router.delete("/applications/{application_id}")
-async def delete_application(
-    application_id: str,
-    request: Request,
-    current_user: dict = Depends(get_current_admin_user)
-):
-    """Delete application"""
-    db = get_database()
-    
-    try:
-        result = await db.applications.delete_one({"_id": ObjectId(application_id)})
-        if result.deleted_count == 0:
-            raise HTTPException(status_code=404, detail="Application not found")
-        
-        return {"message": "Application deleted successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-# Status-specific endpoints
-@router.get("/shortlisted")
-async def get_shortlisted_applications(
-    request: Request,
-    current_user: dict = Depends(get_current_admin_user),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100)
-):
-    """Get shortlisted applications"""
-    db = get_database()
-    
-    # Handle case variations of "shortlisted"
-    status_filter = {"status": {"$in": ["shortlisted", "Shortlisted", "SHORTLISTED"]}}
-    applications_cursor = db.applications.find(status_filter).skip(skip).limit(limit).sort("shortlistedDate", -1)
-    applications = await applications_cursor.to_list(length=limit)
-    total = await db.applications.count_documents(status_filter)
-    
-    # Convert all ObjectIds to strings
-    for app in applications:
-        convert_objectids_to_strings(app)
-        app["id"] = str(app["_id"])
-    
-    return {"applications": applications, "total": total}
-
-@router.get("/technical-assessment")
-async def get_technical_assessment_applications(
-    request: Request,
-    current_user: dict = Depends(get_current_admin_user),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100)
-):
-    """Get technical assessment applications"""
-    db = get_database()
-    
-    # Handle case variations of "technical assessment"
-    status_filter = {"status": {"$in": ["technical assessment", "Technical Assessment", "TECHNICAL_ASSESSMENT", "technical_assessment"]}}
-    applications_cursor = db.applications.find(status_filter).skip(skip).limit(limit).sort("appliedDate", -1)
-    applications = await applications_cursor.to_list(length=limit)
-    total = await db.applications.count_documents(status_filter)
-    
-    # Convert all ObjectIds to strings
-    for app in applications:
-        convert_objectids_to_strings(app)
-        app["id"] = str(app["_id"])
-    
-    return {"applications": applications, "total": total}
-
-@router.get("/interviewing")
-async def get_interviewing_applications(
-    request: Request,
-    current_user: dict = Depends(get_current_admin_user),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100)
-):
-    """Get interviewing applications"""
-    db = get_database()
-    
-    applications_cursor = db.applications.find({"status": "interviewing"}).skip(skip).limit(limit).sort("interviewingDate", -1)
-    applications = await applications_cursor.to_list(length=limit)
-    total = await db.applications.count_documents({"status": "interviewing"})
-    
-    # Convert all ObjectIds to strings
-    for app in applications:
-        convert_objectids_to_strings(app)
-        app["id"] = str(app["_id"])
-    
-    return {"applications": applications, "total": total}
-
-@router.get("/hired")
-async def get_hired_applications(
-    request: Request,
-    current_user: dict = Depends(get_current_admin_user),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100)
-):
-    """Get hired applications"""
-    db = get_database()
-    
-    applications_cursor = db.applications.find({"status": "hired"}).skip(skip).limit(limit).sort("hiredDate", -1)
-    applications = await applications_cursor.to_list(length=limit)
-    total = await db.applications.count_documents({"status": "hired"})
-    
-    # Convert all ObjectIds to strings
-    for app in applications:
-        convert_objectids_to_strings(app)
-        app["id"] = str(app["_id"])
-    
-    return {"applications": applications, "total": total}
-
-@router.get("/rejected")
-async def get_rejected_applications(
-    current_user: dict = Depends(get_current_admin_user),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100)
-):
-    """Get rejected applications"""
-    db = get_database()
-    
-    applications_cursor = db.applications.find({"status": "rejected"}).skip(skip).limit(limit).sort("rejectedDate", -1)
-    applications = await applications_cursor.to_list(length=limit)
-    total = await db.applications.count_documents({"status": "rejected"})
-    
-    # Convert all ObjectIds to strings
-    for app in applications:
-        convert_objectids_to_strings(app)
-        app["id"] = str(app["_id"])
-    
-    return {"applications": applications, "total": total}
-
-@router.get("/disqualified")
-async def get_disqualified_applications(
-    request: Request,
-    current_user: dict = Depends(get_current_admin_user),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100)
-):
-    """Get disqualified applications"""
-    db = get_database()
-    
-    applications_cursor = db.applications.find({"status": "disqualified"}).skip(skip).limit(limit).sort("disqualifiedDate", -1)
-    applications = await applications_cursor.to_list(length=limit)
-    total = await db.applications.count_documents({"status": "disqualified"})
-    
-    # Convert all ObjectIds to strings
-    for app in applications:
-        convert_objectids_to_strings(app)
-        app["id"] = str(app["_id"])
-    
-    return {"applications": applications, "total": total}
-
 @router.get("/jobs")
 async def get_jobs(
     request: Request,
@@ -640,7 +367,7 @@ async def delete_blog_post(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-  # Analytics and Overview endpoints
+# Analytics and Overview endpoints
 @router.get("/overview")
 async def get_admin_overview(
     request: Request,
@@ -759,6 +486,35 @@ async def get_application_trends(
     trends = await db.applications.aggregate(pipeline).to_list(length=None)
     
     return {"trends": trends}
+
+@router.get("/applications-by-job")
+async def get_applications_by_job(
+    request: Request,
+    current_user: dict = Depends(get_current_admin_user)
+):
+    """Get applications grouped by job posting for pie chart"""
+    db = get_database()
+    
+    # Aggregate applications by job position/title
+    pipeline = [
+        {
+            "$group": {
+                "_id": "$position",
+                "count": {"$sum": 1}
+            }
+        },
+        {"$sort": {"count": -1}},
+        {"$limit": 10}  # Limit to top 10 jobs to avoid cluttered chart
+    ]
+    
+    job_applications = await db.applications.aggregate(pipeline).to_list(length=None)
+    
+    # Handle null/empty positions
+    for item in job_applications:
+        if not item["_id"]:
+            item["_id"] = "Unknown Position"
+    
+    return {"applications_by_job": job_applications}
 
 # Questions Management
 @router.get("/questions")

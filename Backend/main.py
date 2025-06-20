@@ -19,7 +19,11 @@ except ImportError:
     HAS_MISC_ROUTER = False
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 logger = logging.getLogger(__name__)
 
 @asynccontextmanager
@@ -40,14 +44,61 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configure CORS
+# CORS middleware configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://your-domain.com"],  # Add your frontend URLs
+    allow_origins=[
+        "http://localhost:3000",
+        "https://bqitech.com",
+        "https://www.bqitech.com"
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
+    allow_headers=["Content-Type", "Authorization", "Accept"],
+    expose_headers=["Content-Type", "Authorization"],
+    max_age=3600,
 )
+
+# Middleware to ensure CORS headers are always present
+@app.middleware("http")
+async def add_cors_headers(request: Request, call_next):
+    response = await call_next(request)
+    origin = request.headers.get("origin")
+    if origin in [
+        "http://localhost:3000",
+        "https://bqitech.com",
+        "https://www.bqitech.com"
+    ]:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept"
+        response.headers["Access-Control-Expose-Headers"] = "Content-Type, Authorization"
+        response.headers["Access-Control-Max-Age"] = "3600"
+    return response
+
+# Error handler for CORS preflight requests
+@app.options("/{full_path:path}")
+async def options_handler(request: Request):
+    origin = request.headers.get("origin")
+    if origin in [
+        "http://localhost:3000",
+        "https://bqitech.com",
+        "https://www.bqitech.com"
+    ]:
+        return JSONResponse(
+            status_code=200,
+            content={"message": "OK"},
+            headers={
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept",
+                "Access-Control-Expose-Headers": "Content-Type, Authorization",
+                "Access-Control-Max-Age": "3600",
+            }
+        )
+    return JSONResponse(status_code=403, content={"message": "Origin not allowed"})
 
 # Include routers
 app.include_router(auth.router, prefix="/api")
@@ -66,11 +117,11 @@ if HAS_MISC_ROUTER:
 
 @app.get("/")
 async def root():
-    return {"message": "BQI Tech HR API is running", "version": "1.0.0"}
+    return JSONResponse(content={"message": "BQI Tech HR API is running", "version": "1.0.0"})
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "message": "API is running"}
+    return JSONResponse(content={"status": "healthy", "message": "API is running"})
 
 if __name__ == "__main__":
     uvicorn.run(
@@ -78,5 +129,7 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=True,
-        log_level="info"
+        log_level="info",
+        access_log=False,  # Disable access logging
+        timeout_keep_alive=0  # Disable keep-alive to prevent streaming
     ) 
