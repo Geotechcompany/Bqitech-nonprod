@@ -13,7 +13,11 @@ export default function ClientLayout({
 }) {
   const [isLoading, setIsLoading] = useState(true);
   const pathname = usePathname();
-  const isAuthPage = ['/login', '/sign-up' , '/forgot-password' , '/admin/login' , '/auth/verify-email'].some(path => pathname?.startsWith(path));
+  
+  // Exclude header/footer from auth pages and ALL admin pages
+  const isAuthPage = ['/login', '/sign-up', '/forgot-password', '/auth/verify-email'].some(path => pathname?.startsWith(path));
+  const isAdminPage = pathname?.startsWith('/admin');
+  const shouldHideHeaderFooter = isAuthPage || isAdminPage;
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -29,9 +33,9 @@ export default function ClientLayout({
         <Loader />
       ) : (
         <>
-          {isAuthPage ? null : <Header />}
+          {shouldHideHeaderFooter ? null : <Header />}
           <main className="flex-grow">{children}</main>
-          {isAuthPage ? null : <Footer />}
+          {shouldHideHeaderFooter ? null : <Footer />}
         </>
       )}
     </div>

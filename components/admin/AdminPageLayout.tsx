@@ -1,4 +1,4 @@
-import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -29,7 +29,7 @@ export function AdminPageLayout({
   return (
     <div className={cn("h-full w-full flex flex-col bg-gray-100", className)}>
       <div className="flex-shrink-0 px-6 pt-6 pb-4">
-        <AdminPageHeader title={title} breadcrumb={title} />
+        <AdminPageHeader title={title} />
       </div>
       
       {/* Only show search section if showSearch is true */}
