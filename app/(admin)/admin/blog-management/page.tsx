@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button"
 import { PlusCircle, Eye, Pencil, Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { toast } from "sonner"
 import Image from "next/image"
+import { useAuth } from "@/contexts/AuthContext"
+import { authService } from "@/lib/auth-backend"
 import {
   Dialog,
   DialogContent,
@@ -23,28 +25,109 @@ import { format } from "date-fns"
 
 export default function BlogManagementPage() {
   const router = useRouter()
+  const { isAuthenticated, isAdmin, isLoading } = useAuth()
   const queryClient = useQueryClient()
   const [postIdToDelete, setPostIdToDelete] = useState<string | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isUpdating, setIsUpdating] = useState<string | null>(null)
 
-  const { data: posts, isLoading, error } = useQuery({
+  useEffect(() => {
+    if (!isLoading && (!isAuthenticated || !isAdmin)) {
+      router.push('/login')
+    }
+  }, [isLoading, isAuthenticated, isAdmin, router])
+
+  const { data: posts, isLoading: isDataLoading, error } = useQuery({
     queryKey: ['blog-posts'],
     queryFn: async () => {
-      const res = await fetch('/api/admin/blog-posts')
+      const session = authService.getSession()
+      if (!session) {
+        throw new Error('No authentication session')
+      }
+
+      const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:8000'
+      const res = await fetch(`${baseUrl}/api/admin/blog-posts`, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.token}`,
+          'Accept': 'application/json'
+        }
+      })
+
+      if (res.status === 401) {
+        const refreshed = await authService.refreshToken()
+        if (!refreshed) {
+          router.push('/login')
+          throw new Error('Session expired')
+        }
+
+        // Retry with new token
+        const retryRes = await fetch(`${baseUrl}/api/admin/blog-posts`, {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${refreshed.access_token}`,
+            'Accept': 'application/json'
+          }
+        })
+
+        if (!retryRes.ok) {
+          const error = await retryRes.json()
+          throw new Error(error.message || 'Failed to fetch posts')
+        }
+        return retryRes.json() as Promise<BlogPost[]>
+      }
+
       if (!res.ok) {
         const error = await res.json()
         throw new Error(error.message || 'Failed to fetch posts')
       }
       return res.json() as Promise<BlogPost[]>
-    }
+    },
+    enabled: isAuthenticated && isAdmin
   })
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/admin/blog-posts/${id}`, {
+      const session = authService.getSession()
+      if (!session) {
+        throw new Error('No authentication session')
+      }
+
+      const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:8000'
+      const res = await fetch(`${baseUrl}/api/admin/blog-posts/${id}`, {
         method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${session.token}`,
+          'Accept': 'application/json'
+        }
       })
+
+      if (res.status === 401) {
+        const refreshed = await authService.refreshToken()
+        if (!refreshed) {
+          throw new Error('Session expired')
+        }
+
+        // Retry with new token
+        const retryRes = await fetch(`${baseUrl}/api/admin/blog-posts/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: {
+            'Authorization': `Bearer ${refreshed.access_token}`,
+            'Accept': 'application/json'
+          }
+        })
+
+        if (!retryRes.ok) {
+          const error = await retryRes.json()
+          throw new Error(error.message || 'Failed to delete post')
+        }
+        return retryRes.json()
+      }
+
       if (!res.ok) {
         const error = await res.json()
         throw new Error(error.message || 'Failed to delete post')
@@ -66,11 +149,48 @@ export default function BlogManagementPage() {
     mutationFn: async ({ id, published }: { id: string; published: boolean }) => {
       setIsUpdating(id)
       try {
-        const res = await fetch(`/api/admin/blog-posts/${id}`, {
+        const session = authService.getSession()
+        if (!session) {
+          throw new Error('No authentication session')
+        }
+
+        const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:8000'
+        const res = await fetch(`${baseUrl}/api/admin/blog-posts/${id}`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.token}`,
+            'Accept': 'application/json'
+          },
           body: JSON.stringify({ published })
         })
+
+        if (res.status === 401) {
+          const refreshed = await authService.refreshToken()
+          if (!refreshed) {
+            throw new Error('Session expired')
+          }
+
+          // Retry with new token
+          const retryRes = await fetch(`${baseUrl}/api/admin/blog-posts/${id}`, {
+            method: 'PATCH',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${refreshed.access_token}`,
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({ published })
+          })
+
+          if (!retryRes.ok) {
+            const error = await retryRes.json()
+            throw new Error(error.message || 'Failed to update post status')
+          }
+          return retryRes.json()
+        }
+
         if (!res.ok) {
           const error = await res.json()
           throw new Error(error.message || 'Failed to update post status')
@@ -102,7 +222,7 @@ export default function BlogManagementPage() {
     await togglePublishMutation.mutateAsync({ id, published: !currentStatus })
   }
 
-  if (isLoading) {
+  if (isLoading || isDataLoading) {
     return (
       <AdminPageLayout title="Blog Management">
         <div className="flex justify-center items-center h-64">
@@ -110,6 +230,10 @@ export default function BlogManagementPage() {
         </div>
       </AdminPageLayout>
     )
+  }
+
+  if (!isAuthenticated || !isAdmin) {
+    return null // Router will handle the redirect
   }
 
   if (error) {

@@ -116,11 +116,16 @@ async def get_current_admin_user(request: Request):
             detail="Not authenticated"
         )
     
-    user_role = user.get("role", "").lower()
-    if user_role not in ["admin", "super_admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions"
-        )
+    # Check both session header and database roles
+    user_role = str(user.get("role", "")).upper()
+    if user_role not in ["ADMIN", "SUPER_ADMIN"]:
+        # Double check in database for security
+        db = get_database()
+        db_user = await db.users.find_one({"_id": ObjectId(user["id"])})
+        if not db_user or str(db_user.get("role", "")).upper() not in ["ADMIN", "SUPER_ADMIN"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not enough permissions"
+            )
     
     return user 

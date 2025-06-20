@@ -97,12 +97,17 @@ const fetcher = async (url: string) => {
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:8000';
-  const response = await fetch(`${baseUrl}/api${url}`, {
+  const response = await fetch(`${baseUrl}/api/applications`, {
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${session.token}`,
-      'Accept': 'application/json'
+      'Accept': 'application/json',
+      'X-User-Session': JSON.stringify({
+        id: session.user.id,
+        email: session.user.email,
+        role: session.user.role
+      })
     }
   });
   
@@ -115,12 +120,17 @@ const fetcher = async (url: string) => {
     }
 
     // Retry with new token
-    const retryResponse = await fetch(`${baseUrl}/api${url}`, {
+    const retryResponse = await fetch(`${baseUrl}/api/applications`, {
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${refreshed.access_token}`,
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'X-User-Session': JSON.stringify({
+          id: session.user.id,
+          email: session.user.email,
+          role: session.user.role
+        })
       }
     });
 
@@ -148,7 +158,7 @@ export default function ApplicationsPage() {
   const [selectedStatus, setSelectedStatus] = useState("");
   const [structureType, setStructureType] = useState<'new' | 'old'>('new');
   const { data: applications = [], error, isLoading: isDataLoading, mutate } = useSWR<Application[]>(
-    isAuthenticated && isAdmin ? '/applications' : null,
+    isAuthenticated && isAdmin ? '/api/applications' : null,
     fetcher
   );
   const [viewApplication, setViewApplication] = useState<Application | null>(null);
@@ -168,12 +178,17 @@ export default function ApplicationsPage() {
         const session = authService.getSession();
         if (!session) return;
 
-        const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/jobs`, {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/jobs`, {
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${session.token}`,
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            'X-User-Session': JSON.stringify({
+              id: session.user.id,
+              email: session.user.email,
+              role: session.user.role
+            })
           }
         });
 
@@ -185,12 +200,17 @@ export default function ApplicationsPage() {
           }
 
           // Retry with new token
-          const retryResponse = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/jobs`, {
+          const retryResponse = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/jobs`, {
             credentials: 'include',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${refreshed.access_token}`,
-              'Accept': 'application/json'
+              'Accept': 'application/json',
+              'X-User-Session': JSON.stringify({
+                id: session.user.id,
+                email: session.user.email,
+                role: session.user.role
+              })
             }
           });
 

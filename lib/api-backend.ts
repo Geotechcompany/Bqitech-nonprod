@@ -232,6 +232,26 @@ export const adminApi = {
   
   updateSettings: (data: any) =>
     backendApi.put('/api/admin/settings', data),
+
+  // Get notifications
+  async getNotifications() {
+    return backendApi.request('/api/notifications/');
+  },
+
+  // Mark notification as read
+  async markNotificationAsRead(notificationId: string) {
+    return backendApi.request(`/api/notifications/${notificationId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isRead: true }),
+    });
+  },
+
+  // Delete notification
+  async deleteNotification(notificationId: string) {
+    return backendApi.request(`/api/notifications/${notificationId}`, {
+      method: 'DELETE',
+    });
+  }
 };
 
 export const userApi = {

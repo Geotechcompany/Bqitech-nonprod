@@ -7,19 +7,64 @@ import { AdminPageLayout } from "@/components/admin/AdminPageLayout"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { BlogPost } from "@/types/blog"
+import { useAuth } from "@/contexts/AuthContext"
+import { authService } from "@/lib/auth-backend"
+import { useEffect } from "react"
 
 export default function NewBlogPost() {
   const router = useRouter()
+  const { isAuthenticated, isAdmin, isLoading } = useAuth()
+
+  useEffect(() => {
+    if (!isLoading && (!isAuthenticated || !isAdmin)) {
+      router.push('/login')
+    }
+  }, [isLoading, isAuthenticated, isAdmin, router])
 
   const handleSubmit = async (data: Partial<BlogPost>) => {
     try {
-      const response = await fetch("/api/admin/blog-posts", {
+      const session = authService.getSession()
+      if (!session) {
+        router.push('/login')
+        return
+      }
+
+      const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:8000'
+      const response = await fetch(`${baseUrl}/api/admin/blog-posts`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        credentials: 'include',
+        headers: { 
+          "Content-Type": "application/json",
+          'Authorization': `Bearer ${session.token}`,
+          'Accept': 'application/json'
+        },
         body: JSON.stringify(data),
       })
 
-      if (!response.ok) {
+      if (response.status === 401) {
+        const refreshed = await authService.refreshToken()
+        if (!refreshed) {
+          router.push('/login')
+          throw new Error('Session expired')
+        }
+
+        // Retry with new token
+        const retryResponse = await fetch(`${baseUrl}/api/admin/blog-posts`, {
+          method: "POST",
+          credentials: 'include',
+          headers: { 
+            "Content-Type": "application/json",
+            'Authorization': `Bearer ${refreshed.access_token}`,
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(data),
+        })
+
+        if (!retryResponse.ok) {
+          const error = await retryResponse.json()
+          throw new Error(error.message || "Failed to create blog post")
+        }
+      } else if (!response.ok) {
         const error = await response.json()
         throw new Error(error.message || "Failed to create blog post")
       }
@@ -31,6 +76,20 @@ export default function NewBlogPost() {
       console.error('Save error:', error)
       toast.error(error instanceof Error ? error.message : "Failed to create blog post")
     }
+  }
+
+  if (isLoading) {
+    return (
+      <AdminPageLayout title="Create Blog Post">
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+        </div>
+      </AdminPageLayout>
+    )
+  }
+
+  if (!isAuthenticated || !isAdmin) {
+    return null // Router will handle the redirect
   }
 
   return (

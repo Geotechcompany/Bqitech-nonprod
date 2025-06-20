@@ -9,163 +9,186 @@ import { ViewApplicationModal } from "@/components/admin/ViewApplicationModal";
 import { DeleteApplicationModal } from "@/components/admin/DeleteApplicationModal";
 import { Application } from "@/types/application";
 import { TableSkeleton } from "@/components/ui/skeleton";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import { authService } from "@/lib/auth-backend";
+import { Button } from "@/components/ui/button";
 
-const getAuthToken = () => {
-  if (typeof window !== 'undefined') {
-    return localStorage.getItem('authToken');
+const fetcher = async (url: string) => {
+  const session = authService.getSession();
+  if (!session) {
+    throw new Error('No authentication session');
   }
-  return null;
-};
 
-const refreshToken = async () => {
-  try {
-    const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:8000';
-    const response = await fetch(`${baseUrl}/api/auth/refresh-token`, {
-      method: 'POST',
+  const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:8000';
+  const response = await fetch(`${baseUrl}/api${url}`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.token}`,
+      'Accept': 'application/json'
+    }
+  });
+  
+  if (response.status === 401) {
+    // Token expired, try to refresh
+    const refreshed = await authService.refreshToken();
+    if (!refreshed) {
+      window.location.href = '/login';
+      throw new Error('Session expired');
+    }
+
+    // Retry with new token
+    const retryResponse = await fetch(`${baseUrl}/api${url}`, {
+      method: 'GET',
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${refreshed.access_token}`,
+        'Accept': 'application/json'
       }
     });
 
-    if (response.ok) {
-      const data = await response.json();
-      localStorage.setItem('authToken', data.access_token);
-      return data.access_token;
+    if (!retryResponse.ok) {
+      const errorData = await retryResponse.json().catch(() => ({}));
+      throw new Error(errorData.detail || 'Failed to fetch data');
     }
-    return null;
-  } catch (error) {
-    console.error('Token refresh failed:', error);
-    return null;
+
+    const data = await retryResponse.json();
+    return data; // Return the entire response object
   }
-};
 
-const fetcher = async (url: string) => {
-  try {
-    const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:8000';
-    let token = getAuthToken();
-
-    const makeRequest = async (authToken: string | null) => {
-      const response = await fetch(`${baseUrl}${url}`, {
-        method: 'GET',
-        credentials: 'omit',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
-        },
-        cache: 'no-store',
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      return data.applications || [];
-    };
-
-    try {
-      return await makeRequest(token);
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('401')) {
-        // Token might be expired, try to refresh
-        const newToken = await refreshToken();
-        if (newToken) {
-          // Retry with new token
-          return await makeRequest(newToken);
-        }
-        // If refresh failed, redirect to login
-        window.location.href = '/login';
-        return [];
-      }
-      throw error;
-    }
-  } catch (error) {
-    console.error('Fetch error:', error);
-    throw error;
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Failed to fetch data');
   }
+  
+  const data = await response.json();
+  return data; // Return the entire response object
 };
 
 export default function HiredPage() {
+  const router = useRouter();
+  const { isAuthenticated, isAdmin, isLoading } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
-  const { data, error, isLoading, mutate } = useSWR<Application[]>(
-    "/api/admin/hired",
-    fetcher
-  );
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [viewApplication, setViewApplication] = useState<Application | null>(null);
   const [editApplication, setEditApplication] = useState<Application | null>(null);
   const [deleteApplicationId, setDeleteApplicationId] = useState<string | null>(null);
   const [jobTitles, setJobTitles] = useState<Record<string, string>>({});
 
+  const { data, error, isLoading: isDataLoading, mutate } = useSWR<{
+    applications: Application[];
+    total: number;
+    page: number;
+    totalPages: number;
+  }>(
+    isAuthenticated && isAdmin ? `/applications/hired?page=${page}&limit=${pageSize}` : null,
+    fetcher,
+    {
+      onError: (err) => {
+        console.error('Error fetching hired applications:', err);
+      }
+    }
+  );
+
+  const applications = data?.applications || [];
+  const totalItems = data?.total || 0;
+  const totalPages = data?.totalPages || 0;
+
+  useEffect(() => {
+    if (!isLoading && (!isAuthenticated || !isAdmin)) {
+      router.push('/login');
+    }
+  }, [isLoading, isAuthenticated, isAdmin, router]);
+
   useEffect(() => {
     const fetchJobTitles = async () => {
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:8000';
-        let token = getAuthToken();
+        const session = authService.getSession();
+        if (!session) return;
 
-        const makeRequest = async (authToken: string | null) => {
-          const response = await fetch(`${baseUrl}/api/applications/jobs`, {
-            method: 'GET',
-            credentials: 'omit',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
-            },
-            cache: 'no-store',
-          });
+        const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/jobs`, {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.token}`,
+            'Accept': 'application/json'
+          }
+        });
 
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+        if (response.status === 401) {
+          const refreshed = await authService.refreshToken();
+          if (!refreshed) {
+            router.push('/login');
+            return;
           }
 
-          const data = await response.json();
-          return data;
-        };
+          // Retry with new token
+          const retryResponse = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/jobs`, {
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${refreshed.access_token}`,
+              'Accept': 'application/json'
+            }
+          });
 
-        try {
-          const data = await makeRequest(token);
-          const titles = (data.jobs || []).reduce((acc: Record<string, string>, job: any) => {
+          if (!retryResponse.ok) return;
+
+          const data = await retryResponse.json();
+          const titles = data.jobs.reduce((acc: Record<string, string>, job: any) => {
             acc[job.id] = job.title;
             return acc;
           }, {});
           setJobTitles(titles);
-        } catch (error) {
-          if (error instanceof Error && error.message.includes('401')) {
-            // Token might be expired, try to refresh
-            const newToken = await refreshToken();
-            if (newToken) {
-              // Retry with new token
-              const data = await makeRequest(newToken);
-              const titles = (data.jobs || []).reduce((acc: Record<string, string>, job: any) => {
-                acc[job.id] = job.title;
-                return acc;
-              }, {});
-              setJobTitles(titles);
-              return;
-            }
-            // If refresh failed, redirect to login
-            window.location.href = '/login';
-          }
-          console.error('Failed to fetch job titles:', error);
-          setJobTitles({});
+        } else if (response.ok) {
+          const data = await response.json();
+          const titles = data.jobs.reduce((acc: Record<string, string>, job: any) => {
+            acc[job.id] = job.title;
+            return acc;
+          }, {});
+          setJobTitles(titles);
         }
       } catch (error) {
         console.error('Failed to fetch job titles:', error);
-        setJobTitles({});
       }
     };
-    fetchJobTitles();
-  }, []);
+    
+    if (isAuthenticated && isAdmin) {
+      fetchJobTitles();
+    }
+  }, [isAuthenticated, isAdmin, router]);
+
+  if (isLoading || isDataLoading) {
+    return (
+      <AdminPageLayout title="Hired" showSearch={false}>
+        <TableSkeleton rows={8} columns={5} />
+      </AdminPageLayout>
+    );
+  }
+
+  if (!isAuthenticated || !isAdmin) {
+    return null; // Router will handle the redirect
+  }
+
+  if (error) return <div>Failed to load hired candidates</div>;
+
+  const filteredData = applications.filter((app) =>
+    Object.values(app).some((value) =>
+      String(value).toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  );
 
   const handleView = (id: string) => {
-    const application = data?.find((app: Application) => app.id === id);
+    const application = applications.find((app) => app.id === id);
     setViewApplication(application || null);
   };
 
   const handleEdit = (id: string) => {
-    const application = data?.find((app: Application) => app.id === id);
+    const application = applications.find((app) => app.id === id);
     setEditApplication(application || null);
   };
 
@@ -175,20 +198,45 @@ export default function HiredPage() {
 
   const handleSaveEdit = async (updatedApplication: Application) => {
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:8000';
-      const token = getAuthToken();
+      const session = authService.getSession();
+      if (!session) {
+        router.push('/login');
+        return;
+      }
 
-      await fetch(`${baseUrl}/api/admin/applications/${updatedApplication.id}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/${updatedApplication.id}`, {
         method: "PUT",
         headers: { 
           "Content-Type": "application/json",
-          'Accept': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          'Authorization': `Bearer ${session.token}`,
+          'Accept': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify(updatedApplication),
       });
-      setEditApplication(null);
+
+      if (response.status === 401) {
+        const refreshed = await authService.refreshToken();
+        if (!refreshed) {
+          router.push('/login');
+          return;
+        }
+
+        // Retry with new token
+        await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/${updatedApplication.id}`, {
+          method: "PUT",
+          headers: { 
+            "Content-Type": "application/json",
+            'Authorization': `Bearer ${refreshed.access_token}`,
+            'Accept': 'application/json'
+          },
+          credentials: 'include',
+          body: JSON.stringify(updatedApplication),
+        });
+      }
+
       mutate();
+      setEditApplication(null);
     } catch (error) {
       console.error("Failed to update application:", error);
     }
@@ -196,36 +244,45 @@ export default function HiredPage() {
 
   const handleConfirmDelete = async (id: string) => {
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:8000';
-      const token = getAuthToken();
+      const session = authService.getSession();
+      if (!session) {
+        router.push('/login');
+        return;
+      }
 
-      await fetch(`${baseUrl}/api/admin/applications/${id}`, { 
+      const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/${id}`, {
         method: "DELETE",
+        credentials: 'include',
         headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          'Authorization': `Bearer ${session.token}`,
+          'Accept': 'application/json'
         }
       });
-      setDeleteApplicationId(null);
+
+      if (response.status === 401) {
+        const refreshed = await authService.refreshToken();
+        if (!refreshed) {
+          router.push('/login');
+          return;
+        }
+
+        // Retry with new token
+        await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/${id}`, {
+          method: "DELETE",
+          credentials: 'include',
+          headers: {
+            'Authorization': `Bearer ${refreshed.access_token}`,
+            'Accept': 'application/json'
+          }
+        });
+      }
+
       mutate();
+      setDeleteApplicationId(null);
     } catch (error) {
       console.error("Failed to delete application:", error);
     }
   };
-
-  const filteredData = (Array.isArray(data) ? data : []).filter((app: Application) =>
-    Object.values(app).some((value) =>
-      String(value).toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  );
-
-  if (error) return <div>Failed to load hired candidates</div>;
-  if (isLoading) return (
-    <AdminPageLayout title="Hired" showSearch={false}>
-      <TableSkeleton rows={8} columns={5} />
-    </AdminPageLayout>
-  );
 
   return (
     <AdminPageLayout
@@ -243,6 +300,29 @@ export default function HiredPage() {
           onDelete={handleDelete}
         />
       </div>
+
+      {/* Add pagination controls */}
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-4 mt-4">
+          <Button
+            variant="outline"
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1}
+          >
+            Previous
+          </Button>
+          <span className="text-sm">
+            Page {page} of {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+          >
+            Next
+          </Button>
+        </div>
+      )}
 
       <ViewApplicationModal
         application={viewApplication}

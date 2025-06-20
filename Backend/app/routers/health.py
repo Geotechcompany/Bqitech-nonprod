@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from app.database import get_database, is_connected
 from pymongo.errors import ConnectionFailure
 
-router = APIRouter(prefix="/health", tags=["health"])
+router = APIRouter(tags=["health"])
 
 @router.get("/")
 async def health_check():

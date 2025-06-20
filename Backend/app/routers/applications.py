@@ -4,14 +4,17 @@ from typing import List, Optional, Dict, Any
 from app.database import get_database, is_connected
 from datetime import datetime
 from bson import ObjectId
-from app.auth import get_current_admin_user
+from app.auth import get_current_user
 from app.models import Application
 import logging
 from fastapi.responses import Response
 import json
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/applications", tags=["applications"])
+router = APIRouter(
+    tags=["applications"],
+    responses={404: {"description": "Not found"}},
+)
 
 class CustomJSONEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -67,13 +70,21 @@ async def submit_application(application_data: Dict[str, Any] = Body(...)):
 
 @router.get("/")
 async def get_applications(
+    request: Request,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     status: Optional[str] = Query(None),
-    current_user: dict = Depends(get_current_admin_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """Get applications with pagination and filtering"""
     try:
+        logger.info("Received GET /applications request")
+        logger.info(f"Headers: {dict(request.headers)}")
+        logger.info(f"Current user: {current_user}")
+        
+        if not is_connected():
+            raise HTTPException(status_code=503, detail="Database not available")
+            
         db = get_database()
         
         filter_query = {}
@@ -88,20 +99,25 @@ async def get_applications(
         for app in applications:
             convert_objectids_to_strings(app)
             app["id"] = str(app["_id"])
+            del app["_id"]  # Remove the original _id
         
-        return {
+        response_data = {
             "applications": applications,
             "total": total,
             "page": skip // limit + 1,
             "totalPages": (total + limit - 1) // limit
         }
+
+        return response_data
     except Exception as e:
+        logger.error(f"Error in get_applications: {str(e)}")
+        logger.exception("Full traceback:")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/technical-assessment")
 async def get_technical_assessment_applications(
     request: Request,
-    current_user: dict = Depends(get_current_admin_user),
+    current_user: dict = Depends(get_current_user),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100)
 ):
@@ -157,7 +173,7 @@ async def get_technical_assessment_applications(
 @router.get("/shortlisted")
 async def get_shortlisted_applications(
     request: Request,
-    current_user: dict = Depends(get_current_admin_user),
+    current_user: dict = Depends(get_current_user),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100)
 ):
@@ -212,7 +228,7 @@ async def get_shortlisted_applications(
 @router.get("/interviewing")
 async def get_interviewing_applications(
     request: Request,
-    current_user: dict = Depends(get_current_admin_user),
+    current_user: dict = Depends(get_current_user),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100)
 ):
@@ -266,7 +282,7 @@ async def get_interviewing_applications(
 @router.get("/hired")
 async def get_hired_applications(
     request: Request,
-    current_user: dict = Depends(get_current_admin_user),
+    current_user: dict = Depends(get_current_user),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100)
 ):
@@ -320,7 +336,7 @@ async def get_hired_applications(
 @router.get("/rejected")
 async def get_rejected_applications(
     request: Request,
-    current_user: dict = Depends(get_current_admin_user),
+    current_user: dict = Depends(get_current_user),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100)
 ):
@@ -344,7 +360,7 @@ async def get_rejected_applications(
 @router.get("/disqualified")
 async def get_disqualified_applications(
     request: Request,
-    current_user: dict = Depends(get_current_admin_user),
+    current_user: dict = Depends(get_current_user),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100)
 ):
@@ -399,7 +415,7 @@ async def get_disqualified_applications(
 
 @router.get("/recent")
 async def get_recent_applications(
-    current_user: dict = Depends(get_current_admin_user),
+    current_user: dict = Depends(get_current_user),
     limit: int = Query(10, ge=1, le=50)
 ):
     """Get recent applications"""
@@ -425,7 +441,7 @@ async def get_recent_applications(
 async def get_application(
     application_id: str,
     request: Request,
-    current_user: dict = Depends(get_current_admin_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """Get a single application by ID"""
     try:
@@ -444,7 +460,7 @@ async def update_application(
     application_id: str,
     application: Dict[str, Any],
     request: Request,
-    current_user: dict = Depends(get_current_admin_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """Update an application"""
     try:
@@ -466,7 +482,7 @@ async def update_application(
 async def delete_application(
     application_id: str,
     request: Request,
-    current_user: dict = Depends(get_current_admin_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """Delete an application"""
     try:
@@ -478,4 +494,19 @@ async def delete_application(
             
         return {"message": "Application deleted successfully"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.options("/", include_in_schema=False)
+async def options_applications(request: Request):
+    """Handle CORS preflight requests"""
+    origin = request.headers.get("origin", "http://localhost:3000")
+    return JSONResponse(
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "3600",
+        }
+    ) 

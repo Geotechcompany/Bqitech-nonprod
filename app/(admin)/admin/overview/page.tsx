@@ -65,11 +65,15 @@ interface OverviewData {
   users: {
     total: number;
   };
-  status_breakdown: Array<{ _id: string; count: number }>;
+  status_breakdown: Array<{ status: string; count: number }>;
 }
 
 interface ApplicationsByJob {
-  applications_by_job: Array<{ _id: string; count: number }>;
+  applicationsByJob: Array<{
+    position: string;
+    totalApplications: number;
+    statusBreakdown: Record<string, number>;
+  }>;
 }
 
 const statusColors = {
@@ -257,12 +261,13 @@ export default function OverviewPage() {
   };
 
   const pieChartData = {
-    labels: applicationsByJob?.applications_by_job?.map(item => 
-      item._id.length > 20 ? `${item._id.substring(0, 20)}...` : item._id
-    ) || [],
+    labels: applicationsByJob?.applicationsByJob?.map(item => {
+      const position = item.position || 'Unknown Position';
+      return position.length > 20 ? `${position.substring(0, 20)}...` : position;
+    }) || [],
     datasets: [
       {
-        data: applicationsByJob?.applications_by_job?.map(item => item.count) || [],
+        data: applicationsByJob?.applicationsByJob?.map(item => item.totalApplications || 0) || [],
         backgroundColor: [
           'rgba(59, 130, 246, 0.8)',
           'rgba(16, 185, 129, 0.8)',
@@ -558,7 +563,7 @@ export default function OverviewPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-0">
-                {applicationsByJob?.applications_by_job && applicationsByJob.applications_by_job.length > 0 ? (
+                {applicationsByJob?.applicationsByJob && applicationsByJob.applicationsByJob.length > 0 ? (
                   <div className="h-80">
                     <Doughnut data={pieChartData} options={pieChartOptions} />
                   </div>

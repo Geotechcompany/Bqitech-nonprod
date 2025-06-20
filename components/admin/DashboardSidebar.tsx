@@ -25,6 +25,7 @@ import {
   Rocket,
   BarChart,
   HelpCircle,
+  Bell,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/contexts/SettingsContext";
@@ -127,6 +128,11 @@ export const menuSections: MenuSection[] = [
         name: "Analytics",
         href: "/admin/analytics",
         icon: BarChart,
+      },
+      {
+        name: "Notifications",
+        href: "/admin/notifications",
+        icon: Bell,
       },
       {
         name: "Settings",

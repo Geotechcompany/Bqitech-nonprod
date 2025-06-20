@@ -6,8 +6,12 @@ from app.database import get_database
 from bson import ObjectId
 from datetime import datetime, timedelta
 import json
+from fastapi.responses import JSONResponse
+import logging
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+logger = logging.getLogger(__name__)
+
+router = APIRouter(tags=["admin"])
 
 def convert_objectids_to_strings(doc):
     """Convert all ObjectId fields in a document to strings"""
@@ -373,87 +377,161 @@ async def get_admin_overview(
     request: Request,
     current_user: dict = Depends(get_current_admin_user)
 ):
-    """Get admin dashboard overview statistics"""
-    db = get_database()
-    
-    # Get application statistics - using actual status values from your data
-    total_applications = await db.applications.count_documents({})
-    
-    # Check what status values actually exist in your database
-    status_pipeline = [
-        {"$group": {"_id": "$status", "count": {"$sum": 1}}},
-        {"$sort": {"count": -1}}
-    ]
-    status_counts = await db.applications.aggregate(status_pipeline).to_list(length=None)
-    
-    # Initialize counts
-    new_applications = 0
-    shortlisted_applications = 0
-    interviewing_applications = 0
-    hired_applications = 0
-    rejected_applications = 0
-    technical_assessment = 0
-    disqualified_applications = 0
-    
-    # Map actual statuses to expected ones based on your data
-    for status_doc in status_counts:
-        status = status_doc["_id"]
-        count = status_doc["count"]
+    """Get admin dashboard overview"""
+    try:
+        db = get_database()
         
-        if not status:
-            new_applications += count
-        elif status.lower() in ["new", "applied", "application", "applications", "pending", "submitted"]:
-            new_applications += count
-        elif status.lower() in ["shortlisted", "shortlist"]:
-            shortlisted_applications += count
-        elif status.lower() in ["interviewing", "interview", "in_interview"]:
-            interviewing_applications += count
-        elif status.lower() in ["hired", "accepted", "employed"]:
-            hired_applications += count
-        elif status.lower() in ["rejected", "declined"]:
-            rejected_applications += count
-        elif status.lower() in ["technical assessment", "technical_assessment", "assessment", "technical"]:
-            technical_assessment += count
-        elif status.lower() in ["disqualified", "disqualify"]:
-            disqualified_applications += count
-        else:
-            # Unknown status, count as new
-            new_applications += count
-    
-    # Get recent applications (last 7 days)
-    seven_days_ago = datetime.utcnow() - timedelta(days=7)
-    recent_applications = await db.applications.count_documents({
-        "appliedDate": {"$gte": seven_days_ago}
-    })
-    
-    # Get job postings count
-    total_job_postings = await db.job_postings.count_documents({})
-    active_job_postings = await db.job_postings.count_documents({"status": "active"})
-    
-    # Get user statistics
-    total_users = await db.users.count_documents({})
-    
-    return {
-        "applications": {
-            "total": total_applications,
-            "new": new_applications,
-            "shortlisted": shortlisted_applications,
-            "interviewing": interviewing_applications,
-            "hired": hired_applications,
-            "rejected": rejected_applications,
-            "technical_assessment": technical_assessment,
-            "disqualified": disqualified_applications,
-            "recent": recent_applications
-        },
-        "jobs": {
-            "total": total_job_postings,
-            "active": active_job_postings
-        },
-        "users": {
-            "total": total_users
-        },
-        "status_breakdown": status_counts  # Include the raw status data for debugging
-    }
+        # Get applications by status
+        pipeline = [
+            {
+                "$facet": {
+                    "total": [{"$count": "count"}],
+                    "new": [{"$match": {"status": "Applied"}}, {"$count": "count"}],
+                    "shortlisted": [{"$match": {"status": "Shortlisted"}}, {"$count": "count"}],
+                    "interviewing": [{"$match": {"status": "Interviewing"}}, {"$count": "count"}],
+                    "hired": [{"$match": {"status": "Hired"}}, {"$count": "count"}],
+                    "rejected": [{"$match": {"status": "Rejected"}}, {"$count": "count"}],
+                    "technical_assessment": [{"$match": {"status": "Technical Assessment"}}, {"$count": "count"}],
+                    "disqualified": [{"$match": {"status": "Disqualified"}}, {"$count": "count"}],
+                    "recent": [
+                        {
+                            "$match": {
+                                "appliedDate": {
+                                    "$gte": datetime.utcnow() - timedelta(days=7)
+                                }
+                            }
+                        },
+                        {"$count": "count"}
+                    ]
+                }
+            }
+        ]
+        
+        application_stats = await db.applications.aggregate(pipeline).to_list(length=1)
+        stats = application_stats[0] if application_stats else {}
+        
+        # Get active jobs count
+        active_jobs = await db.jobpostings.count_documents({"isActive": True})
+        total_jobs = await db.jobpostings.count_documents({})
+        
+        # Get total users
+        total_users = await db.users.count_documents({})
+        
+        # Get status breakdown for chart
+        status_pipeline = [
+            {"$group": {"_id": "$status", "count": {"$sum": 1}}}
+        ]
+        status_breakdown = await db.applications.aggregate(status_pipeline).to_list(length=None)
+        
+        # Format status breakdown to match frontend expectations
+        formatted_status_breakdown = []
+        for item in status_breakdown:
+            if item["_id"] is not None:  # Skip null statuses
+                formatted_status_breakdown.append({
+                    "status": item["_id"],
+                    "count": item["count"]
+                })
+        
+        # Safely get counts with default values
+        def get_count(key):
+            result = stats.get(key, [])
+            return result[0].get("count", 0) if result else 0
+        
+        response = {
+            "applications": {
+                "total": get_count("total"),
+                "new": get_count("new"),
+                "shortlisted": get_count("shortlisted"),
+                "interviewing": get_count("interviewing"),
+                "hired": get_count("hired"),
+                "rejected": get_count("rejected"),
+                "technical_assessment": get_count("technical_assessment"),
+                "disqualified": get_count("disqualified"),
+                "recent": get_count("recent")
+            },
+            "jobs": {
+                "total": total_jobs,
+                "active": active_jobs
+            },
+            "users": {
+                "total": total_users
+            },
+            "status_breakdown": formatted_status_breakdown
+        }
+        
+        # Add CORS headers to the response
+        return JSONResponse(
+            content=response,
+            headers={
+                "Access-Control-Allow-Origin": request.headers.get("origin", "http://localhost:3000"),
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error in get_admin_overview: {str(e)}")
+        logger.exception("Full traceback:")
+        return JSONResponse(
+            content={"detail": str(e)},
+            status_code=500,
+            headers={
+                "Access-Control-Allow-Origin": request.headers.get("origin", "http://localhost:3000"),
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
+            }
+        )
+
+@router.options("/overview", include_in_schema=False)
+async def options_overview(request: Request):
+    """Handle CORS preflight requests"""
+    origin = request.headers.get("origin", "http://localhost:3000")
+    return JSONResponse(
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "3600",
+        }
+    )
+
+@router.get("/applications")
+async def get_admin_applications(
+    request: Request,
+    current_user: dict = Depends(get_current_admin_user),
+    limit: int = Query(10, ge=1, le=100),
+    skip: int = Query(0, ge=0),
+    status: Optional[str] = None
+):
+    """Get applications for admin"""
+    try:
+        db = get_database()
+        
+        # Build query
+        query = {}
+        if status:
+            query["status"] = status
+        
+        # Get applications
+        applications = await db.applications.find(query).sort("appliedDate", -1).skip(skip).limit(limit).to_list(length=None)
+        total = await db.applications.count_documents(query)
+        
+        # Convert ObjectIds and format response
+        for app in applications:
+            convert_objectids_to_strings(app)
+            app["id"] = str(app["_id"])
+        
+        return {
+            "applications": applications,
+            "total": total,
+            "page": skip // limit + 1,
+            "totalPages": (total + limit - 1) // limit
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/trends")
 async def get_application_trends(
@@ -461,60 +539,87 @@ async def get_application_trends(
     current_user: dict = Depends(get_current_admin_user),
     days: int = Query(30, ge=1, le=365)
 ):
-    """Get application trends over specified period"""
-    db = get_database()
-    
-    start_date = datetime.utcnow() - timedelta(days=days)
-    
-    # Aggregate applications by date
-    pipeline = [
-        {"$match": {"appliedDate": {"$gte": start_date}}},
-        {
-            "$group": {
-                "_id": {
-                    "$dateToString": {
-                        "format": "%Y-%m-%d",
-                        "date": "$appliedDate"
-                    }
-                },
-                "count": {"$sum": 1}
-            }
-        },
-        {"$sort": {"_id": 1}}
-    ]
-    
-    trends = await db.applications.aggregate(pipeline).to_list(length=None)
-    
-    return {"trends": trends}
+    """Get application trends data"""
+    try:
+        db = get_database()
+        
+        # Calculate date range
+        end_date = datetime.utcnow()
+        start_date = end_date - timedelta(days=days)
+        
+        # Aggregate applications by date
+        pipeline = [
+            {
+                "$match": {
+                    "appliedDate": {"$gte": start_date, "$lte": end_date}
+                }
+            },
+            {
+                "$group": {
+                    "_id": {
+                        "$dateToString": {
+                            "format": "%Y-%m-%d",
+                            "date": "$appliedDate"
+                        }
+                    },
+                    "count": {"$sum": 1}
+                }
+            },
+            {"$sort": {"_id": 1}}
+        ]
+        
+        trends = await db.applications.aggregate(pipeline).to_list(length=None)
+        
+        # Format response
+        return {
+            "trends": [
+                {"date": item["_id"], "count": item["count"]}
+                for item in trends
+            ]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/applications-by-job")
 async def get_applications_by_job(
     request: Request,
     current_user: dict = Depends(get_current_admin_user)
 ):
-    """Get applications grouped by job posting for pie chart"""
-    db = get_database()
-    
-    # Aggregate applications by job position/title
-    pipeline = [
-        {
-            "$group": {
-                "_id": "$position",
-                "count": {"$sum": 1}
+    """Get applications grouped by job"""
+    try:
+        db = get_database()
+        
+        # Aggregate applications by job
+        pipeline = [
+            {
+                "$group": {
+                    "_id": "$position",
+                    "count": {"$sum": 1},
+                    "statuses": {
+                        "$push": "$status"
+                    }
+                }
             }
-        },
-        {"$sort": {"count": -1}},
-        {"$limit": 10}  # Limit to top 10 jobs to avoid cluttered chart
-    ]
-    
-    job_applications = await db.applications.aggregate(pipeline).to_list(length=None)
-    
-    # Handle null/empty positions
-    for item in job_applications:
-        if not item["_id"]:
-            item["_id"] = "Unknown Position"
-    
-    return {"applications_by_job": job_applications}
+        ]
+        
+        results = await db.applications.aggregate(pipeline).to_list(length=None)
+        
+        # Format response
+        formatted_results = []
+        for result in results:
+            status_counts = {}
+            for status in result["statuses"]:
+                status_counts[status] = status_counts.get(status, 0) + 1
+            
+            formatted_results.append({
+                "position": result["_id"],
+                "totalApplications": result["count"],
+                "statusBreakdown": status_counts
+            })
+        
+        return {"applicationsByJob": formatted_results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Questions Management
 @router.get("/questions")
