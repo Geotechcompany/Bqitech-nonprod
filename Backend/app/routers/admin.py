@@ -276,40 +276,116 @@ async def delete_user(
 # Blog Posts endpoints
 @router.get("/blog-posts")
 async def get_blog_posts(
+    request: Request,
     current_user: dict = Depends(get_current_admin_user),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100)
 ):
     """Get all blog posts"""
-    db = get_database()
-    
-    posts_cursor = db.blog_posts.find({}).skip(skip).limit(limit).sort("createdAt", -1)
-    posts = await posts_cursor.to_list(length=limit)
-    total = await db.blog_posts.count_documents({})
-    
-    for post in posts:
-        post["_id"] = str(post["_id"])
-        post["id"] = str(post["_id"])
-    
-    return {"blogPosts": posts, "total": total}
+    try:
+        db = get_database()
+        
+        posts_cursor = db.blogposts.find({}).skip(skip).limit(limit).sort("createdAt", -1)
+        posts = await posts_cursor.to_list(length=limit)
+        total = await db.blogposts.count_documents({})
+        
+        # Convert ObjectIds and datetime objects to strings
+        for post in posts:
+            post["_id"] = str(post["_id"])
+            post["id"] = str(post["_id"])
+            if "createdAt" in post and isinstance(post["createdAt"], datetime):
+                post["createdAt"] = post["createdAt"].isoformat()
+            if "updatedAt" in post and isinstance(post["updatedAt"], datetime):
+                post["updatedAt"] = post["updatedAt"].isoformat()
+            if "publishedAt" in post and isinstance(post["publishedAt"], datetime):
+                post["publishedAt"] = post["publishedAt"].isoformat()
+        
+        return JSONResponse(
+            content={"blogPosts": posts, "total": total},
+            headers={
+                "Access-Control-Allow-Origin": request.headers.get("origin", "http://localhost:3000"),
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error in get_blog_posts: {str(e)}")
+        logger.exception("Full traceback:")
+        return JSONResponse(
+            content={"detail": str(e)},
+            status_code=500,
+            headers={
+                "Access-Control-Allow-Origin": request.headers.get("origin", "http://localhost:3000"),
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
+            }
+        )
+
+@router.options("/blog-posts", include_in_schema=False)
+async def options_blog_posts(request: Request):
+    """Handle CORS preflight requests"""
+    origin = request.headers.get("origin", "http://localhost:3000")
+    return JSONResponse(
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "3600",
+        }
+    )
 
 @router.post("/blog-posts")
 async def create_blog_post(
+    request: Request,
     post_data: Dict[str, Any],
     current_user: dict = Depends(get_current_admin_user)
 ):
     """Create new blog post"""
-    db = get_database()
-    
-    post_data["createdAt"] = datetime.utcnow()
-    post_data["updatedAt"] = datetime.utcnow()
-    post_data["authorId"] = str(current_user["_id"])
-    
-    result = await db.blog_posts.insert_one(post_data)
-    post_data["_id"] = str(result.inserted_id)
-    post_data["id"] = str(result.inserted_id)
-    
-    return post_data
+    try:
+        db = get_database()
+        
+        post_data["createdAt"] = datetime.utcnow()
+        post_data["updatedAt"] = datetime.utcnow()
+        post_data["authorId"] = str(current_user["_id"])
+        
+        result = await db.blogposts.insert_one(post_data)
+        post_data["_id"] = str(result.inserted_id)
+        post_data["id"] = str(result.inserted_id)
+        
+        # Convert datetime objects to strings for response
+        if "createdAt" in post_data and isinstance(post_data["createdAt"], datetime):
+            post_data["createdAt"] = post_data["createdAt"].isoformat()
+        if "updatedAt" in post_data and isinstance(post_data["updatedAt"], datetime):
+            post_data["updatedAt"] = post_data["updatedAt"].isoformat()
+        if "publishedAt" in post_data and isinstance(post_data["publishedAt"], datetime):
+            post_data["publishedAt"] = post_data["publishedAt"].isoformat()
+        
+        return JSONResponse(
+            content=post_data,
+            headers={
+                "Access-Control-Allow-Origin": request.headers.get("origin", "http://localhost:3000"),
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error in create_blog_post: {str(e)}")
+        logger.exception("Full traceback:")
+        return JSONResponse(
+            content={"detail": str(e)},
+            status_code=500,
+            headers={
+                "Access-Control-Allow-Origin": request.headers.get("origin", "http://localhost:3000"),
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
+            }
+        )
 
 @router.get("/blog-posts/{post_id}")
 async def get_blog_post(
@@ -320,7 +396,7 @@ async def get_blog_post(
     db = get_database()
     
     try:
-        post = await db.blog_posts.find_one({"_id": ObjectId(post_id)})
+        post = await db.blogposts.find_one({"_id": ObjectId(post_id)})
         if not post:
             raise HTTPException(status_code=404, detail="Blog post not found")
         
@@ -342,7 +418,7 @@ async def update_blog_post(
     try:
         update_data["updatedAt"] = datetime.utcnow()
         
-        result = await db.blog_posts.update_one(
+        result = await db.blogposts.update_one(
             {"_id": ObjectId(post_id)},
             {"$set": update_data}
         )
@@ -363,7 +439,7 @@ async def delete_blog_post(
     db = get_database()
     
     try:
-        result = await db.blog_posts.delete_one({"_id": ObjectId(post_id)})
+        result = await db.blogposts.delete_one({"_id": ObjectId(post_id)})
         if result.deleted_count == 0:
             raise HTTPException(status_code=404, detail="Blog post not found")
         

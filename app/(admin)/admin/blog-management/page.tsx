@@ -37,7 +37,7 @@ export default function BlogManagementPage() {
     }
   }, [isLoading, isAuthenticated, isAdmin, router])
 
-  const { data: posts, isLoading: isDataLoading, error } = useQuery({
+  const { data, isLoading: isDataLoading, error } = useQuery({
     queryKey: ['blog-posts'],
     queryFn: async () => {
       const session = authService.getSession()
@@ -76,17 +76,19 @@ export default function BlogManagementPage() {
           const error = await retryRes.json()
           throw new Error(error.message || 'Failed to fetch posts')
         }
-        return retryRes.json() as Promise<BlogPost[]>
+        return retryRes.json()
       }
 
       if (!res.ok) {
         const error = await res.json()
         throw new Error(error.message || 'Failed to fetch posts')
       }
-      return res.json() as Promise<BlogPost[]>
+      return res.json()
     },
     enabled: isAuthenticated && isAdmin
   })
+
+  const posts = data?.blogPosts || []
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
