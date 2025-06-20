@@ -16,7 +16,7 @@ pip install --only-binary=:all: cryptography PyJWT
 
 # Install pydantic and its dependencies
 echo "Installing pydantic..."
-pip install --only-binary=:all: pydantic==2.0.3 pydantic-settings==2.0.3
+pip install --only-binary=:all: pydantic==1.10.13 pydantic-settings==1.2.2
 
 # Install FastAPI and its dependencies
 echo "Installing FastAPI and dependencies..."
