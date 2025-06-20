@@ -9,7 +9,7 @@ services:
     healthCheckPath: /api/health
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.7
+        value: 3.10.13  # Using a more stable Python version
       - key: PATH
         value: /opt/render/project/src/.venv/bin:$PATH
       - key: PYTHONPATH
