@@ -4,12 +4,12 @@ services:
     env: python
     region: ohio
     plan: free
-    buildCommand: chmod +x build.sh && ./build.sh
-    startCommand: cd /opt/render/project/src/Backend && PYTHONPATH=/opt/render/project/src/Backend uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    buildCommand: python -m venv .venv && . .venv/bin/activate && chmod +x build.sh && ./build.sh
+    startCommand: cd /opt/render/project/src/Backend && . ../.venv/bin/activate && PYTHONPATH=/opt/render/project/src/Backend uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
     envVars:
       - key: PYTHON_VERSION
-        value: 3.10.13  # Using a more stable Python version
+        value: "3.10.13"
       - key: PATH
         value: /opt/render/project/src/.venv/bin:$PATH
       - key: PYTHONPATH
