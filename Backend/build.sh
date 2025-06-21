@@ -16,11 +16,11 @@ pip install --only-binary=:all: cryptography PyJWT
 
 # Install pydantic and configuration management
 echo "Installing pydantic and configuration..."
-pip install --only-binary=:all: pydantic==2.5.3 python-decouple==3.8 pydantic-core==2.35.1
+pip install --only-binary=:all: pydantic==1.10.13 python-decouple==3.8
 
 # Install FastAPI and its dependencies
 echo "Installing FastAPI and dependencies..."
-pip install --only-binary=:all: fastapi==0.109.0 starlette==0.27.0 uvicorn[standard]==0.24.0
+pip install --only-binary=:all: fastapi==0.104.1 starlette==0.27.0 uvicorn[standard]==0.24.0
 
 # Install database dependencies
 echo "Installing database dependencies..."
