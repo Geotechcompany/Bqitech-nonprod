@@ -24,7 +24,7 @@ pip install --only-binary=:all: fastapi==0.104.1 starlette==0.27.0 uvicorn[stand
 
 # Install database dependencies
 echo "Installing database dependencies..."
-pip install --only-binary=:all: motor==3.3.2 pymongo==4.13.0
+pip install --only-binary=:all: motor==3.3.2 pymongo==4.13.2
 
 # Install remaining dependencies
 echo "Installing remaining dependencies..."
