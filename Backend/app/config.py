@@ -1,17 +1,20 @@
 import os
-from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import BaseModel, Field
 from typing import List, Optional
+from dotenv import load_dotenv
 
-class Settings(BaseSettings):
+# Load environment variables from .env file
+load_dotenv()
+
+class Settings(BaseModel):
     # Server Configuration
     host: str = "0.0.0.0"
     port: int = 8000
     debug: bool = False
     
     # Database
-    DATABASE_URL: str = Field(default="mongodb://localhost:27017/bqitech", alias="DATABASE_URL")
-    MONGODB_URI: Optional[str] = Field(default=None, alias="MONGODB_URI")
+    DATABASE_URL: str = Field(default="mongodb://localhost:27017/bqitech")
+    MONGODB_URI: Optional[str] = Field(default=None)
     mongodb_uri: Optional[str] = None
     
     # API
@@ -29,22 +32,22 @@ class Settings(BaseSettings):
     BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000"]
     
     # Email Configuration
-    smtp_host: str = "smtp.gmail.com"
-    smtp_port: int = 465
-    smtp_user: str = ""
-    smtp_pass: str = ""
-    from_email: str = ""
-    hr_email: str = "hr@bqitech.com"
+    smtp_host: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    smtp_port: int = int(os.getenv("SMTP_PORT", "465"))
+    smtp_user: str = os.getenv("SMTP_USER", "")
+    smtp_pass: str = os.getenv("SMTP_PASS", "")
+    from_email: str = os.getenv("FROM_EMAIL", "")
+    hr_email: str = os.getenv("HR_EMAIL", "hr@bqitech.com")
     
     # Cloudinary Configuration
-    cloudinary_cloud_name: str = ""
-    cloudinary_api_key: str = ""
-    cloudinary_api_secret: str = ""
+    cloudinary_cloud_name: str = os.getenv("CLOUDINARY_CLOUD_NAME", "")
+    cloudinary_api_key: str = os.getenv("CLOUDINARY_API_KEY", "")
+    cloudinary_api_secret: str = os.getenv("CLOUDINARY_API_SECRET", "")
     
     # Redis Configuration
-    redis_url: str = ""
-    upstash_redis_rest_url: str = ""
-    upstash_redis_rest_token: str = ""
+    redis_url: str = os.getenv("REDIS_URL", "")
+    upstash_redis_rest_url: str = os.getenv("UPSTASH_REDIS_REST_URL", "")
+    upstash_redis_rest_token: str = os.getenv("UPSTASH_REDIS_REST_TOKEN", "")
     
     # File Upload Configuration
     max_file_size: int = 10485760  # 10MB
@@ -55,26 +58,24 @@ class Settings(BaseSettings):
     rate_limit_window: int = 3600
     
     # Dropbox Configuration
-    dropbox_app_key: str = ""
-    dropbox_app_secret: str = ""
-    dropbox_access_token: str = ""
-    dropbox_refresh_token: str = ""
-    dropbox_redirect_uri: str = ""
+    dropbox_app_key: str = os.getenv("DROPBOX_APP_KEY", "")
+    dropbox_app_secret: str = os.getenv("DROPBOX_APP_SECRET", "")
+    dropbox_access_token: str = os.getenv("DROPBOX_ACCESS_TOKEN", "")
+    dropbox_refresh_token: str = os.getenv("DROPBOX_REFRESH_TOKEN", "")
+    dropbox_redirect_uri: str = os.getenv("DROPBOX_REDIRECT_URI", "")
     
     # Pusher Configuration
-    pusher_app_id: str = ""
-    pusher_key: str = ""
-    pusher_secret: str = ""
-    pusher_cluster: str = "us2"
+    pusher_app_id: str = os.getenv("PUSHER_APP_ID", "")
+    pusher_key: str = os.getenv("PUSHER_KEY", "")
+    pusher_secret: str = os.getenv("PUSHER_SECRET", "")
+    pusher_cluster: str = os.getenv("PUSHER_CLUSTER", "us2")
     
     # reCAPTCHA Configuration
-    recaptcha_site_key: str = ""
-    recaptcha_secret_key: str = ""
+    recaptcha_site_key: str = os.getenv("RECAPTCHA_SITE_KEY", "")
+    recaptcha_secret_key: str = os.getenv("RECAPTCHA_SECRET_KEY", "")
     
-    model_config = {
-        "env_file": ".env",
-        "env_file_encoding": "utf-8",
-        "case_sensitive": False
-    }
+    class Config:
+        case_sensitive = False
 
+# Initialize settings
 settings = Settings() 
