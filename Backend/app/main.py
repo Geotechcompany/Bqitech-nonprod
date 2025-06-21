@@ -5,23 +5,23 @@ import uvicorn
 import logging
 from contextlib import asynccontextmanager
 
-from app.database import connect_to_database, close_database_connection
-from app.config import settings
+from .database import connect_to_database, close_database_connection
+from .config import settings
 
 # Import routers directly from modules
-from app.routers.admin import router as admin_router
-from app.routers.auth import router as auth_router
-from app.routers.applications import router as applications_router
-from app.routers.blog import router as blog_router
-from app.routers.jobs import router as jobs_router
-from app.routers.user import router as user_router
-from app.routers.contact import router as contact_router
-from app.routers.health import router as health_router
-from app.routers.notifications import router as notifications_router
+from .routers.admin import router as admin_router
+from .routers.auth import router as auth_router
+from .routers.applications import router as applications_router
+from .routers.blog import router as blog_router
+from .routers.jobs import router as jobs_router
+from .routers.user import router as user_router
+from .routers.contact import router as contact_router
+from .routers.health import router as health_router
+from .routers.notifications import router as notifications_router
 
 # Try to import misc router if it exists
 try:
-    from app.routers import misc
+    from .routers import misc
     HAS_MISC_ROUTER = True
 except ImportError:
     HAS_MISC_ROUTER = False
