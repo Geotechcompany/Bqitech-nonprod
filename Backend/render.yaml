@@ -5,15 +5,16 @@ services:
     region: ohio
     plan: free
     buildCommand: |
-      python -m venv .venv && 
-      . .venv/bin/activate && 
       chmod +x build.sh && 
       ./build.sh
     startCommand: |
       cd /opt/render/project/src/Backend && 
-      . ../.venv/bin/activate && 
-      export PATH="/opt/render/project/src/.venv/bin:$PATH" && 
-      python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+      source ../.venv/bin/activate && 
+      export PYTHONPATH=/opt/render/project/src/Backend:$PYTHONPATH && 
+      echo "Python version:" && python --version && 
+      echo "Python path:" && python -c "import sys; print('\n'.join(sys.path))" && 
+      echo "Uvicorn location:" && python -c "import uvicorn; print(uvicorn.__file__)" && 
+      $VIRTUAL_ENV/bin/uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
     envVars:
       - key: PYTHON_VERSION
