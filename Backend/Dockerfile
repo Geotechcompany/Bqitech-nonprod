@@ -19,9 +19,15 @@ COPY . .
 
 # Set Python path to include the app directory
 ENV PYTHONPATH=/app
+ENV PORT=10000
 
 # Expose port
-EXPOSE 8000
+EXPOSE ${PORT}
 
 # Run the application with Gunicorn
-CMD ["gunicorn", "app.main:app", "--workers", "4", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--timeout", "120", "--log-level", "debug"] 
+CMD gunicorn app.main:app \
+    --workers 4 \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --bind 0.0.0.0:${PORT} \
+    --timeout 120 \
+    --log-level debug 

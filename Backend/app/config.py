@@ -9,7 +9,7 @@ load_dotenv()
 class Settings(BaseModel):
     # Server Configuration
     host: str = "0.0.0.0"
-    port: int = 8000
+    port: int = int(os.getenv("PORT", "10000"))
     debug: bool = False
     
     # Database
