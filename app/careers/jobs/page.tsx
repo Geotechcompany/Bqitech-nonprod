@@ -9,7 +9,8 @@ import { Search, MapPin, Clock, ChevronDown, X, Briefcase, Calendar } from "luci
 import { JobPosting } from "@/types/jobPosting";
 import Loader from "@/components/Loader";
 import { SafeHtml } from "@/components/ui/safe-html";
-import { useSession } from "next-auth/react";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "react-hot-toast";
  
 export default function JobsPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -19,8 +20,8 @@ export default function JobsPage() {
   const [isLocationOpen, setIsLocationOpen] = useState(false);
   const [isDepartmentOpen, setIsDepartmentOpen] = useState(false);
   const router = useRouter();
-  const { data: session } = useSession();
-  const isSignedIn = !!session;
+  const { user, isAuthenticated } = useAuth();
+  const isSignedIn = isAuthenticated;
  
   const {
     data: jobs,
@@ -28,7 +29,29 @@ export default function JobsPage() {
     error,
   } = useQuery<JobPosting[]>({
     queryKey: ["jobs"],
-    queryFn: () => fetch("/api/job-postings").then((res) => res.json()),
+    queryFn: async () => {
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/jobs`, {
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch jobs');
+        }
+
+        const data = await response.json();
+        return data.jobs || [];
+      } catch (error) {
+        console.error('Error fetching jobs:', error);
+        toast.error('Failed to load job listings');
+        throw error;
+      }
+    },
+    staleTime: 1000 * 60 * 5, // Consider data fresh for 5 minutes
+    retry: 2, // Retry failed requests up to 2 times
   });
  
   const uniqueLocations = Array.from(

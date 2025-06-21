@@ -15,5 +15,8 @@ export interface JobPosting {
     min: number;
     max: number;
   } | null;
-  questions: string[];
+  requirements?: string[];
+  questions?: string[];
+  createdAt?: string;
+  updatedAt?: string;
 }
