@@ -34,8 +34,9 @@ python -m pip install pydantic==1.10.13 python-decouple==3.8
 echo "Installing FastAPI and dependencies..."
 python -m pip install fastapi==0.99.1 starlette==0.27.0
 
-# Install uvicorn and its dependencies
-echo "Installing uvicorn..."
+# Install Gunicorn and Uvicorn
+echo "Installing Gunicorn and Uvicorn..."
+python -m pip install --no-cache-dir gunicorn==21.2.0
 python -m pip install --no-cache-dir uvicorn==0.24.0 click==8.1.7 h11==0.14.0
 python -m pip install --no-cache-dir uvicorn[standard]==0.24.0
 
@@ -59,12 +60,13 @@ python -m pip install \
 echo "Installed packages:"
 python -m pip list
 
-# Verify uvicorn installation
-echo "Verifying uvicorn installation..."
+# Verify Gunicorn and Uvicorn installations
+echo "Verifying Gunicorn and Uvicorn installations..."
+python -m pip show gunicorn
 python -m pip show uvicorn
 
-# Try importing uvicorn to verify installation
-echo "Testing uvicorn import..."
-python -c "import uvicorn; print(f'Uvicorn version: {uvicorn.__version__}')"
+# Try importing gunicorn and uvicorn to verify installation
+echo "Testing Gunicorn and Uvicorn imports..."
+python -c "import gunicorn; import uvicorn; print(f'Gunicorn version: {gunicorn.__version__}\nUvicorn version: {uvicorn.__version__}')"
 
 echo "Build completed successfully!"
