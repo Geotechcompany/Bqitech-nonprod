@@ -6,7 +6,7 @@ import logging
 from contextlib import asynccontextmanager
 import datetime
 
-from .database import connect_to_database, close_database_connection, get_database
+from .database import connect_to_database, close_database_connection, get_database, is_connected
 from .config import settings
 
 # Import routers directly from modules
@@ -53,26 +53,20 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware configuration
+# Configure CORS
+origins = [
+    "https://bqitech.com",
+    "https://www.bqitech.com",
+    "https://bqitech-nonprod.netlify.app",
+    "http://localhost:3000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://bqitech.com",
-        "https://www.bqitech.com"
-    ],
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
-    allow_headers=[
-        "Content-Type", 
-        "Authorization", 
-        "Accept", 
-        "X-User-Session",
-        "Accept-Language",
-        "Content-Language"
-    ],
-    expose_headers=["Content-Type", "Authorization"],
-    max_age=3600,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Include routers with consistent prefixes
@@ -99,6 +93,14 @@ async def root():
 async def health_check():
     try:
         # Check database connection
+        if not is_connected():
+            return {
+                "status": "unhealthy",
+                "message": "API is running but database is not connected",
+                "database": "disconnected",
+                "timestamp": datetime.datetime.utcnow().isoformat()
+            }
+        
         db = get_database()
         await db.command('ping')
         return {
@@ -109,15 +111,12 @@ async def health_check():
         }
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
-        return JSONResponse(
-            status_code=503,
-            content={
-                "status": "unhealthy",
-                "message": "API is running but database is not connected",
-                "error": str(e),
-                "timestamp": datetime.datetime.utcnow().isoformat()
-            }
-        )
+        return {
+            "status": "unhealthy",
+            "message": "API is running but database check failed",
+            "error": str(e),
+            "timestamp": datetime.datetime.utcnow().isoformat()
+        }
 
 if __name__ == "__main__":
     uvicorn.run(
