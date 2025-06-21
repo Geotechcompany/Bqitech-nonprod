@@ -14,9 +14,9 @@ pip install --only-binary=:all: cffi typing-extensions click h11 websockets
 echo "Installing cryptography..."
 pip install --only-binary=:all: cryptography PyJWT
 
-# Install pydantic and its dependencies
-echo "Installing pydantic..."
-pip install --only-binary=:all: pydantic==1.10.13 pydantic-settings==1.2.2
+# Install pydantic and configuration management
+echo "Installing pydantic and configuration..."
+pip install --only-binary=:all: pydantic==1.10.13 python-decouple==3.8
 
 # Install FastAPI and its dependencies
 echo "Installing FastAPI and dependencies..."
