@@ -10,9 +10,8 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements first for better caching
 COPY requirements.txt .
 
-# Install Python dependencies with specific versions
+# Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir motor==3.3.1 pymongo==4.5.0 && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
