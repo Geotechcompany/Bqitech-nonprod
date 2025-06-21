@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -o errexit
 
+# Change to the Backend directory
+cd "$(dirname "$0")"
+
 # Print Python and environment information
 echo "Python version:"
 python --version
@@ -8,6 +11,8 @@ echo "Virtual environment location:"
 echo $VIRTUAL_ENV
 echo "Python location:"
 which python
+echo "Current directory:"
+pwd
 
 # Install Python dependencies
 echo "Installing Python dependencies..."
