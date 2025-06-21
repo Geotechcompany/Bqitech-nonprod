@@ -27,27 +27,25 @@ async def get_jobs(
     request: Request,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
-    status: Optional[str] = Query(None),
-    current_user: dict = Depends(get_current_user)
+    status: Optional[str] = Query(None)
 ):
     """Get jobs with pagination and filtering"""
     try:
         logger.info("Received GET /jobs request")
         logger.info(f"Headers: {dict(request.headers)}")
-        logger.info(f"Current user: {current_user}")
         
         if not is_connected():
             raise HTTPException(status_code=503, detail="Database not available")
             
         db = get_database()
         
-        filter_query = {}
+        filter_query = {"isActive": True}  # Only return active jobs
         if status:
             filter_query["status"] = status
         
-        jobs_cursor = db.jobs.find(filter_query).skip(skip).limit(limit).sort("createdAt", -1)
+        jobs_cursor = db.jobpostings.find(filter_query).skip(skip).limit(limit).sort("createdAt", -1)
         jobs = await jobs_cursor.to_list(length=limit)
-        total = await db.jobs.count_documents(filter_query)
+        total = await db.jobpostings.count_documents(filter_query)
         
         # Convert ObjectIds to strings
         for job in jobs:
