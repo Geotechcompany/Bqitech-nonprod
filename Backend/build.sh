@@ -20,7 +20,11 @@ pip install --only-binary=:all: "pydantic>=1.10.0,<2.0.0" python-decouple==3.8
 
 # Install FastAPI and its dependencies
 echo "Installing FastAPI and dependencies..."
-pip install --only-binary=:all: "fastapi>=0.95.0,<0.100.0" "starlette>=0.26.0,<0.28.0" "uvicorn[standard]>=0.20.0,<0.25.0"
+pip install --only-binary=:all: "fastapi>=0.95.0,<0.100.0" "starlette>=0.26.0,<0.28.0"
+
+# Install uvicorn separately to ensure it's properly installed
+echo "Installing uvicorn..."
+pip install "uvicorn[standard]>=0.20.0,<0.25.0"
 
 # Install database dependencies
 echo "Installing database dependencies..."
@@ -37,5 +41,9 @@ pip install --only-binary=:all: \
     email-validator==2.1.0 \
     httpx==0.25.2 \
     python-dateutil==2.8.2
+
+# Verify uvicorn installation
+echo "Verifying uvicorn installation..."
+python -m uvicorn --version
 
 echo "Build completed successfully!"
