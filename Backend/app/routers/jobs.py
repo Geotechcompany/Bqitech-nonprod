@@ -17,7 +17,6 @@ class CustomJSONEncoder(json.JSONEncoder):
 
 logger = logging.getLogger(__name__)
 router = APIRouter(
-    prefix="/jobs",
     tags=["public", "jobs"],
     responses={404: {"description": "Not found"}},
 )
@@ -49,8 +48,7 @@ async def get_jobs(
         
         # Convert ObjectIds to strings and format dates
         for job in jobs:
-            job["id"] = str(job["_id"])
-            del job["_id"]  # Remove the original _id
+            job["id"] = str(job.pop("_id"))  # Replace _id with id
             # Format dates if they exist
             if "createdAt" in job:
                 job["createdAt"] = job["createdAt"].isoformat()
@@ -66,9 +64,9 @@ async def get_jobs(
             "totalPages": (total + limit - 1) // limit
         }
 
-        # Return with CORS headers
+        # Return with CORS headers and use custom JSON encoder
         return JSONResponse(
-            content=response_data,
+            content=json.loads(json.dumps(response_data, cls=CustomJSONEncoder)),
             headers={
                 "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
                 "Access-Control-Allow-Credentials": "true",

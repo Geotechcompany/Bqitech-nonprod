@@ -25,7 +25,7 @@ const nextConfig = {
             `script-src-elem 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/`,
             `style-src 'self' 'unsafe-inline'`,
             `img-src 'self' data: blob: https://dl.dropboxusercontent.com`,
-            `connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.dev https://clerk-telemetry.com https://*.googletagmanager.com https://www.googletagmanager.com https://www.google-analytics.com https://accounts.google.com https://hcaptcha.com https://sentry.hcaptcha.com ${process.env.NODE_ENV === 'development' ? 'ws://localhost:3000/_next/webpack-hmr http://localhost:8000' : ''} https://organic-hound-41949.upstash.io https://bqitech-nonprod-1.onrender.com https://bqitech.com`,
+            `connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.dev https://clerk-telemetry.com https://*.googletagmanager.com https://www.googletagmanager.com https://www.google-analytics.com https://accounts.google.com https://hcaptcha.com https://sentry.hcaptcha.com ${process.env.NODE_ENV === 'development' ? 'ws://localhost:3000/_next/webpack-hmr http://localhost:10000' : ''} https://organic-hound-41949.upstash.io https://bqitech-nonprod-1.onrender.com https://bqitech.com`,
             `frame-src https://newassets.hcaptcha.com https://hcaptcha.com https://*.hcaptcha.com https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/`,
             `font-src 'self' data:`
         ];
