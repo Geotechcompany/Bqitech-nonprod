@@ -59,6 +59,7 @@ origins = [
     "https://www.bqitech.com",
     "https://bqitech-nonprod.netlify.app",
     "http://localhost:3000",
+    "*"  # Allow all origins for public endpoints
 ]
 
 app.add_middleware(
@@ -67,6 +68,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # Include routers with consistent prefixes

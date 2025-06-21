@@ -1,9 +1,8 @@
-from fastapi import APIRouter, HTTPException, Depends, Request, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from bson import ObjectId
-from ..auth import get_current_user
 from ..database import get_database, is_connected
 import logging
 import json
@@ -18,18 +17,19 @@ class CustomJSONEncoder(json.JSONEncoder):
 
 logger = logging.getLogger(__name__)
 router = APIRouter(
-    tags=["jobs"],
+    prefix="/jobs",
+    tags=["public", "jobs"],
     responses={404: {"description": "Not found"}},
 )
 
-@router.get("/")
+@router.get("/", include_in_schema=True)
 async def get_jobs(
     request: Request,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     status: Optional[str] = Query(None)
 ):
-    """Get jobs with pagination and filtering"""
+    """Get public jobs with pagination and filtering"""
     try:
         logger.info("Received GET /jobs request")
         logger.info(f"Headers: {dict(request.headers)}")
@@ -47,10 +47,17 @@ async def get_jobs(
         jobs = await jobs_cursor.to_list(length=limit)
         total = await db.jobpostings.count_documents(filter_query)
         
-        # Convert ObjectIds to strings
+        # Convert ObjectIds to strings and format dates
         for job in jobs:
             job["id"] = str(job["_id"])
             del job["_id"]  # Remove the original _id
+            # Format dates if they exist
+            if "createdAt" in job:
+                job["createdAt"] = job["createdAt"].isoformat()
+            if "updatedAt" in job:
+                job["updatedAt"] = job["updatedAt"].isoformat()
+            if "postedDate" in job:
+                job["postedDate"] = job["postedDate"].isoformat() if isinstance(job["postedDate"], datetime) else job["postedDate"]
         
         response_data = {
             "jobs": jobs,
@@ -59,7 +66,16 @@ async def get_jobs(
             "totalPages": (total + limit - 1) // limit
         }
 
-        return response_data
+        # Return with CORS headers
+        return JSONResponse(
+            content=response_data,
+            headers={
+                "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept",
+            }
+        )
     except Exception as e:
         logger.error(f"Error in get_jobs: {str(e)}")
         logger.exception("Full traceback:")
@@ -68,13 +84,13 @@ async def get_jobs(
 @router.options("/", include_in_schema=False)
 async def options_jobs(request: Request):
     """Handle CORS preflight requests"""
-    origin = request.headers.get("origin", "http://localhost:3000")
+    origin = request.headers.get("origin", "*")
     return JSONResponse(
         content={"message": "OK"},
         headers={
             "Access-Control-Allow-Origin": origin,
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept",
             "Access-Control-Allow-Credentials": "true",
             "Access-Control-Max-Age": "3600",
         }
