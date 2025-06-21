@@ -4,23 +4,25 @@ services:
     env: python
     region: ohio
     plan: free
+    runtime: python3.10
     buildCommand: |
+      python3.10 -m venv .venv && 
+      . .venv/bin/activate && 
       chmod +x build.sh && 
       ./build.sh
     startCommand: |
       cd /opt/render/project/src/Backend && 
-      source ../.venv/bin/activate && 
-      export PYTHONPATH=/opt/render/project/src/Backend:$PYTHONPATH && 
+      . ../.venv/bin/activate && 
+      pip install 'uvicorn[standard]' && 
       echo "Python version:" && python --version && 
-      echo "Python path:" && python -c "import sys; print('\n'.join(sys.path))" && 
-      echo "Uvicorn location:" && python -c "import uvicorn; print(uvicorn.__file__)" && 
-      $VIRTUAL_ENV/bin/uvicorn app.main:app --host 0.0.0.0 --port $PORT
+      echo "Pip version:" && pip --version && 
+      echo "Installed packages:" && pip list && 
+      echo "Starting uvicorn..." && 
+      ../.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
     envVars:
       - key: PYTHON_VERSION
-        value: "3.10.13"
-      - key: PATH
-        value: /opt/render/project/src/.venv/bin:$PATH
+        value: 3.10.13
       - key: PYTHONPATH
         value: /opt/render/project/src/Backend
       - key: MONGODB_URI
