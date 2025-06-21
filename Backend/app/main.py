@@ -4,8 +4,9 @@ from fastapi.responses import JSONResponse
 import uvicorn
 import logging
 from contextlib import asynccontextmanager
+import datetime
 
-from .database import connect_to_database, close_database_connection
+from .database import connect_to_database, close_database_connection, get_database
 from .config import settings
 
 # Import routers directly from modules
@@ -96,7 +97,27 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "message": "API is running"}
+    try:
+        # Check database connection
+        db = get_database()
+        await db.command('ping')
+        return {
+            "status": "healthy",
+            "message": "API is running",
+            "database": "connected",
+            "timestamp": datetime.datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "message": "API is running but database is not connected",
+                "error": str(e),
+                "timestamp": datetime.datetime.utcnow().isoformat()
+            }
+        )
 
 if __name__ == "__main__":
     uvicorn.run(
