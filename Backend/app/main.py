@@ -72,11 +72,13 @@ app.add_middleware(
 )
 
 # Include routers with consistent prefixes
+logger.info("Registering routers...")
 app.include_router(auth_router, prefix="/api")
 app.include_router(admin_router, prefix="/api/admin")
 app.include_router(applications_router, prefix="/api/applications")
 app.include_router(blog_router, prefix="/api/blog")
 app.include_router(jobs_router, prefix="/api/jobs")
+logger.info("Registering user router at /api/user")  # Debug log
 app.include_router(user_router, prefix="/api/user")
 app.include_router(contact_router, prefix="/api/contact")
 app.include_router(health_router, prefix="/api")

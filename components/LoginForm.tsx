@@ -1,159 +1,118 @@
 "use client"
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { signIn } from 'next-auth/react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { toast } from 'sonner'
-import { Loader } from '@/components/ui/loader'
-import { motion } from "framer-motion"
-import { Mail, Lock, Github, Chrome, ArrowRight, UserPlus } from "lucide-react"
-import Link from "next/link"
+import { Label } from '@/components/ui/label'
+import { motion } from 'framer-motion'
+import { Loader2 } from 'lucide-react'
+import Link from 'next/link'
+import { z } from 'zod'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 
 const formSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  email: z.string().email('Please enter a valid email'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
 })
 
-export function LoginForm({ 
-  providers,
-  onError 
-}: { 
-  providers: any,
-  onError?: (error: string) => void 
-}) {
-  const router = useRouter()
-  const [isLoading, setIsLoading] = useState(false)
+type FormData = z.infer<typeof formSchema>
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<z.infer<typeof formSchema>>({
+interface LoginFormProps {
+  onLogin: (email: string, password: string) => Promise<void>
+  onError: (error: string) => void
+}
+
+const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onError }) => {
+  const [isLoading, setIsLoading] = useState(false)
+  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(formSchema),
   })
 
-  const onSubmit = async (data: z.infer<typeof formSchema>) => {
+  const onSubmit = async (data: FormData) => {
     try {
       setIsLoading(true)
-
-      const result = await signIn('credentials', {
-        email: data.email,
-        password: data.password,
-        redirect: false,
-      })
-
-      if (result?.error) {
-        toast.error(result.error)
-        onError?.(result.error)
-        return
-      }
-      
-      if (result?.ok) {
-        // Check email verification status from API
-        const verificationCheck = await fetch('/api/auth/check-email?email=' + encodeURIComponent(data.email))
-        const verificationData = await verificationCheck.json()
-
-        if (!verificationData.isVerified) {
-          router.push(`/auth/verify-email?email=${encodeURIComponent(data.email)}`)
-        } else {
-          window.location.href = "/dashboard"
-        }
-      }
+      await onLogin(data.email, data.password)
     } catch (error) {
-      console.error('Login error:', error)
-      toast.error('An error occurred during login. Please try again.')
+      onError(error.message)
     } finally {
       setIsLoading(false)
     }
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="w-full space-y-8"
-    >
-      <div className="text-center space-y-2">
-        <motion.h1
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-3xl font-bold"
-        >
-          Welcome Back
-        </motion.h1>
-        <p className="text-muted-foreground">
-          Sign in to your account
+    <div className="space-y-6">
+      <div className="space-y-2 text-center">
+        <h1 className="text-3xl font-bold">Welcome Back</h1>
+        <p className="text-gray-500 dark:text-gray-400">
+          Enter your credentials to access your account
         </p>
       </div>
-
-      <motion.form
-        onSubmit={handleSubmit(onSubmit)}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="space-y-6"
-      >
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Input
-              type="email"
-              placeholder="Email"
-              {...register('email')}
-              error={errors.email?.message}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Input
-                type="password"
-                placeholder="Password"
-                {...register('password')}
-                error={errors.password?.message}
-              />
-              <Link
-                href="/forgot-password"
-                className="text-sm font-medium text-[#31CDFF] hover:text-[#31CDFF]/90"
-              >
-                Forgot password?
-              </Link>
-            </div>
-          </div>
-
-          <Button
-            type="submit"
-            className="w-full h-12 text-base bg-gradient-to-r from-[#31CDFF] to-blue-500 hover:from-[#31CDFF]/90 hover:to-blue-500/90"
+      
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            placeholder="Enter your email"
+            type="email"
             disabled={isLoading}
-          >
-            {isLoading ? (
-              <>
-                <Loader className="mr-2" />
-                Signing In...
-              </>
-            ) : (
-              <>
-                Sign In
-                <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-              </>
-            )}
-          </Button>
+            {...register("email")}
+            className="h-12"
+          />
+          {errors.email?.message && (
+            <p className="text-sm text-red-500">{errors.email.message}</p>
+          )}
+        </div>
+        
+        <div className="space-y-2">
+          <Label htmlFor="password">Password</Label>
+          <Input
+            id="password"
+            placeholder="Enter your password"
+            type="password"
+            disabled={isLoading}
+            {...register("password")}
+            className="h-12"
+          />
+          {errors.password?.message && (
+            <p className="text-sm text-red-500">{errors.password.message}</p>
+          )}
         </div>
 
-        <div className="text-center text-sm text-muted-foreground">
-          Don't have an account?{" "}
+        <div className="flex items-center justify-between">
           <Link
-            href="/sign-up"
-            className="font-medium text-[#31CDFF] hover:underline"
+            href="/forgot-password"
+            className="text-sm text-blue-600 hover:underline"
           >
-            Sign up
+            Forgot password?
           </Link>
         </div>
-      </motion.form>
-    </motion.div>
+
+        <Button
+          type="submit"
+          className="w-full h-12"
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Signing in...
+            </>
+          ) : (
+            "Sign in"
+          )}
+        </Button>
+      </form>
+
+      <div className="text-center text-sm">
+        Don&apos;t have an account?{" "}
+        <Link href="/sign-up" className="text-blue-600 hover:underline">
+          Sign up
+        </Link>
+      </div>
+    </div>
   )
-} 
+}
+
+export { LoginForm } 

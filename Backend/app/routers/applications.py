@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query, Body, Depends, Request
+from fastapi import APIRouter, HTTPException, Query, Body, Depends, Request, status
 from fastapi.responses import JSONResponse
 from typing import List, Optional, Dict, Any
 from app.database import get_database, is_connected
@@ -509,4 +509,107 @@ async def options_applications(request: Request):
             "Access-Control-Allow-Credentials": "true",
             "Access-Control-Max-Age": "3600",
         }
-    ) 
+    )
+
+@router.get("/", response_model=Dict[str, List[Dict[str, Any]]])
+async def get_user_applications(current_user: dict = Depends(get_current_user)):
+    """Get all applications for the current user"""
+    try:
+        db = get_database()
+        
+        # Find all applications for the user
+        applications = await db.applications.find({
+            "userId": ObjectId(current_user["_id"])
+        }).sort("appliedDate", -1).to_list(length=None)
+        
+        # Transform ObjectIds to strings for JSON serialization
+        for app in applications:
+            app["id"] = str(app["_id"])
+            app["_id"] = str(app["_id"])
+            app["userId"] = str(app["userId"])
+            if "jobId" in app:
+                app["jobId"] = str(app["jobId"])
+        
+        return {"applications": applications}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+@router.get("/{application_id}", response_model=Dict[str, Any])
+async def get_application(
+    application_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get a specific application by ID"""
+    try:
+        db = get_database()
+        
+        # Find the specific application
+        application = await db.applications.find_one({
+            "_id": ObjectId(application_id),
+            "userId": ObjectId(current_user["_id"])
+        })
+        
+        if not application:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Application not found"
+            )
+        
+        # Transform ObjectIds to strings
+        application["id"] = str(application["_id"])
+        application["_id"] = str(application["_id"])
+        application["userId"] = str(application["userId"])
+        if "jobId" in application:
+            application["jobId"] = str(application["jobId"])
+        
+        return application
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+@router.get("/stats", response_model=Dict[str, Dict[str, int]])
+async def get_application_stats(current_user: dict = Depends(get_current_user)):
+    """Get application statistics for the current user"""
+    try:
+        db = get_database()
+        
+        # Get all applications for the user
+        applications = await db.applications.find({
+            "userId": ObjectId(current_user["_id"])
+        }).to_list(length=None)
+        
+        # Initialize stats
+        stats = {
+            "totalApplications": len(applications),
+            "shortlisted": 0,
+            "technicalAssessment": 0,
+            "interviewing": 0,
+            "hired": 0,
+            "disqualified": 0
+        }
+        
+        # Count applications by status
+        for app in applications:
+            status = app.get("status", "").lower()
+            if status == "shortlisted":
+                stats["shortlisted"] += 1
+            elif status == "technical_assessment":
+                stats["technicalAssessment"] += 1
+            elif status == "interviewing":
+                stats["interviewing"] += 1
+            elif status == "hired":
+                stats["hired"] += 1
+            elif status == "disqualified":
+                stats["disqualified"] += 1
+        
+        return {"stats": stats}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        ) 

@@ -2,58 +2,52 @@
 
 import { motion } from 'framer-motion';
 import { FileText, CheckCircle, Code, MessageSquare, UserCheck, XCircle, ChevronRight, ArrowUpRightIcon } from 'lucide-react';
-import { useSession } from "next-auth/react";
-
-import { Application } from "@/types/application";
+import { useAuth } from '@/contexts/AuthContext'
+import { api } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { DashboardOverviewSkeleton } from '@/components/skeletons';
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
-import useSWR from 'swr';
-import { api } from '@/lib/api';
-import { Skeleton } from '@/components/ui/skeleton';
+import type { Application, ApplicationStats } from '@/types/application'
+import { HiringProgress } from '@/components/user/HiringProgress';
 
-interface ApplicationStats {
-  stats: {
-    totalApplications: number;
-    shortlisted: number;
-    technicalAssessment: number;
-    interviewing: number;
-    hired: number;
-    disqualified: number;
-  };
+interface ApplicationResponse {
+  applications: Application[];
+}
+
+interface LatestApplicationResponse {
+  application: Application | null;
 }
 
 export default function DashboardOverview() {
-  const { data: session } = useSession();
+  const { user } = useAuth();
   
-  // Define SWR fetcher using existing API instance
-  const fetcher = (url: string) => api.get(url).then(res => res.data);
+  // Fetch application stats
+  const { data: statsData, isLoading: isStatsLoading } = useQuery<{ stats: ApplicationStats }>({
+    queryKey: ['applicationStats'],
+    queryFn: async () => {
+      const response = await api.get('/api/user/application-stats');
+      return response.data;
+    },
+    staleTime: 30000,
+  });
 
-  // Migrate application stats query
-  const { data, isLoading } = useSWR<ApplicationStats>(
-    '/user/application-stats',
-    fetcher,
-    {
-      refreshInterval: 30000,
-      revalidateOnFocus: true,
-      revalidateOnReconnect: true
-    }
-  );
-  const stats = data?.stats;
+  // Fetch latest application
+  const { data: latestAppData, isLoading: isLatestAppLoading } = useQuery<LatestApplicationResponse>({
+    queryKey: ['latestApplication'],
+    queryFn: async () => {
+      const response = await api.get('/api/user/latest-application');
+      return response.data;
+    },
+    staleTime: 30000,
+    gcTime: 60000,
+  });
 
-  // Migrate recent applications query
-  const { data: appsData } = useSWR<{ applications: Application[] }>(
-    '/applications?limit=1',
-    fetcher,
-    {
-      refreshInterval: 30000,
-      dedupingInterval: 10000
-    }
-  );
+  const stats = statsData?.stats;
+  const latestApplication = latestAppData?.application;
 
-  const latestApplication = appsData?.applications?.[0];
-
-  if (isLoading) {
+  if (isStatsLoading) {
     return <DashboardOverviewSkeleton />;
   }
 
@@ -103,7 +97,7 @@ export default function DashboardOverview() {
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
             <span className="text-blue-600">Welcome back,</span>
             <ChevronRight className="h-4 w-4 text-gray-400" />
-            <span className="font-medium">{session?.user?.name || 'Guest'}</span>
+            <span className="font-medium">{user?.name || 'Guest'}</span>
           </div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
             Application Overview
@@ -111,45 +105,55 @@ export default function DashboardOverview() {
         </div>
         
         <div className="flex items-center gap-4">
-       
-          
           <div className="flex items-center gap-3">
             <span className="text-sm font-medium text-gray-700 hidden sm:block">
-              {session?.user?.name || ''}
+              {user?.name || ''}
             </span>
           </div>
         </div>
       </div>
 
+      {/* Hiring Progress */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <HiringProgress />
+      </motion.div>
+
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {overviewItems.map((item, index) => (
           <motion.div
-            key={item.title}
-            className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-white to-gray-50 shadow-xl border border-gray-100"
+            key={index}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: index * 0.1 }}
-            whileHover={{ y: -5 }}
+            transition={{ delay: index * 0.1 }}
+            className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
           >
-            <div className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-2">
-                  <div className={`p-2 rounded-lg w-fit ${item.color}`}>
-                    <item.icon className="w-6 h-6" />
-                  </div>
-                  <p className="text-lg font-medium text-gray-600">{item.title}</p>
-                  <h3 className="text-3xl font-bold text-gray-900">{item.value}</h3>
-                </div>
+            <div className="flex items-center gap-4">
+              <div className={`p-3 rounded-lg ${item.color}`}>
+                <item.icon className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">{item.title}</p>
+                <p className="text-2xl font-semibold">{item.value}</p>
               </div>
             </div>
-            <div className={`absolute bottom-0 right-0 w-32 h-32 transform translate-x-16 translate-y-8 ${item.color.replace('text', 'bg').replace('-600', '-100/30')} rounded-full`} />
           </motion.div>
         ))}
       </div>
 
-      {/* Moved Latest Application Card */}
-      {latestApplication && (
+      {/* Latest Application Card */}
+      {isLatestAppLoading ? (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="animate-pulse"
+        >
+          <div className="h-32 bg-gray-200 rounded-2xl"></div>
+        </motion.div>
+      ) : latestApplication ? (
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -160,7 +164,7 @@ export default function DashboardOverview() {
               <div className="space-y-2">
                 <h2 className="text-xl font-semibold text-blue-900">Latest Application</h2>
                 <p className="text-sm text-blue-700">
-                  {latestApplication.position || 'No position specified'}
+                  {latestApplication.jobDetails?.title || latestApplication.position || 'No position specified'}
                 </p>
                 <div className="flex items-center gap-2">
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -185,20 +189,15 @@ export default function DashboardOverview() {
           </div>
           <div className="absolute bottom-0 right-0 w-32 h-32 transform translate-x-16 translate-y-8 bg-blue-100/30 rounded-full" />
         </motion.div>
+      ) : (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="p-6 rounded-2xl bg-gray-50 border border-gray-200"
+        >
+          <p className="text-gray-600">No applications found</p>
+        </motion.div>
       )}
-    </div>
-  );
-}
-
-function DashboardOverviewSkeleton() {
-  return (
-    <div className="space-y-8">
-      <div className="h-20 bg-gray-100 rounded-2xl animate-pulse" />
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[...Array(6)].map((_, i) => (
-          <div key={i} className="h-40 bg-gray-100 rounded-2xl animate-pulse" />
-        ))}
-      </div>
     </div>
   );
 }

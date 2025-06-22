@@ -7,6 +7,15 @@ import { api } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSession } from "next-auth/react";
 import { NotificationButton } from "@/components/NotificationButton";
+import { Card } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/contexts/AuthContext"
+import useSWR from "swr"
+import { Application } from '@/types/application';
+import { formatDate } from '@/lib/utils';
+import Link from 'next/link';
+import { ArrowUpRightIcon } from 'lucide-react';
 
 interface ApplicationStats {
   totalApplications: number;
@@ -17,111 +26,109 @@ interface ApplicationStats {
   disqualified: number;
 }
 
-export default function DashboardOverview() {
-  const { data: session } = useSession();
-  const { data: stats, isLoading } = useQuery<ApplicationStats>({
-    queryKey: ['applicationStats'],
-    queryFn: () => api.get('/user/application-stats').then(res => res.data)
+interface LatestApplicationResponse {
+  application: Application | null;
+}
+
+export function DashboardOverview() {
+  const router = useRouter()
+  const { user } = useAuth()
+
+  const fetcher = (url: string) => api.get(url).then(res => res.data)
+  const { data: stats } = useSWR("/user/application-stats", fetcher)
+
+  const { data: latestAppData, isLoading: isLatestAppLoading } = useQuery<LatestApplicationResponse>({
+    queryKey: ['latestApplication'],
+    queryFn: async () => {
+      const response = await api.get('/api/user/latest-application');
+      return response.data;
+    },
+    gcTime: 60000, // Keep data in garbage collection for 1 minute
+    staleTime: 30000, // Consider data fresh for 30 seconds
   });
 
-  if (isLoading) {
-    return <DashboardOverviewSkeleton />;
+  if (isLatestAppLoading) {
+    return <div className="animate-pulse">
+      <div className="h-32 bg-gray-200 rounded-lg"></div>
+    </div>;
   }
 
-  const overviewItems = [
-    { 
-      title: 'Total Applications', 
-      value: stats?.totalApplications || 0, 
-      icon: FileText, 
-      color: 'from-blue-600 to-blue-700' 
-    },
-    { 
-      title: 'Shortlisted', 
-      value: stats?.shortlisted || 0, 
-      icon: CheckCircle, 
-      color: 'from-green-600 to-green-700' 
-    },
-    { 
-      title: 'Technical Assessment', 
-      value: stats?.technicalAssessment || 0, 
-      icon: Code, 
-      color: 'from-yellow-600 to-yellow-700' 
-    },
-    { 
-      title: 'Interviewing', 
-      value: stats?.interviewing || 0, 
-      icon: MessageSquare, 
-      color: 'from-purple-600 to-purple-700' 
-    },
-    { 
-      title: 'Hired', 
-      value: stats?.hired || 0, 
-      icon: UserCheck, 
-      color: 'from-indigo-600 to-indigo-700' 
-    },
-    { 
-      title: 'Disqualified', 
-      value: stats?.disqualified || 0, 
-      icon: XCircle, 
-      color: 'from-red-600 to-red-700' 
-    },
-  ];
+  const latestApplication = latestAppData?.application;
+
+  if (!latestApplication) {
+    return (
+      <div className="p-6 rounded-lg bg-gray-50 border border-gray-200">
+        <p className="text-gray-600">No applications found</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-            <span>Dashboard</span>
-            <ChevronRight className="h-4 w-4" />
-            <span>Overview</span>
+    <div className="grid gap-4">
+      <Card className="p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold">Welcome, {user?.name || 'Guest'}</h2>
+            <p className="text-gray-500">Here's what's happening with your applications</p>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">Overview</h1>
+          <Button onClick={() => router.push('/dashboard/applications')}>
+            View Applications
+          </Button>
         </div>
-        
-        <div className="flex items-center gap-4">
-          <NotificationButton variant="outline" />
-          
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-gray-700 hidden sm:block">
-              {session?.user?.name || ''}
-            </span>
-            <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
-              {session?.user?.name?.charAt(0) || 'U'}
-            </div>
-          </div>
-        </div>
+      </Card>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="p-6">
+          <h3 className="font-semibold">Total Applications</h3>
+          <p className="text-3xl font-bold">{stats?.totalApplications || 0}</p>
+        </Card>
+        <Card className="p-6">
+          <h3 className="font-semibold">In Progress</h3>
+          <p className="text-3xl font-bold">{stats?.inProgress || 0}</p>
+        </Card>
+        <Card className="p-6">
+          <h3 className="font-semibold">Shortlisted</h3>
+          <p className="text-3xl font-bold">{stats?.shortlisted || 0}</p>
+        </Card>
+        <Card className="p-6">
+          <h3 className="font-semibold">Completed</h3>
+          <p className="text-3xl font-bold">{stats?.completed || 0}</p>
+        </Card>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {overviewItems.map((item, index) => (
-          <motion.div
-            key={item.title}
-            className="relative overflow-hidden rounded-2xl shadow-lg"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: index * 0.1 }}
-            whileHover={{ y: -5, transition: { duration: 0.2 } }}
-          >
-            <div className="absolute top-0 right-0 w-32 h-32 transform translate-x-16 -translate-y-16">
-              <div className="absolute inset-0 rounded-full bg-white opacity-10" />
-            </div>
-            <div className={`relative p-6 bg-gradient-to-br ${item.color}`}>
-              <div className="flex items-center justify-between">
-                <div className="space-y-4">
-                  <div className="p-3 bg-white/10 rounded-lg w-fit">
-                    <item.icon className="w-6 h-6 text-white" />
-                  </div>
-                  <p className="text-lg font-medium text-white/80">{item.title}</p>
-                  <h3 className="text-4xl font-bold text-white">{item.value}</h3>
-                </div>
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 shadow-xl border border-blue-100">
+        <div className="p-6">
+          <div className="flex items-center justify-between">
+            <div className="space-y-2">
+              <h2 className="text-xl font-semibold text-blue-900">Latest Application</h2>
+              <p className="text-sm text-blue-700">
+                {latestApplication.jobDetails?.title || latestApplication.position || 'No position specified'}
+              </p>
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                  latestApplication.status === 'Hired' ? 'bg-green-100 text-green-700' :
+                  latestApplication.status === 'Rejected' ? 'bg-red-100 text-red-700' :
+                  'bg-blue-100 text-blue-700'
+                }`}>
+                  {latestApplication.status || 'Pending'}
+                </span>
+                <span className="text-sm text-blue-600">
+                  Applied {formatDate(latestApplication.appliedDate)}
+                </span>
               </div>
             </div>
-          </motion.div>
-        ))}
+            <Link href="/dashboard/applications" className="group">
+              <Button variant="outline" className="gap-1.5 border-blue-200 hover:bg-blue-50">
+                View Details
+                <ArrowUpRightIcon className="h-4 w-4 text-blue-600 transition-transform group-hover:translate-x-0.5" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+        <div className="absolute bottom-0 right-0 w-32 h-32 transform translate-x-16 translate-y-8 bg-blue-100/30 rounded-full" />
       </div>
     </div>
-  );
+  )
 }
 
 function DashboardOverviewSkeleton() {

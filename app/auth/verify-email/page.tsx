@@ -9,10 +9,10 @@ import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import toast, { Toaster } from 'react-hot-toast'
+import toast from 'react-hot-toast'
 import OtpInput from 'react-otp-input'
-import FloatingShapes from "@/components/FloatingShapes"
 import { Controller } from 'react-hook-form'
+import { useRouter } from 'next/navigation'
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -35,9 +35,9 @@ export default function EmailVerificationPage() {
   const [otp, setOtp] = useState('')
   const searchParams = useSearchParams()
   const email = searchParams.get('email')
-  const tokenParam = searchParams.get('token')
   const [error, setError] = useState('')
   const [initialEmailSent, setInitialEmailSent] = useState(false)
+  const router = useRouter()
 
   const { handleSubmit, formState: { errors }, control, setError: setFormError } = useForm<z.infer<typeof otpSchema>>({
     resolver: zodResolver(otpSchema),
@@ -54,16 +54,20 @@ export default function EmailVerificationPage() {
 
   useEffect(() => {
     const sendInitialVerification = async () => {
-      if (email && !tokenParam && !initialEmailSent && status === 'idle') {
+      if (email && !initialEmailSent && status === 'idle') {
         try {
           setStatus('loading')
-          const response = await fetch('/api/auth/resend-verification', {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/auth/resend-verification`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({ email })
           })
 
-          if (!response.ok) throw new Error('Failed to send initial verification')
+          if (!response.ok) {
+            const data = await response.json()
+            throw new Error(data.detail || 'Failed to send verification')
+          }
           
           toast.success('Verification code sent! Check your email.')
         } catch (error) {
@@ -77,32 +81,29 @@ export default function EmailVerificationPage() {
 
     const debounceTimer = setTimeout(sendInitialVerification, 500)
     return () => clearTimeout(debounceTimer)
-  }, [email, tokenParam, initialEmailSent, status])
+  }, [email, initialEmailSent, status])
 
   const onSubmit = async (data: z.infer<typeof otpSchema>) => {
     setStatus('loading')
     try {
-      const response = await fetch('/api/auth/verify-email', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/auth/verify-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: data.code })
+        credentials: 'include',
+        body: JSON.stringify({ 
+          email,
+          code: data.code 
+        })
       })
 
       if (!response.ok) {
-        throw new Error(await response.text())
+        const data = await response.json()
+        throw new Error(data.detail || 'Verification failed')
       }
 
       setStatus('success')
       toast.success('Email verified successfully!')
-
-      // Refresh auth state
-      await fetch('/api/auth/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ update: true })
-      })
-
-      window.location.href = '/dashboard'
+      router.push('/login')
     } catch (error) {
       setStatus('error')
       toast.error(error.message || 'Verification failed')
@@ -117,13 +118,17 @@ export default function EmailVerificationPage() {
       }
       
       setStatus('loading')
-      const response = await fetch('/api/auth/resend-verification', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/auth/resend-verification`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ email })
       })
 
-      if (!response.ok) throw new Error('Failed to resend code')
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.detail || 'Failed to resend code')
+      }
       
       toast.success('New verification code sent!')
     } catch (error) {
@@ -172,12 +177,7 @@ export default function EmailVerificationPage() {
 
             <CardContent>
               <motion.form 
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  if (otp.length === 6) {
-                    handleSubmit(onSubmit)()
-                  }
-                }}
+                onSubmit={handleSubmit(onSubmit)}
                 variants={childVariants}
                 className="space-y-6"
               >
@@ -190,9 +190,8 @@ export default function EmailVerificationPage() {
                         {...field}
                         value={otp}
                         onChange={(value) => {
-                          field.onChange(value);
-                          setOtp(value);
-                          if (error) setError('');
+                          field.onChange(value)
+                          handleInputChange(value)
                         }}
                         numInputs={6}
                         renderInput={(props) => (
@@ -222,13 +221,21 @@ export default function EmailVerificationPage() {
                   disabled={status === 'loading' || otp.length !== 6}
                 >
                   {status === 'loading' ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Verifying...
+                    </>
                   ) : status === 'success' ? (
-                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    <>
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                      Verified
+                    </>
                   ) : status === 'error' ? (
-                    <XCircle className="mr-2 h-4 w-4" />
+                    <>
+                      <XCircle className="mr-2 h-4 w-4" />
+                      Try Again
+                    </>
                   ) : null}
-                  {status === 'loading' ? 'Verifying..' : 'Verify Email'}
                 </Button>
               </motion.form>
             </CardContent>

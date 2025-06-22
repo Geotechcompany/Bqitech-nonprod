@@ -91,40 +91,22 @@ interface ApiError extends Error {
 }
 
 const fetcher = async (url: string) => {
-  const session = authService.getSession();
-  if (!session) {
-    throw new Error('No authentication session');
-  }
-
-  const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:8000';
-  const response = await fetch(`${baseUrl}/api/applications`, {
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session.token}`,
-      'Accept': 'application/json',
-      'X-User-Session': JSON.stringify({
-        id: session.user.id,
-        email: session.user.email,
-        role: session.user.role
-      })
-    }
-  });
-  
-  if (response.status === 401) {
-    // Token expired, try to refresh
-    const refreshed = await authService.refreshToken();
-    if (!refreshed) {
-      window.location.href = '/login';
-      throw new Error('Session expired');
+  try {
+    const session = authService.getSession();
+    if (!session) {
+      throw new Error('No authentication session');
     }
 
-    // Retry with new token
-    const retryResponse = await fetch(`${baseUrl}/api/applications`, {
+    const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:10000';
+    const fullUrl = `${baseUrl}${url}`;
+    
+    console.log('Fetching applications from:', fullUrl);
+
+    const response = await fetch(fullUrl, {
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${refreshed.access_token}`,
+        'Authorization': `Bearer ${session.token}`,
         'Accept': 'application/json',
         'X-User-Session': JSON.stringify({
           id: session.user.id,
@@ -134,20 +116,45 @@ const fetcher = async (url: string) => {
       }
     });
 
-    if (!retryResponse.ok) {
-      throw new Error('Failed to fetch data');
+    if (!response.ok) {
+      if (response.status === 401) {
+        console.log('Token expired, attempting refresh...');
+        const refreshed = await authService.refreshToken();
+        if (!refreshed) {
+          window.location.href = '/login';
+          throw new Error('Session expired');
+        }
+
+        const retryResponse = await fetch(fullUrl, {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${refreshed.access_token}`,
+            'Accept': 'application/json',
+            'X-User-Session': JSON.stringify({
+              id: session.user.id,
+              email: session.user.email,
+              role: session.user.role
+            })
+          }
+        });
+
+        if (!retryResponse.ok) {
+          throw new Error(`Failed to fetch data: ${retryResponse.statusText}`);
+        }
+
+        const data = await retryResponse.json();
+        return data;
+      }
+      throw new Error(`Failed to fetch data: ${response.statusText}`);
     }
-
-    const data = await retryResponse.json();
-    return data.applications;
+    
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Fetcher error:', error);
+    throw error;
   }
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch data');
-  }
-  
-  const data = await response.json();
-  return data.applications;
 };
 
 export default function ApplicationsPage() {
@@ -156,11 +163,33 @@ export default function ApplicationsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPosition, setSelectedPosition] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
-  const [structureType, setStructureType] = useState<'new' | 'old'>('new');
-  const { data: applications = [], error, isLoading: isDataLoading, mutate } = useSWR<Application[]>(
-    isAuthenticated && isAdmin ? '/api/applications' : null,
-    fetcher
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const { data, error, isLoading: isDataLoading, mutate } = useSWR<{
+    applications: Application[];
+    total: number;
+    page: number;
+    totalPages: number;
+  }>(
+    isAuthenticated && isAdmin 
+      ? `/api/admin/applications?limit=${itemsPerPage}&skip=${(currentPage - 1) * itemsPerPage}${selectedStatus ? `&status=${selectedStatus}` : ''}`
+      : null,
+    fetcher,
+    {
+      onError: (err) => {
+        console.error('SWR Error:', err);
+        setFetchError(err.message);
+      },
+      revalidateOnFocus: true,
+      refreshInterval: 30000, // Refresh every 30 seconds
+      dedupingInterval: 5000,
+      shouldRetryOnError: true,
+      errorRetryCount: 3
+    }
   );
+
   const [viewApplication, setViewApplication] = useState<Application | null>(null);
   const [editApplication, setEditApplication] = useState<Application | null>(null);
   const [deleteApplicationId, setDeleteApplicationId] = useState<string | null>(null);
@@ -240,6 +269,25 @@ export default function ApplicationsPage() {
     }
   }, [isAuthenticated, isAdmin, router]);
 
+  // Add effect to log auth state changes
+  useEffect(() => {
+    console.log('Auth state:', { isAuthenticated, isAdmin, isLoading });
+  }, [isAuthenticated, isAdmin, isLoading]);
+
+  // Force refresh data when component mounts
+  useEffect(() => {
+    if (isAuthenticated && isAdmin) {
+      mutate();
+    }
+  }, [isAuthenticated, isAdmin, mutate]);
+
+  // Add debug logging
+  useEffect(() => {
+    if (data?.applications) {
+      console.log('Received applications:', data.applications);
+    }
+  }, [data]);
+
   if (isLoading || isDataLoading) {
     return (
       <AdminPageLayout title="Applications" showSearch={false}>
@@ -252,11 +300,28 @@ export default function ApplicationsPage() {
     return null; // Router will handle the redirect
   }
 
-  if (error) return <div>Failed to load applications</div>;
+  if (error || fetchError) {
+    return (
+      <AdminPageLayout title="Applications" showSearch={false}>
+        <div className="p-4 text-red-600">
+          Error loading applications: {error?.message || fetchError}
+        </div>
+      </AdminPageLayout>
+    );
+  }
+
+  const applications = data?.applications || [];
+  const totalPages = data?.totalPages || 1;
 
   const filteredApplications = applications
     .filter(app => {
-      const matchesSearch = [app.name, app.email, app.position].some(field => 
+      const matchesSearch = [
+        app.name,
+        app.email,
+        app.position,
+        // Also search in answers
+        ...(app.answers?.map(a => a.answer) || [])
+      ].some(field => 
         field?.toLowerCase().includes(searchTerm.toLowerCase())
       );
       const matchesPosition = !selectedPosition || app.position === selectedPosition;
@@ -264,9 +329,12 @@ export default function ApplicationsPage() {
       
       return matchesSearch && matchesPosition && matchesStatus;
     })
-    .sort((a, b) => 
-      new Date(b.appliedDate).getTime() - new Date(a.appliedDate).getTime()
-    );
+    .sort((a, b) => {
+      // Ensure we have valid dates and sort in descending order (newest first)
+      const dateA = new Date(a.appliedDate || 0).getTime();
+      const dateB = new Date(b.appliedDate || 0).getTime();
+      return dateB - dateA;
+    });
 
   function handleView(id: string) {
     const application = applications.find((app) => app.id === id);
@@ -370,6 +438,56 @@ export default function ApplicationsPage() {
     }
   }
 
+  const handleBulkStatusChange = async (ids: string[], newStatus: string) => {
+    try {
+      const session = authService.getSession();
+      if (!session) {
+        router.push('/login');
+        return;
+      }
+
+      await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/admin/applications/bulk-status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.token}`,
+          'Accept': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({ ids, status: newStatus })
+      });
+
+      mutate(); // Refresh the data
+    } catch (error) {
+      console.error('Failed to update application statuses:', error);
+    }
+  };
+
+  const handleBulkDelete = async (ids: string[]) => {
+    try {
+      const session = authService.getSession();
+      if (!session) {
+        router.push('/login');
+        return;
+      }
+
+      await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/admin/applications/bulk`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.token}`,
+          'Accept': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({ ids })
+      });
+
+      mutate(); // Refresh the data
+    } catch (error) {
+      console.error('Failed to delete applications:', error);
+    }
+  };
+
   return (
     <>
       <AdminPageHeader title="Applications" />
@@ -377,18 +495,6 @@ export default function ApplicationsPage() {
       {/* Action Bar */}
       <div className="bg-white border-b px-6 py-4">
         <div className="flex gap-2">
-          <Button
-            variant={structureType === 'new' ? 'default' : 'outline'}
-            onClick={() => setStructureType('new')}
-          >
-            New Structure
-          </Button>
-          <Button
-            variant={structureType === 'old' ? 'default' : 'outline'}
-            onClick={() => setStructureType('old')}
-          >
-            Old Structure
-          </Button>
           <input
             type="file"
             id="importFile"
@@ -406,7 +512,7 @@ export default function ApplicationsPage() {
                     return;
                   }
 
-                  await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/import`, {
+                  await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/admin/applications/import`, {
                     method: 'POST',
                     headers: { 
                       'Content-Type': 'application/json',
@@ -441,7 +547,7 @@ export default function ApplicationsPage() {
             <DropdownMenuContent>
               <DropdownMenuItem asChild>
                 <a 
-                  href={`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/export?format=json`}
+                  href={`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/admin/applications/export?format=json`}
                   className="cursor-pointer"
                 >
                   <FileText className="mr-2 h-4 w-4" />
@@ -450,7 +556,7 @@ export default function ApplicationsPage() {
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <a
-                  href={`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/export?format=csv`}
+                  href={`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/admin/applications/export?format=csv`}
                   className="cursor-pointer"
                 >
                   <Sheet className="mr-2 h-4 w-4" />
@@ -459,7 +565,7 @@ export default function ApplicationsPage() {
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <a
-                  href={`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/export?format=xlsx`}
+                  href={`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/admin/applications/export?format=xlsx`}
                   className="cursor-pointer"
                 >
                   <Sheet className="mr-2 h-4 w-4" />
@@ -538,7 +644,11 @@ export default function ApplicationsPage() {
             onView={handleView}
             onEdit={handleEdit}
             onDelete={handleDelete}
-            structureType={structureType}
+            onBulkStatusChange={handleBulkStatusChange}
+            onBulkDelete={handleBulkDelete}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
           />
         </div>
 

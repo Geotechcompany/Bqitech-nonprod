@@ -591,14 +591,41 @@ async def get_admin_applications(
         if status:
             query["status"] = status
         
-        # Get applications
-        applications = await db.applications.find(query).sort("appliedDate", -1).skip(skip).limit(limit).to_list(length=None)
+        # Get applications sorted by appliedDate in descending order
+        pipeline = [
+            {"$match": query},
+            {"$sort": {"appliedDate": -1}},  # Sort by appliedDate in descending order
+            {"$skip": skip},
+            {"$limit": limit}
+        ]
+        
+        # Execute aggregation pipeline
+        applications = await db.applications.aggregate(pipeline).to_list(length=None)
         total = await db.applications.count_documents(query)
         
         # Convert ObjectIds and format response
         for app in applications:
             convert_objectids_to_strings(app)
             app["id"] = str(app["_id"])
+            
+            # Ensure dates are in ISO format
+            if "appliedDate" in app:
+                app["appliedDate"] = app["appliedDate"].isoformat() if app["appliedDate"] else None
+            if "createdAt" in app:
+                app["createdAt"] = app["createdAt"].isoformat() if app["createdAt"] else None
+            if "updatedAt" in app:
+                app["updatedAt"] = app["updatedAt"].isoformat() if app["updatedAt"] else None
+            
+            # Format answers if they exist
+            if "answers" in app:
+                for answer in app.get("answers", []):
+                    # Ensure questionText is present (for backward compatibility)
+                    if "question" in answer and "questionText" not in answer:
+                        answer["questionText"] = answer["question"]
+        
+        # Log the response for debugging
+        logger.info(f"Returning {len(applications)} applications")
+        logger.debug(f"First application date: {applications[0]['appliedDate'] if applications else 'No applications'}")
         
         return {
             "applications": applications,
@@ -607,6 +634,8 @@ async def get_admin_applications(
             "totalPages": (total + limit - 1) // limit
         }
     except Exception as e:
+        logger.error(f"Error in get_admin_applications: {str(e)}")
+        logger.exception("Full traceback:")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/trends")
@@ -1092,4 +1121,98 @@ async def seed_notifications(
     return {
         "message": f"Created {len(result.inserted_ids)} sample notifications",
         "ids": [str(id) for id in result.inserted_ids]
-    } 
+    }
+
+@router.get("/user/application-stats")
+async def get_user_application_stats(
+    request: Request,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get application statistics for a user"""
+    try:
+        db = get_database()
+        
+        # Get user's applications
+        pipeline = [
+            {
+                "$match": {
+                    "userId": str(current_user["_id"])
+                }
+            },
+            {
+                "$facet": {
+                    "total": [{"$count": "count"}],
+                    "pending": [{"$match": {"status": "Applied"}}, {"$count": "count"}],
+                    "shortlisted": [{"$match": {"status": "Shortlisted"}}, {"$count": "count"}],
+                    "interviewing": [{"$match": {"status": "Interviewing"}}, {"$count": "count"}],
+                    "hired": [{"$match": {"status": "Hired"}}, {"$count": "count"}],
+                    "rejected": [{"$match": {"status": "Rejected"}}, {"$count": "count"}],
+                    "recent": [
+                        {
+                            "$match": {
+                                "appliedDate": {
+                                    "$gte": datetime.utcnow() - timedelta(days=30)
+                                }
+                            }
+                        },
+                        {"$count": "count"}
+                    ]
+                }
+            }
+        ]
+        
+        stats = await db.applications.aggregate(pipeline).to_list(length=1)
+        stats = stats[0] if stats else {}
+        
+        # Helper function to safely get counts
+        def get_count(key):
+            result = stats.get(key, [])
+            return result[0].get("count", 0) if result else 0
+        
+        response = {
+            "total": get_count("total"),
+            "pending": get_count("pending"),
+            "shortlisted": get_count("shortlisted"),
+            "interviewing": get_count("interviewing"),
+            "hired": get_count("hired"),
+            "rejected": get_count("rejected"),
+            "recent": get_count("recent")
+        }
+        
+        return JSONResponse(
+            content=response,
+            headers={
+                "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error in get_user_application_stats: {str(e)}")
+        logger.exception("Full traceback:")
+        return JSONResponse(
+            content={"detail": str(e)},
+            status_code=500,
+            headers={
+                "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
+            }
+        )
+
+@router.options("/user/application-stats", include_in_schema=False)
+async def options_user_application_stats(request: Request):
+    """Handle CORS preflight requests"""
+    origin = request.headers.get("origin", "*")
+    return JSONResponse(
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "3600",
+        }
+    ) 

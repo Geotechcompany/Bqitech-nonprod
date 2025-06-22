@@ -1,65 +1,35 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse, NextRequest } from 'next/server';
 import { requireAuth } from "@/lib/auth";
 import mongoose from "mongoose";
 import connectToDatabase from "@/lib/mongodb";
 import { Application } from "@/models/application";
+import { getUserFromRequest } from '@/lib/auth';
+import { ObjectId } from 'mongodb';
 
 export async function GET(request: NextRequest) {
-  await connectToDatabase();
-  
   try {
-    // Get authenticated user from custom auth
-    const authResult = await requireAuth(request);
-    
-    if (authResult instanceof Response) {
-      return authResult;
+    const user = await getUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Use verified email from authenticated user
-    const userEmail = authResult.email;
+    const { db } = await connectToDatabase();
+    const applications = await db.collection('applications')
+      .find({ userId: new ObjectId(user.id) })
+      .sort({ appliedDate: -1 })
+      .toArray();
 
-    const applications = await Application.aggregate([
-      {
-        $match: {
-          "answers": {
-            $elemMatch: {
-              "questionText": { $regex: /^email$/i },
-              "answer": userEmail
-            }
-          }
-        }
-      },
-      {
-        $project: {
-          _id: { $toString: "$_id" },
-          name: 1,
-          email: 1,
-          phoneNumber: 1,
-          position: 1,
-          status: 1,
-          appliedDate: 1,
-          cvUrl: 1,
-          jobId: 1,
-          answers: {
-            $map: {
-              input: "$answers",
-              as: "answer",
-              in: {
-                questionId: { $toString: "$$answer.questionId" },
-                questionText: "$$answer.questionText",
-                answer: "$$answer.answer"
-              }
-            }
-          }
-        }
-      }
-    ]);
-
-    return NextResponse.json({ applications });
+    return NextResponse.json({ 
+      applications: applications.map(app => ({
+        ...app,
+        id: app._id.toString(),
+        _id: undefined
+      }))
+    });
   } catch (error) {
-    console.error("Error fetching applications:", error);
+    console.error('Error fetching applications:', error);
     return NextResponse.json(
-      { error: "Internal Server Error" }, 
+      { error: 'Failed to fetch applications' },
       { status: 500 }
     );
   }

@@ -4,22 +4,17 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   BarChart2,
   FileText,
   Briefcase,
   Settings,
   LogOut,
-  X,
-  Sun,
-  Moon,
   Menu,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
-
-import { cn } from "@/lib/utils"; // Assuming you have a utility class helper
-import useSWR from 'swr';
+import { cn } from "@/lib/utils";
 
 const tabs = [
   {
@@ -48,73 +43,14 @@ const tabs = [
   },
 ];
 
-// Create interface for slot data
-interface ApplicationSlots {
-  used: number;
-  total: number;
-}
-
 export default function UserDashboardSidebar({ onClose }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
- 
-
-  // Inside the component, add SWR hook
-  const { data: slotData } = useSWR<{
-    used: number;
-    total: number;
-    statusCounts: Record<string, number>;
-    currentStage: string;
-  }>('/api/user/application-slots', {
-    refreshInterval: 30000,
-    revalidateOnFocus: true
-  });
-
-  // Update current stage calculation
-  const activeStages = ['applied', 'shortlisted', 'technicalAssessment', 'interviewing', 'hired'];
-  const currentStageIndex = activeStages.indexOf(slotData?.currentStage || 'applied');
-
-  // Calculate progress percentage
-  const progress = slotData ? (slotData.used / slotData.total) * 100 : 0;
-  const circumference = 2 * Math.PI * 40; // 2πr where r=40
-
-  // Modified calculateProgress function
-  const calculateProgress = (stage?: string) => {
-    if (stage === 'disqualified') return 100; // Full progress for terminal state
-    const index = activeStages.indexOf(stage || 'applied');
-    return Math.min(((index + 1) / activeStages.length) * 100, 100);
-  };
 
   const handleLogout = async () => {
     await signOut({ redirect: false });
     router.push("/");
-  };
-
-  // Update status color mapping
-  const getStatusColor = (stage?: string) => {
-    switch(stage) {
-      case 'applied': return { bg: 'bg-gray-500', text: 'text-gray-600' };
-      case 'shortlisted': return { bg: 'bg-blue-500', text: 'text-blue-600' };
-      case 'technicalAssessment': return { bg: 'bg-yellow-500', text: 'text-yellow-600' };
-      case 'interviewing': return { bg: 'bg-purple-500', text: 'text-purple-600' };
-      case 'hired': return { bg: 'bg-green-500', text: 'text-green-600' };
-      case 'disqualified': return { bg: 'bg-red-500', text: 'text-red-600' };
-      default: return { bg: 'bg-gray-500', text: 'text-gray-600' };
-    }
-  };
-
-  // Update stage labels
-  const getStageLabel = (stage?: string) => {
-    const labels: Record<string, string> = {
-      applied: 'Applied',
-      shortlisted: 'Shortlisted',
-      technicalAssessment: 'Technical Review',
-      interviewing: 'Interviewing',
-      hired: 'Hired',
-      disqualified: 'Disqualified'
-    };
-    return labels[stage || 'applied'] || 'Applied';
   };
 
   return (
@@ -147,70 +83,7 @@ export default function UserDashboardSidebar({ onClose }) {
         </button>
       </div>
 
-      <div className="p-4 space-y-4">
-        <div className="bg-blue-100/50 dark:bg-blue-900/30 backdrop-blur-sm p-4 rounded-xl border border-blue-200/50 dark:border-blue-800/50">
-          {!isCollapsed ? (
-            <div className="flex items-center gap-4">
-              <div className="flex-1 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
-                    Hiring Progress
-                  </span>
-                  <span className={`text-xs font-semibold ${getStatusColor(slotData?.currentStage).text}`}>
-                    {getStageLabel(slotData?.currentStage)}
-                  </span>
-                </div>
-                
-                <div className="relative h-2.5 rounded-full bg-gray-200 dark:bg-gray-700">
-                  <div 
-                    className={`absolute h-full rounded-full transition-all duration-500 ${
-                      getStatusColor(slotData?.currentStage).bg
-                    }`}
-                    style={{ width: `${calculateProgress(slotData?.currentStage)}%` }}
-                  />
-                </div>
-                
-                <div className="flex justify-between text-xs text-gray-600 dark:text-gray-300">
-                  <span>{calculateProgress(slotData?.currentStage)}% Complete</span>
-                  {slotData?.currentStage === 'disqualified' ? (
-                    <span className="text-red-600">Disqualified</span>
-                  ) : (
-                    <span>Stage: {currentStageIndex + 1}/{activeStages.length}</span>
-                  )}
-                </div>
-              </div>
-              <div>
-           
-              </div>
-            </div>
-          ) : (
-            <div className="relative w-10 h-10 mx-auto">
-              <svg className="w-full h-full" viewBox="0 0 100 100">
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="40"
-                  className="stroke-current text-gray-200 dark:text-gray-700"
-                  strokeWidth="8"
-                  fill="none"
-                />
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="40"
-                  className="stroke-current text-blue-500 dark:text-blue-400"
-                  strokeWidth="8"
-                  fill="none"
-                  strokeLinecap="round"
-                  strokeDasharray="251.2"
-                  strokeDashoffset="100.48"
-                  transform="rotate(-90 50 50)"
-                />
-              </svg>
-            </div>
-          )}
-        </div>
-
+      <div className="p-4">
         <nav className="space-y-1">
           {tabs.map((tab) => (
             <motion.div

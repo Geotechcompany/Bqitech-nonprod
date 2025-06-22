@@ -7,6 +7,7 @@ from typing import Optional
 from bson import ObjectId
 import os
 import json
+import logging
 
 from .database import get_database
 
@@ -63,6 +64,11 @@ async def get_current_user(request: Request):
     if session_header:
         try:
             user_data = json.loads(session_header)
+            # Ensure both id and _id are set
+            if user_data.get('id') and not user_data.get('_id'):
+                user_data['_id'] = user_data['id']
+            elif user_data.get('_id') and not user_data.get('id'):
+                user_data['id'] = user_data['_id']
             return user_data
         except:
             pass
@@ -96,11 +102,14 @@ async def get_current_user(request: Request):
                 detail="User not found"
             )
         
-        # Convert ObjectId to string
-        user["_id"] = str(user["_id"])
+        # Convert ObjectId to string and ensure both id and _id are set
+        str_id = str(user["_id"])
+        user["id"] = str_id
+        user["_id"] = str_id
         return user
         
     except Exception as e:
+        logger.error(f"Authentication error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials"
@@ -121,7 +130,8 @@ async def get_current_admin_user(request: Request):
     if user_role not in ["ADMIN", "SUPER_ADMIN"]:
         # Double check in database for security
         db = get_database()
-        db_user = await db.users.find_one({"_id": ObjectId(user["id"])})
+        # Use _id since we ensure it's set in get_current_user
+        db_user = await db.users.find_one({"_id": ObjectId(user["_id"])})
         if not db_user or str(db_user.get("role", "")).upper() not in ["ADMIN", "SUPER_ADMIN"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

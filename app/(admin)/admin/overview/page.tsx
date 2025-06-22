@@ -25,6 +25,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import Link from 'next/link';
 import { adminApi } from '@/lib/api-backend';
 import { toast } from 'react-hot-toast';
+import { ViewApplicationModal } from "@/components/admin/ViewApplicationModal";
+import { Application } from "@/types/application";
 
 ChartJS.register(
   CategoryScale,
@@ -36,15 +38,6 @@ ChartJS.register(
   Legend,
   ArcElement
 );
-
-interface Application {
-  id: string;
-  name: string;
-  email: string;
-  position: string;
-  status: string;
-  appliedDate: Date;
-}
 
 interface OverviewData {
   applications: {
@@ -190,6 +183,7 @@ export default function OverviewPage() {
   const [trendData, setTrendData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewApplication, setViewApplication] = useState<Application | null>(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -368,6 +362,10 @@ export default function OverviewPage() {
         }
       },
     },
+  };
+
+  const handleViewApplication = (app: Application) => {
+    setViewApplication(app);
   };
 
   if (isLoading) return (
@@ -580,7 +578,7 @@ export default function OverviewPage() {
           </div>
 
           {/* Recent Applications */}
-          <Card className="shadow-sm border-gray-200/60">
+          <Card>
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -589,52 +587,80 @@ export default function OverviewPage() {
                   </div>
                   Recent Applications
                 </div>
-                <Link href="/admin/applications">
-                  <Button variant="outline" size="sm" className="gap-2">
-                    View All
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
+                <Link href="/admin/applications" className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                  View All →
                 </Link>
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
               {recentApplications.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {recentApplications.map((app) => (
-                    <motion.div
-                      key={app.id}
-                      whileHover={{ scale: 1.02 }}
-                      className="p-4 bg-gray-50/50 rounded-xl border border-gray-200/60 hover:shadow-sm transition-all duration-200"
-                    >
-                      <div className="space-y-3">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-gray-900 truncate">{app.name}</p>
-                            <p className="text-sm text-gray-600 truncate">{app.email}</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {recentApplications.map((app) => {
+                    const firstName = app.answers?.find(a => 
+                      a.questionText === "First Name"
+                    )?.answer || "Unknown";
+                    
+                    return (
+                      <motion.div
+                        key={app.id}
+                        whileHover={{ scale: 1.02 }}
+                        className="bg-white rounded-lg p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer"
+                        onClick={() => handleViewApplication(app)}
+                      >
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h2 className="text-xl font-semibold text-gray-800 line-clamp-1">
+                              {app.position}
+                            </h2>
+                            <p className="text-sm text-gray-600 mt-1">
+                              {firstName}
+                            </p>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewApplication(app);
+                            }}
+                            className="hover:bg-gray-100 p-1 rounded-full transition-colors"
+                          >
+                            <ArrowRight className="h-4 w-4 text-gray-500" />
+                          </button>
+                        </div>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between text-sm">
+                            <Badge
+                              className={`${
+                                statusColors[app.status as keyof typeof statusColors] || 
+                                "bg-gray-100 text-gray-800"
+                              }`}
+                            >
+                              {app.status}
+                            </Badge>
+                            <span className="text-gray-500">
+                              {new Date(app.appliedDate).toLocaleDateString()}
+                            </span>
                           </div>
                         </div>
-                        <div className="space-y-2">
-                          <p className="text-sm font-medium text-gray-700 truncate">{app.position}</p>
-                          <Badge 
-                            className={`${statusColors[app.status] || 'bg-gray-100 text-gray-800'} text-xs`}
-                          >
-                            {app.status}
-                          </Badge>
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
+                      </motion.div>
+                    );
+                  })}
                 </div>
               ) : (
-                <div className="text-center py-12 text-gray-500">
-                  <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                  <p>No recent applications</p>
+                <div className="text-center py-6 text-gray-500">
+                  No recent applications
                 </div>
               )}
             </CardContent>
           </Card>
         </div>
       </div>
+
+      {/* Application View Modal */}
+      <ViewApplicationModal
+        application={viewApplication}
+        isOpen={!!viewApplication}
+        onClose={() => setViewApplication(null)}
+      />
     </AdminPageLayout>
   );
 }

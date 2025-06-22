@@ -102,29 +102,31 @@ function ApplicationForm() {
         }
       }
 
-      const formData = new FormData();
-      
-      // Store both question ID and text in the form data
-      questions.forEach(q => {
-        if (data[q._id]) {
-          formData.append(`question_${q._id}`, JSON.stringify({
-            id: q._id,
-            text: q.question,
-            answer: data[q._id]
-          }));
-        }
-      });
+      // Format answers in the expected structure
+      const answers = questions.map(q => ({
+        questionId: q._id,
+        question: q.question,
+        answer: data[q._id]
+      }));
 
-      // Append other fields
-      formData.append('jobId', id as string);
-      if (uploadedFileUrl) {
-        formData.append('cvUrl', uploadedFileUrl);
-      }
+      // Create the application data structure
+      const applicationData = {
+        jobId: id,
+        cvUrl: uploadedFileUrl,
+        answers: answers,
+        status: "Applied",
+        appliedDate: new Date().toISOString()
+      };
 
       // Submit to application endpoint
-      const response = await fetch('/api/submit-application', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications`, {
         method: 'POST',
-        body: formData,
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(applicationData),
       });
 
       const result = await response.json();

@@ -15,31 +15,83 @@ export class BackendApiClient {
     return `${this.baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
   }
 
+  // Get auth headers
+  private getAuthHeaders(): Headers {
+    const headers = new Headers();
+    headers.set('Content-Type', 'application/json');
+
+    const session = authService.getSession();
+    if (session?.token) {
+      headers.set('Authorization', `Bearer ${session.token}`);
+      // Also set session header for compatibility
+      headers.set('X-User-Session', JSON.stringify(session.user));
+    }
+
+    return headers;
+  }
+
   // Make authenticated request
   async request<T = any>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
     const url = this.buildUrl(endpoint);
+    const headers = this.getAuthHeaders();
+    
+    // Merge custom headers
+    if (options.headers) {
+      Object.entries(options.headers).forEach(([key, value]) => {
+        headers.set(key, value);
+      });
+    }
     
     try {
-      const response = await authService.authenticatedFetch(url, options);
+      const response = await fetch(url, {
+        ...options,
+        headers,
+        credentials: 'include'
+      });
       
       if (!response.ok) {
+        if (response.status === 401) {
+          // Try to refresh token
+          const refreshResult = await authService.refreshToken();
+          if (refreshResult) {
+            // Retry with new token
+            headers.set('Authorization', `Bearer ${refreshResult.access_token}`);
+            const retryResponse = await fetch(url, {
+              ...options,
+              headers,
+              credentials: 'include'
+            });
+            
+            if (!retryResponse.ok) {
+              const errorData = await retryResponse.json().catch(() => ({}));
+              throw new Error(errorData.detail || errorData.message || `HTTP ${retryResponse.status}`);
+            }
+            
+            return this.parseResponse(retryResponse);
+          }
+        }
+        
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.detail || errorData.message || `HTTP ${response.status}`);
       }
 
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        return await response.json();
-      }
-      
-      return response.text() as any;
+      return this.parseResponse(response);
     } catch (error) {
       console.error(`API request failed for ${endpoint}:`, error);
       throw error;
     }
+  }
+
+  // Parse response based on content type
+  private async parseResponse(response: Response): Promise<any> {
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return response.json();
+    }
+    return response.text();
   }
 
   // GET request
@@ -99,13 +151,15 @@ export class BackendApiClient {
       });
     }
 
-    const headers = authService.getAuthHeader();
+    const headers = this.getAuthHeaders();
+    headers.delete('Content-Type'); // Let browser set correct content type for FormData
     
     try {
       const response = await fetch(this.buildUrl(endpoint), {
         method: 'POST',
         headers,
         body: formData,
+        credentials: 'include'
       });
 
       if (!response.ok) {
@@ -113,7 +167,7 @@ export class BackendApiClient {
         throw new Error(errorData.detail || errorData.message || `Upload failed: HTTP ${response.status}`);
       }
 
-      return await response.json();
+      return this.parseResponse(response);
     } catch (error) {
       console.error(`File upload failed for ${endpoint}:`, error);
       throw error;
@@ -227,8 +281,10 @@ export const adminApi = {
     backendApi.put('/api/admin/questions/reorder', data),
 
   // Settings
-  getSettings: () =>
-    backendApi.get('/api/admin/settings'),
+  getSettings: async () => {
+    const response = await backendApi.request('/api/admin/settings');
+    return response;
+  },
   
   updateSettings: (data: any) =>
     backendApi.put('/api/admin/settings', data),
@@ -264,6 +320,17 @@ export const userApi = {
   
   getApplication: (id: string) =>
     backendApi.get(`/api/applications/${id}`),
+
+  // Settings
+  getSettings: async () => {
+    const response = await backendApi.get('/api/user/settings');
+    return response.data.settings;
+  },
+
+  updateSettings: async (data: any) => {
+    const response = await backendApi.put('/api/user/settings', data);
+    return response.data.settings;
+  },
 
   // Jobs
   getJobs: (params?: { skip?: number; limit?: number }) =>

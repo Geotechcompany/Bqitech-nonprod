@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Briefcase, Clock, CheckCircle, XCircle, Calendar, Eye } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import DashboardOverview from "@/components/user/DashboardOverview";
+import { DashboardOverview } from "@/components/user/DashboardOverview";
 import Loader from "@/components/Loader";
 import {
   Dialog,
@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { toast } from "react-hot-toast";
 
 interface Application {
   id: string;
@@ -36,14 +37,23 @@ export default function Dashboard() {
       if (!user) return;
       
       try {
-        const response = await fetch('/api/applications');
+        const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/user`, {
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+
         if (!response.ok) {
-          throw new Error('Failed to fetch applications');
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to fetch applications');
         }
+
         const data = await response.json();
         setApplications(data.applications || []);
       } catch (error) {
-        console.error(error);
+        console.error('Error fetching applications:', error);
+        toast.error('Failed to load your applications');
         setApplications([]);
       } finally {
         setIsLoading(false);
@@ -57,14 +67,23 @@ export default function Dashboard() {
 
   const handleViewApplication = async (id: string) => {
     try {
-      const response = await fetch(`/api/applications/${id}`);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/${id}`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
       if (!response.ok) {
-        throw new Error('Failed to fetch application details');
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to fetch application details');
       }
+
       const data = await response.json();
-      setSelectedApp(data);
+      setSelectedApp(data.application);
     } catch (error) {
-      console.error(error);
+      console.error('Error fetching application details:', error);
+      toast.error('Failed to load application details');
     }
   };
 
@@ -127,9 +146,14 @@ export default function Dashboard() {
           >
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
-                <h2 className="text-xl font-semibold text-gray-800 line-clamp-1">
-                  {app.position}
-                </h2>
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-800 line-clamp-1">
+                    {app.position}
+                  </h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {app.name}
+                  </p>
+                </div>
                 <Button
                   variant="ghost"
                   size="sm"

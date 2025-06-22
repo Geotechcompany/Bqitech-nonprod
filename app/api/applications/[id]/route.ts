@@ -5,26 +5,27 @@ import connectToDatabase from "@/lib/mongodb"
 import { Application } from "@/models/application"
 import { headers } from "next/headers"
 import { authOptions } from "@/lib/auth"
+import { getUserFromRequest } from '@/lib/auth'
+import { ObjectId } from 'mongodb'
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  await connectToDatabase()
-
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.email) {
+    const user = await getUserFromRequest(request)
+    if (!user) {
       return NextResponse.json(
         { error: "Unauthorized" }, 
         { status: 401 }
       )
     }
 
-    const application = await Application.findOne({
-      _id: new mongoose.Types.ObjectId(params.id),
-      email: session.user.email
-    }).lean() as mongoose.FlattenMaps<mongoose.Document & { _id: mongoose.Types.ObjectId }>;
+    const { db } = await connectToDatabase()
+    const application = await db.collection('applications').findOne({
+      _id: new ObjectId(params.id),
+      userId: new ObjectId(user.id)
+    })
 
     if (!application) {
       return NextResponse.json(
@@ -43,11 +44,10 @@ export async function GET(
       id: application._id.toString(),
       _id: undefined
     }, { headers });
-
   } catch (error) {
     console.error("Error fetching application:", error)
     return NextResponse.json(
-      { error: "Internal Server Error" }, 
+      { error: "Failed to fetch application" }, 
       { status: 500 }
     )
   }

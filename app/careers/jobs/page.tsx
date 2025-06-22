@@ -286,7 +286,7 @@ export default function JobsPage() {
                         className="text-blue-600 hover:bg-blue-50 group-hover:underline"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleApply(job._id);
+                          handleApply(job.id);
                         }}
                       >
                         Quick Apply →
@@ -353,7 +353,7 @@ export default function JobsPage() {
                   <div className="sticky bottom-0 bg-white border-t border-gray-100/80">
                     <div className="p-6 sm:p-8 bg-gradient-to-t from-white/90 to-white/50 backdrop-blur-sm">
                       <Button
-                        onClick={() => handleApply(selectedJob._id)}
+                        onClick={() => handleApply(selectedJob.id)}
                         className="w-full py-6 bg-gradient-to-r from-[#33CCFF] to-[#272055] hover:from-[#272055] hover:to-[#33CCFF] text-white rounded-xl font-medium text-lg transition-all duration-300 transform hover:scale-[1.02] shadow-lg"
                       >
                         Apply Now

@@ -33,6 +33,7 @@ export interface Application {
     disqualifiedDate?: string
     disqualifiedReason?: string
     answers?: Array<{
+      questionId: string;
       questionText: string;
       answer: string;
     }>;
@@ -46,6 +47,11 @@ export interface Application {
     assessmentResult?: string;
     lastUpdated?: string;
     __v?: number;
+    jobDetails?: {
+      title?: string;
+      department?: string;
+      location?: string;
+    };
 }
 
 export interface ShortlistedCandidate extends Application {
@@ -76,4 +82,14 @@ export interface ApiResponse {
   total: number
   page: number
   totalPages: number
+}
+
+export interface ApplicationStats {
+  totalApplications: number;
+  shortlisted: number;
+  technicalAssessment: number;
+  interviewing: number;
+  hired: number;
+  disqualified: number;
+  rejected: number;
 }

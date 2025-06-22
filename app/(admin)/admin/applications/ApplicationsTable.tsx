@@ -1,9 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import { Application } from "@/types/application";
 import { Button } from "@/components/ui/button";
-import { Eye, Pencil, Trash2 } from "lucide-react";
+import { Eye, Pencil, Trash2, Check } from "lucide-react";
 import Link from "next/link";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface Column<T> {
   header: string;
@@ -17,14 +25,47 @@ interface ApplicationsTableProps {
   onView: (id: string) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
-  structureType: 'new' | 'old';
+  onBulkStatusChange: (ids: string[], status: string) => void;
+  onBulkDelete: (ids: string[]) => void;
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
 }
 
 const isUUID = (str: string) => 
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
 
-export function ApplicationsTable({ applications, jobTitles, onView, onEdit, onDelete, structureType }: ApplicationsTableProps) {
-  const columns: Column<Application>[] = structureType === 'new' ? [
+export function ApplicationsTable({ 
+  applications, 
+  jobTitles, 
+  onView, 
+  onEdit, 
+  onDelete,
+  onBulkStatusChange,
+  onBulkDelete,
+  currentPage,
+  totalPages,
+  onPageChange 
+}: ApplicationsTableProps) {
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(applications.map(app => app.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectOne = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedIds([...selectedIds, id]);
+    } else {
+      setSelectedIds(selectedIds.filter(selectedId => selectedId !== id));
+    }
+  };
+
+  const columns: Column<Application>[] = [
     { 
       header: "Applicant", 
       accessor: (row: Application) => {
@@ -98,82 +139,155 @@ export function ApplicationsTable({ applications, jobTitles, onView, onEdit, onD
         <pre className="whitespace-pre-wrap text-sm">{value}</pre>
       )
     }
-  ] : [
-    { header: "Applicant", accessor: (row) => row.name },
-    { header: "Email", accessor: (row) => row.email },
-    { header: "Position", accessor: (row) => row.position },
-    { header: "Status", accessor: (row) => row.status },
-    { header: "Experience", accessor: (row) => row.experience },
-    { header: "Location", accessor: (row) => row.location },
-    { header: "Salary", accessor: (row) => row.salary },
-    { header: "COTS Exp", accessor: (row) => row.cotsExperience },
-    { header: "SQL/JS Exp", accessor: (row) => row.sqlJavaScriptExperience },
-    { header: "Report Dev", accessor: (row) => row.reportDevelopmentExperience }
   ];
 
   return (
-    <div className="overflow-x-auto rounded-lg border">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
-            {columns.map((column, index) => (
-              <th
-                key={index}
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-              >
-                {column.header}
+    <div className="flex flex-col gap-4">
+      {/* Bulk Actions */}
+      {selectedIds.length > 0 && (
+        <div className="bg-gray-50 p-4 rounded-lg flex items-center justify-between">
+          <span className="text-sm text-gray-600">
+            {selectedIds.length} application(s) selected
+          </span>
+          <div className="flex gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  Change Status
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => onBulkStatusChange(selectedIds, 'Applied')}>
+                  Set to Applied
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onBulkStatusChange(selectedIds, 'In Review')}>
+                  Set to In Review
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onBulkStatusChange(selectedIds, 'Interview')}>
+                  Set to Interview
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onBulkStatusChange(selectedIds, 'Hired')}>
+                  Set to Hired
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onBulkStatusChange(selectedIds, 'Rejected')}>
+                  Set to Rejected
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button 
+              variant="destructive" 
+              size="sm"
+              onClick={() => {
+                if (confirm('Are you sure you want to delete the selected applications?')) {
+                  onBulkDelete(selectedIds);
+                  setSelectedIds([]);
+                }
+              }}
+            >
+              Delete Selected
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <div className="overflow-x-auto rounded-lg border">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <Checkbox 
+                  checked={selectedIds.length === applications.length}
+                  onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
+                />
               </th>
-            ))}
-            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Actions
-            </th>
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
-          {applications.map((application) => (
-            <tr key={application.id} className="hover:bg-gray-50">
-              {columns.map((column, colIndex) => (
-                <td
-                  key={colIndex}
-                  className="px-6 py-4 whitespace-nowrap text-sm text-gray-900"
+              {columns.map((column, index) => (
+                <th
+                  key={index}
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                 >
-                  {(() => {
-                    const value = column.accessor(application);
-                    return column.cell 
-                      ? column.cell(value)
-                      : value instanceof Date 
-                        ? value.toLocaleDateString()
-                        : value;
-                  })()}
-                </td>
+                  {column.header}
+                </th>
               ))}
-              <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => onView(application.id)}
-                >
-                  <Eye className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => onEdit(application.id)}
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => onDelete(application.id)}
-                >
-                  <Trash2 className="h-4 w-4 text-red-500" />
-                </Button>
-              </td>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {applications.map((application) => (
+              <tr key={application.id} className="hover:bg-gray-50">
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <Checkbox 
+                    checked={selectedIds.includes(application.id)}
+                    onCheckedChange={(checked) => handleSelectOne(application.id, checked as boolean)}
+                  />
+                </td>
+                {columns.map((column, colIndex) => (
+                  <td
+                    key={colIndex}
+                    className="px-6 py-4 whitespace-nowrap text-sm text-gray-900"
+                  >
+                    {(() => {
+                      const value = column.accessor(application);
+                      return column.cell 
+                        ? column.cell(value)
+                        : value instanceof Date 
+                          ? value.toLocaleDateString()
+                          : value;
+                    })()}
+                  </td>
+                ))}
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onView(application.id)}
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onEdit(application.id)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onDelete(application.id)}
+                  >
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      
+      {/* Pagination */}
+      <div className="flex justify-center mt-4">
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+          >
+            Previous
+          </Button>
+          <span className="py-2 px-4 text-sm">
+            Page {currentPage} of {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
     </div>
   );
 } 

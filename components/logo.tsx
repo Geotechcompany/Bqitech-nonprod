@@ -2,12 +2,13 @@ import Image from 'next/image';
 
 function Logo() {
   return (
-    <div className="relative h-10 w-30">
+    <div className="relative">
       <Image
         src="/bqilogo.png"
         alt="Company Logo"
-        fill
-        sizes="(max-width: 768px) 100vw, 120px"
+        width={120}
+        height={40}
+        priority
         className="object-contain"
       />
     </div>

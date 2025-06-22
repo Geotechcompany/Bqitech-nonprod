@@ -7,6 +7,8 @@ import { Application } from "@/types/application";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { ViewApplicationModal } from "@/components/admin/ViewApplicationModal";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 interface ApplicationResponse {
   applications: Application[];
@@ -18,7 +20,15 @@ export default function ApplicationsPage() {
 
   const { data, isLoading, error } = useQuery<ApplicationResponse>({
     queryKey: ['userApplications'],
-    queryFn: () => api.get('/applications').then(res => res.data),
+    queryFn: async () => {
+      try {
+        const response = await api.get('/api/user/applications');
+        return response.data;
+      } catch (error: any) {
+        throw new Error(error.response?.data?.detail || 'Failed to load applications');
+      }
+    },
+    retry: 1,
   });
 
   const handleView = (id: string) => {
@@ -26,7 +36,17 @@ export default function ApplicationsPage() {
     setViewApplication(application || null);
   };
 
-  if (error) return <div>Failed to load applications</div>;
+  if (error) {
+    return (
+      <Alert variant="destructive" className="mb-6">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          {error instanceof Error ? error.message : 'Failed to load applications'}
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
   if (isLoading) return <ApplicationsTableSkeleton />;
 
   const applications = data?.applications || [];
@@ -36,84 +56,92 @@ export default function ApplicationsPage() {
     return (
       (app.name?.toLowerCase() ?? '').includes(search) ||
       (app.email?.toLowerCase() ?? '').includes(search) ||
-      (app.position?.toLowerCase() ?? '').includes(search)
+      (app.position?.toLowerCase() ?? '').includes(search) ||
+      (app.jobDetails?.title?.toLowerCase() ?? '').includes(search)
     );
   });
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl md:text-3xl font-semibold text-gray-800">
-        My Applications
-      </h2>
-      <input
-        type="text"
-        placeholder="Search applications..."
-        className="w-full p-2 border rounded"
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-      />
-      <div className="overflow-x-auto rounded-lg border shadow-sm">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Applied Date</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {filteredApplications.map((app) => {
-              const firstName = app.answers?.find(a => 
-                a.questionText.toLowerCase().includes('first name')
-              )?.answer || '';
-              const lastName = app.answers?.find(a => 
-                a.questionText.toLowerCase().includes('last name')
-              )?.answer || '';
-              
-              return (
-                <tr key={app.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {app.name || `${firstName} ${lastName}`.trim() || 'N/A'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {app.email?.toLowerCase() || 
-                     app.answers?.find(a => a.questionText.toLowerCase().includes('email'))?.answer || 
-                     'Not provided'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {app.phoneNumber || 
-                     app.answers?.find(a => a.questionText.toLowerCase().includes('phone'))?.answer || 
-                     'Not provided'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {app.position || 'N/A'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                      {app.status || 'Pending'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {app.appliedDate ? new Date(app.appliedDate).toLocaleDateString() : 'N/A'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <button
-                      onClick={() => handleView(app.id)}
-                      className="text-blue-600 hover:text-blue-900"
-                    >
-                      View
-                    </button>
+      <div className="flex flex-col gap-2">
+        <h2 className="text-2xl md:text-3xl font-semibold text-gray-800">
+          My Applications
+        </h2>
+        <p className="text-muted-foreground">
+          Track and manage your job applications
+        </p>
+      </div>
+
+      <div className="flex items-center space-x-2">
+        <input
+          type="text"
+          placeholder="Search applications..."
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+      </div>
+
+      <div className="rounded-md border">
+        <div className="overflow-x-auto">
+          <table className="w-full divide-y divide-border">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Position</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Applied Date</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Department</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Location</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-background divide-y divide-border">
+              {filteredApplications.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">
+                    No applications found
                   </td>
                 </tr>
-              )
-            })}
-          </tbody>
-        </table>
+              ) : (
+                filteredApplications.map((app) => (
+                  <tr key={app.id} className="hover:bg-muted/50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-foreground">
+                        {app.jobDetails?.title || app.position || 'N/A'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        getStatusStyle(app.status)
+                      }`}>
+                        {app.status || 'Pending'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      {app.appliedDate ? new Date(app.appliedDate).toLocaleDateString() : 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      {app.jobDetails?.department || 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      {app.jobDetails?.location || 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <button
+                        onClick={() => handleView(app.id)}
+                        className="text-primary hover:text-primary/80 font-medium"
+                      >
+                        View Details
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
+
       <ViewApplicationModal
         application={viewApplication}
         isOpen={!!viewApplication}
@@ -121,6 +149,20 @@ export default function ApplicationsPage() {
       />
     </div>
   );
+}
+
+function getStatusStyle(status: string = ''): string {
+  const statusStyles: Record<string, string> = {
+    'pending': 'bg-yellow-100 text-yellow-800',
+    'shortlisted': 'bg-blue-100 text-blue-800',
+    'technical_assessment': 'bg-purple-100 text-purple-800',
+    'interviewing': 'bg-indigo-100 text-indigo-800',
+    'hired': 'bg-green-100 text-green-800',
+    'disqualified': 'bg-red-100 text-red-800',
+    'rejected': 'bg-gray-100 text-gray-800'
+  };
+
+  return statusStyles[status.toLowerCase()] || 'bg-gray-100 text-gray-800';
 }
 
 function ApplicationsTableSkeleton() {

@@ -1,10 +1,11 @@
 interface User {
   id: string;
+  _id?: string;
   email: string;
   name: string;
   role: string;
-  image?: string;
   avatarUrl?: string;
+  isEmailVerified: boolean;
 }
 
 interface AuthResponse {
@@ -16,16 +17,18 @@ interface AuthResponse {
 interface SessionData {
   user: User;
   token: string;
-  expires: string;
+  refreshToken: string;
 }
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:8000';
+const BACKEND_URL = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:10000';
 
 // Token storage utilities
 const TOKEN_KEY = 'auth_token';
 const USER_KEY = 'user_data';
 
-export class AuthService {
+class AuthService {
+  private SESSION_KEY = 'auth_session';
+
   private static instance: AuthService;
   
   static getInstance(): AuthService {
@@ -146,32 +149,26 @@ export class AuthService {
 
   // Get current session
   getSession(): SessionData | null {
-    const { token, user } = this.getAuthData();
+    if (typeof window === 'undefined') return null;
     
-    if (!token || !user) {
-      return null;
-    }
-
-    // Check if token is expired (basic check)
+    const session = localStorage.getItem(this.SESSION_KEY);
+    if (!session) return null;
+    
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      const now = Math.floor(Date.now() / 1000);
-      
-      if (payload.exp < now) {
-        this.clearAuthData();
-        return null;
-      }
-
-      return {
-        user,
-        token,
-        expires: new Date(payload.exp * 1000).toISOString(),
-      };
-    } catch (error) {
-      console.error('Session error:', error);
-      this.clearAuthData();
+      return JSON.parse(session);
+    } catch {
       return null;
     }
+  }
+
+  setSession(session: SessionData): void {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(this.SESSION_KEY, JSON.stringify(session));
+  }
+
+  clearSession(): void {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem(this.SESSION_KEY);
   }
 
   // Refresh token
@@ -220,7 +217,7 @@ export class AuthService {
   // Check if user is admin
   isAdmin(): boolean {
     const user = this.getCurrentUser();
-    return user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'super_admin';
+    return user?.role?.toUpperCase() === 'ADMIN' || user?.role?.toUpperCase() === 'SUPER_ADMIN';
   }
 
   // Get authorization header for API calls
@@ -234,39 +231,39 @@ export class AuthService {
     url: string, 
     options: RequestInit = {}
   ): Promise<Response> {
-    const headers = {
-      'Content-Type': 'application/json',
-      ...this.getAuthHeader(),
-      ...options.headers,
-    };
+    const session = this.getSession();
+    
+    if (!session?.token) {
+      throw new Error('No authentication token');
+    }
 
-    let response = await fetch(url, {
+    const headers = new Headers(options.headers);
+    headers.set('Authorization', `Bearer ${session.token}`);
+    headers.set('Content-Type', 'application/json');
+
+    const response = await fetch(url, {
       ...options,
       headers,
+      credentials: 'include',
     });
 
-    // If unauthorized, try to refresh token
+    // If we get a 401, try to refresh the token
     if (response.status === 401) {
-      const refreshed = await this.refreshToken();
-      
-      if (refreshed) {
-        // Retry with new token
-        const newHeaders = {
-          'Content-Type': 'application/json',
-          ...this.getAuthHeader(),
-          ...options.headers,
-        };
-
-        response = await fetch(url, {
-          ...options,
-          headers: newHeaders,
-        });
-      } else {
-        // Refresh failed, redirect to login
-        this.clearAuthData();
-        if (typeof window !== 'undefined') {
-          window.location.href = '/login';
+      try {
+        const refreshResult = await this.refreshToken();
+        if (refreshResult) {
+          // Retry the request with the new token
+          headers.set('Authorization', `Bearer ${refreshResult.access_token}`);
+          return fetch(url, {
+            ...options,
+            headers,
+            credentials: 'include',
+          });
         }
+      } catch (error) {
+        console.error('Token refresh failed:', error);
+        this.clearSession();
+        throw new Error('Authentication failed');
       }
     }
 

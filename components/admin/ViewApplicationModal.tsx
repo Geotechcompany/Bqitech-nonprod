@@ -46,10 +46,12 @@ export function ViewApplicationModal({
     }
   };
 
-  function getAnswer(answers: any[], question: string) {
-    return answers?.find(a => 
-      a.questionText.toLowerCase().includes(question.toLowerCase())
-    )?.answer;
+  function getAnswer(answers: any[] | undefined, question: string) {
+    if (!answers || !Array.isArray(answers)) return '';
+    
+    return answers.find(a => 
+      a?.questionText?.toLowerCase().includes(question.toLowerCase())
+    )?.answer || '';
   }
 
   return (
