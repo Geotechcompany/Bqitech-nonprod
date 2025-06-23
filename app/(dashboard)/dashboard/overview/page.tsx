@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from 'framer-motion';
-import { FileText, CheckCircle, Code, MessageSquare, UserCheck, XCircle, ChevronRight, ArrowUpRightIcon } from 'lucide-react';
+import { FileText, CheckCircle, Code, MessageSquare, UserCheck, XCircle, ChevronRight, ArrowUpRightIcon, Briefcase } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
@@ -16,10 +16,6 @@ interface ApplicationResponse {
   applications: Application[];
 }
 
-interface LatestApplicationResponse {
-  application: Application | null;
-}
-
 export default function DashboardOverview() {
   const { user } = useAuth();
   
@@ -27,11 +23,11 @@ export default function DashboardOverview() {
   const userId = user?.id;
   
   // Fetch application stats for the current user
-  const { data: statsData, isLoading: isStatsLoading } = useQuery<{ stats: ApplicationStats }>({
+  const { data: statsData, isLoading: isStatsLoading } = useQuery<ApplicationStats>({
     queryKey: ['applicationStats', userId],
     queryFn: async () => {
       if (!userId) throw new Error('User ID not found');
-      const response = await api.get(`/api/users/application-stats`);
+      const response = await api.get(`/api/applications/users/application-stats`);
       return response.data;
     },
     enabled: !!userId,
@@ -39,11 +35,11 @@ export default function DashboardOverview() {
   });
 
   // Fetch latest application for the current user
-  const { data: latestAppData, isLoading: isLatestAppLoading } = useQuery<LatestApplicationResponse>({
+  const { data: latestAppData, isLoading: isLatestAppLoading } = useQuery<Application | null>({
     queryKey: ['latestApplication', userId],
     queryFn: async () => {
       if (!userId) throw new Error('User ID not found');
-      const response = await api.get(`/api/users/latest-application`);
+      const response = await api.get(`/api/applications/users/latest-application`);
       return response.data;
     },
     enabled: !!userId,
@@ -51,77 +47,62 @@ export default function DashboardOverview() {
     gcTime: 60000,
   });
 
-  const stats = statsData?.stats;
-  const latestApplication = latestAppData?.application;
+  const stats = statsData;
+  const latestApplication = latestAppData;
 
   if (isStatsLoading || !userId) {
     return <DashboardOverviewSkeleton />;
   }
 
-  const userName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : 'User';
-
   const overviewItems = [
     { 
       title: 'Total Applications', 
-      value: stats?.totalApplications || 0, 
+      value: stats?.total || 0, 
       icon: FileText, 
       color: 'text-blue-600 bg-blue-100/30' 
     },
     { 
       title: 'Shortlisted', 
-      value: stats?.shortlisted || 0, 
+      value: stats?.byStatus?.['SHORTLISTED'] || stats?.byStatus?.['shortlisted'] || stats?.byStatus?.['Shortlisted'] || 0, 
       icon: CheckCircle, 
       color: 'text-emerald-600 bg-emerald-100/30' 
     },
     { 
       title: 'Technical Assessment', 
-      value: stats?.technicalAssessment || 0, 
+      value: stats?.byStatus?.['PENDING'] || stats?.byStatus?.['pending'] || stats?.byStatus?.['Pending'] || 0, 
       icon: Code, 
       color: 'text-amber-600 bg-amber-100/30' 
     },
     { 
       title: 'Interviewing', 
-      value: stats?.interviewing || 0, 
+      value: stats?.byStatus?.['INTERVIEWING'] || stats?.byStatus?.['interviewing'] || stats?.byStatus?.['Interviewing'] || 0, 
       icon: MessageSquare, 
       color: 'text-violet-600 bg-violet-100/30' 
     },
     { 
       title: 'Hired', 
-      value: stats?.hired || 0, 
+      value: stats?.byStatus?.['HIRED'] || stats?.byStatus?.['hired'] || stats?.byStatus?.['Hired'] || 0, 
       icon: UserCheck, 
       color: 'text-indigo-600 bg-indigo-100/30' 
     },
     { 
       title: 'Disqualified', 
-      value: stats?.disqualified || 0, 
+      value: stats?.byStatus?.['REJECTED'] || stats?.byStatus?.['rejected'] || stats?.byStatus?.['Rejected'] || 0, 
       icon: XCircle, 
       color: 'text-rose-600 bg-rose-100/30' 
     },
   ];
 
-  return (
-    <div className="space-y-8">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-            <span className="text-blue-600">Welcome back,</span>
-            <ChevronRight className="h-4 w-4 text-gray-400" />
-            <span className="font-medium">{userName}</span>
-          </div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Application Overview
-          </h1>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-gray-700 hidden sm:block">
-              {userName}
-            </span>
-          </div>
-        </div>
-      </div>
+  // Function to get position title from various possible sources
+  const getPositionTitle = (application: Application) => {
+    return application.jobDetails?.title || 
+           application.jobId?.title || 
+           application.position || 
+           'Position not specified';
+  };
 
+  return (
+    <div className="space-y-6">
       {/* Hiring Progress */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -172,16 +153,18 @@ export default function DashboardOverview() {
             <div className="flex items-center justify-between">
               <div className="space-y-2">
                 <h2 className="text-xl font-semibold text-blue-900">Latest Application</h2>
-                <p className="text-sm text-blue-700">
-                  {latestApplication.jobDetails?.title || latestApplication.position || 'No position specified'}
+                <p className="text-lg font-medium text-blue-800">
+                  {getPositionTitle(latestApplication)}
                 </p>
                 <div className="flex items-center gap-2">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                     latestApplication.status === 'Hired' ? 'bg-green-100 text-green-700' :
                     latestApplication.status === 'Rejected' ? 'bg-red-100 text-red-700' :
-                    'bg-blue-100 text-blue-700'
+                    latestApplication.status === 'Shortlisted' ? 'bg-blue-100 text-blue-700' :
+                    latestApplication.status === 'Interviewing' ? 'bg-purple-100 text-purple-700' :
+                    'bg-gray-100 text-gray-700'
                   }`}>
-                    {latestApplication.status || 'Pending'}
+                    {latestApplication.status || 'New'}
                   </span>
                   <span className="text-sm text-blue-600">
                     Applied {formatDate(latestApplication.appliedDate)}
@@ -202,9 +185,19 @@ export default function DashboardOverview() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="p-6 rounded-2xl bg-gray-50 border border-gray-200"
+          className="p-8 rounded-2xl bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-200 text-center"
         >
-          <p className="text-gray-600">No applications found</p>
+          <div className="mb-4">
+            <FileText className="h-12 w-12 text-gray-400 mx-auto" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-700 mb-2">No Applications Yet</h3>
+          <p className="text-gray-600 mb-4">Start your journey by applying to available positions.</p>
+          <Link href="/dashboard/jobs">
+            <Button className="gap-2">
+              <Briefcase className="h-4 w-4" />
+              Browse Jobs
+            </Button>
+          </Link>
         </motion.div>
       )}
     </div>

@@ -2,13 +2,12 @@
 
 import { ReactNode, useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import UserDashboardSidebar from '@/components/user/UserDashboardSidebar';
-import { Menu } from "lucide-react";
+import UserDashboardSidebar, { MobileBottomTabs } from '@/components/user/UserDashboardSidebar';
+import { DashboardHeader } from '@/components/user/DashboardHeader';
 import { useRouter, usePathname } from 'next/navigation';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const { isAuthenticated, authLoading, user } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
@@ -19,10 +18,30 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated, authLoading, router]);
 
+  // Get page title based on pathname
+  const getPageTitle = () => {
+    const path = pathname.split('/').pop();
+    switch (path) {
+      case 'overview':
+        return 'Dashboard Overview';
+      case 'applications':
+        return 'My Applications';
+      case 'jobs':
+        return 'Available Jobs';
+      case 'settings':
+        return 'Settings';
+      default:
+        return 'Dashboard';
+    }
+  };
+
   if (authLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">Loading your dashboard...</p>
+        </div>
       </div>
     );
   }
@@ -32,29 +51,36 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-gray-100 md:flex-row overflow-hidden">
-      <div className="md:hidden bg-white flex justify-between items-center h-16 px-4 flex-shrink-0 z-50">
-        <h1 className="text-xl font-bold text-gray-800">BQI Tech Dashboard</h1>
-        <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-500">
-          <Menu size={24} />
-        </button>
-      </div>
-      
+    <div className="flex flex-col h-screen w-screen bg-gray-50 md:flex-row overflow-hidden">
+      {/* Desktop Sidebar */}
       <UserDashboardSidebar 
-        onClose={() => setSidebarOpen(false)} 
+        onClose={() => {}} 
         isCollapsed={isCollapsed}
         onCollapse={setIsCollapsed}
       />
       
-      <main className={`
-        flex-1 h-full w-full overflow-x-hidden overflow-y-auto bg-gray-100 
+      <div className={`
+        flex-1 flex flex-col h-full w-full overflow-hidden
         transition-all duration-300
         ${isCollapsed ? 'md:pl-[80px]' : 'md:pl-[256px]'}
+        pb-20 md:pb-0
       `}>
-        <div className="h-full w-full">
-          {children}
-        </div>
-      </main>
+        {/* Dashboard Header */}
+        <DashboardHeader 
+          title={getPageTitle()}
+          subtitle={user ? `Welcome back, ${user.firstName || user.email}` : undefined}
+        />
+        
+        {/* Main Content */}
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50">
+          <div className="h-full w-full p-4 md:p-6">
+            {children}
+          </div>
+        </main>
+      </div>
+
+      {/* iOS-style Bottom Tabs for Mobile */}
+      <MobileBottomTabs />
     </div>
   );
 }

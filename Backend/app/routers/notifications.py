@@ -53,14 +53,26 @@ async def get_notifications(
             
         db = get_database()
         
-        # Get notifications that are either for this user or have no user (system notifications)
+        # Get notifications that are specifically for this user only
         user_id = str(current_user.get("_id", "")) if current_user else None
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User ID not found")
+        
+        logger.info(f"Fetching notifications for user: {user_id}")
+        
+        # Only get notifications that are specifically for this user
+        # Exclude admin notifications (like application status updates for other users)
         notifications = await db.notifications.find({
-            "$or": [
-                {"userId": user_id},
-                {"userId": None}
-            ]
+            "userId": user_id,
+            # Exclude admin-type notifications that shouldn't be shown to regular users
+            "title": {
+                "$not": {
+                    "$regex": "Application Status Updated|New Application Received|Interview Scheduled"
+                }
+            }
         }).sort("date", -1).skip(skip).limit(limit).to_list(length=None)
+
+        logger.info(f"Found {len(notifications)} user-specific notifications")
 
         # Convert MongoDB documents to response format
         response_data = []
@@ -76,6 +88,7 @@ async def get_notifications(
                 logger.error(f"Error processing notification: {str(e)}")
                 continue
 
+        logger.info(f"Returning {len(response_data)} processed notifications")
         return response_data
 
     except Exception as e:
@@ -101,26 +114,60 @@ async def options_notifications(request: Request):
 @router.post("/", response_model=NotificationResponse)
 async def create_notification(
     notification: NotificationCreate,
-    current_user: dict = Depends(get_current_user),
-    db = Depends(get_database)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Create a new notification
     """
     try:
-        notification_dict = notification.model_dump()
+        if not is_connected():
+            raise HTTPException(status_code=503, detail="Database not available")
+            
+        db = get_database()
+        
+        # Get current user ID
+        user_id = str(current_user.get("_id", "")) if current_user else None
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User ID not found")
+        
+        logger.info(f"Creating notification for user: {user_id}")
+        logger.info(f"Notification data: {notification}")
+        
+        # Convert notification to dict and add metadata
+        notification_dict = notification.dict()
         notification_dict["createdAt"] = datetime.utcnow()
         notification_dict["updatedAt"] = notification_dict["createdAt"]
         notification_dict["__v"] = 0
-
-        result = await db.notifications.insert_one(notification_dict)
         
+        # Ensure the notification has a userId (use current user if not specified)
+        if not notification_dict.get("userId"):
+            notification_dict["userId"] = user_id
+        
+        logger.info(f"Final notification dict: {notification_dict}")
+
+        # Insert notification into database
+        result = await db.notifications.insert_one(notification_dict)
+        logger.info(f"Inserted notification with ID: {result.inserted_id}")
+        
+        # Retrieve the created notification
         created_notification = await db.notifications.find_one({"_id": result.inserted_id})
+        if not created_notification:
+            raise HTTPException(status_code=500, detail="Failed to retrieve created notification")
+        
+        # Convert to response format
+        created_notification = convert_mongo_doc(created_notification)
         created_notification["id"] = str(created_notification.pop("_id"))
+        
+        logger.info(f"Successfully created notification: {created_notification}")
         return created_notification
 
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Unexpected error in create_notification: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @router.patch("/{notification_id}", response_model=NotificationResponse)
 async def update_notification(
@@ -146,7 +193,7 @@ async def update_notification(
             raise HTTPException(status_code=404, detail="Notification not found")
 
         # Update notification
-        update_dict = update_data.model_dump(exclude_unset=True)
+        update_dict = update_data.dict(exclude_unset=True)
         update_dict["updatedAt"] = datetime.utcnow()
         
         await db.notifications.update_one(
@@ -162,6 +209,21 @@ async def update_notification(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.options("/{notification_id}")
+async def options_notification_by_id(notification_id: str, request: Request):
+    """Handle CORS preflight requests for specific notification operations"""
+    origin = request.headers.get("origin", "http://localhost:3000")
+    return JSONResponse(
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "3600",
+        }
+    )
+
 @router.delete("/{notification_id}")
 async def delete_notification(
     notification_id: str,
@@ -171,19 +233,52 @@ async def delete_notification(
     Delete a notification
     """
     try:
+        if not is_connected():
+            raise HTTPException(status_code=503, detail="Database not available")
+            
         db = get_database()
-        # Verify notification exists and belongs to user
+        
+        # Validate ObjectId format
+        try:
+            obj_id = ObjectId(notification_id)
+        except Exception as e:
+            logger.error(f"Invalid ObjectId format: {notification_id}, error: {str(e)}")
+            raise HTTPException(status_code=400, detail="Invalid notification ID format")
+        
+        # Get current user ID
+        user_id = str(current_user.get("_id", "")) if current_user else None
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User ID not found")
+        
+        logger.info(f"Attempting to delete notification {notification_id} for user {user_id}")
+        
+        # Check if notification exists and belongs to user or is a system notification that user can delete
         notification = await db.notifications.find_one({
-            "_id": ObjectId(notification_id),
-            "userId": str(current_user["_id"])
+            "_id": obj_id,
+            "$or": [
+                {"userId": user_id},
+                {"userId": None}  # Allow deletion of system notifications
+            ]
         })
         
         if not notification:
+            logger.warning(f"Notification {notification_id} not found or doesn't belong to user {user_id}")
             raise HTTPException(status_code=404, detail="Notification not found")
 
         # Delete notification
-        await db.notifications.delete_one({"_id": ObjectId(notification_id)})
+        result = await db.notifications.delete_one({"_id": obj_id})
+        
+        if result.deleted_count == 0:
+            logger.error(f"Failed to delete notification {notification_id}")
+            raise HTTPException(status_code=500, detail="Failed to delete notification")
+        
+        logger.info(f"Successfully deleted notification {notification_id}")
         return {"message": "Notification deleted successfully"}
 
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) 
+        logger.error(f"Unexpected error in delete_notification: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}") 

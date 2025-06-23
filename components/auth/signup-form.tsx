@@ -28,6 +28,12 @@ export function SignupForm() {
         body: JSON.stringify(data),
       });
 
+      // Check if response is JSON
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error('Server returned non-JSON response');
+      }
+
       const result = await response.json();
       
       if (response.ok) {
@@ -37,24 +43,45 @@ export function SignupForm() {
         toast.error(result.error || 'Signup failed');
       }
     } catch (error) {
-      toast.error('An error occurred during signup');
+      console.error('Signup error:', error);
+      if (error instanceof Error) {
+        toast.error(`Signup failed: ${error.message}`);
+      } else {
+        toast.error('An unexpected error occurred during signup');
+      }
     }
   };
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-      <Input
-        type="email"
-        placeholder="Email"
-        {...form.register('email')}
-      />
-      <Input
-        type="password"
-        placeholder="Password"
-        {...form.register('password')}
-      />
-      <Button type="submit" className="w-full">
-        Sign Up
+      <div className="space-y-2">
+        <Input
+          type="email"
+          placeholder="Email"
+          {...form.register('email')}
+          aria-label="Email"
+        />
+        {form.formState.errors.email && (
+          <p className="text-sm text-red-500">{form.formState.errors.email.message}</p>
+        )}
+      </div>
+      <div className="space-y-2">
+        <Input
+          type="password"
+          placeholder="Password"
+          {...form.register('password')}
+          aria-label="Password"
+        />
+        {form.formState.errors.password && (
+          <p className="text-sm text-red-500">{form.formState.errors.password.message}</p>
+        )}
+      </div>
+      <Button 
+        type="submit" 
+        className="w-full"
+        disabled={form.formState.isSubmitting}
+      >
+        {form.formState.isSubmitting ? 'Signing up...' : 'Sign Up'}
       </Button>
     </form>
   );

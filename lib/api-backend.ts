@@ -383,6 +383,10 @@ export const userApi = {
   resendVerification: () =>
     backendApi.post('/api/users/resend-verification'),
 
+  // Avatar Upload
+  uploadAvatar: (file: File) =>
+    backendApi.upload('/api/upload/avatar', file),
+
   // Jobs
   getJobs: (params?: { skip?: number; limit?: number }) =>
     backendApi.get('/api/jobs', params),

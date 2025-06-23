@@ -373,7 +373,7 @@ async def get_latest_application(
         
         # Get latest application
         latest = await db.applications.find_one(
-            {"userId": ObjectId(current_user["_id"])},
+            {"userId": str(current_user["_id"])},
             sort=[("createdAt", -1)]
         )
         
@@ -387,15 +387,35 @@ async def get_latest_application(
                     "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session"
                 }
             )
+        
+        # Get job details if jobId exists
+        job_details = None
+        position = latest.get("position", "Position not specified")
+        
+        if "jobId" in latest and latest["jobId"]:
+            try:
+                job = await db.jobpostings.find_one({"_id": ObjectId(latest["jobId"])})
+                if job:
+                    job_details = {
+                        "id": str(job["_id"]),
+                        "title": job.get("title", "Unknown Position"),
+                        "department": job.get("department", "N/A"),
+                        "location": job.get("location", "N/A")
+                    }
+                    position = job.get("title", "Position not specified")
+            except Exception as e:
+                logger.error(f"Error fetching job details for jobId {latest['jobId']}: {str(e)}")
             
         # Format application data
         application = {
             "id": str(latest["_id"]),
-            "position": latest.get("position", ""),
+            "position": position,
+            "jobDetails": job_details,
             "company": latest.get("company", ""),
-            "status": latest.get("status", "PENDING"),
-            "appliedDate": latest.get("createdAt", "").isoformat() if latest.get("createdAt") else None,
-            "updatedAt": latest.get("updatedAt", "").isoformat() if latest.get("updatedAt") else None
+            "status": latest.get("status", "New"),
+            "appliedDate": latest.get("appliedDate", latest.get("createdAt", "")).isoformat() if latest.get("appliedDate") or latest.get("createdAt") else None,
+            "updatedAt": latest.get("updatedAt", "").isoformat() if latest.get("updatedAt") else None,
+            "jobId": str(latest["jobId"]) if latest.get("jobId") else None
         }
         
         return JSONResponse(

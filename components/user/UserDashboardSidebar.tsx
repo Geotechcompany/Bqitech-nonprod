@@ -17,6 +17,7 @@ import {
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { User } from "@/types/user";
 
@@ -30,13 +31,13 @@ const tabs = [
   {
     id: "applications",
     icon: FileText,
-    label: "My Applications",
+    label: "Applications",
     href: "/dashboard/applications",
   },
   {
     id: "jobs",
     icon: Briefcase,
-    label: "Job Listings",
+    label: "Jobs",
     href: "/dashboard/jobs",
   },
   {
@@ -123,103 +124,148 @@ export default function UserDashboardSidebar({
             ))}
           </nav>
 
-          {/* Footer */}
+          {/* Footer - User Profile */}
           <div className="p-4 border-t border-gray-100">
-            <div className={cn(
-              "flex items-center",
-              isCollapsed ? "justify-center" : "space-x-3"
-            )}>
-              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center text-white font-semibold">
-                {userInitial}
-              </div>
-              {!isCollapsed && (
+            {!isCollapsed ? (
+              <Link 
+                href="/dashboard/settings"
+                className="group flex items-center space-x-3 p-3 rounded-xl hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 transition-all duration-300 cursor-pointer"
+              >
+                <div className="relative">
+                  <Avatar className="h-12 w-12 ring-2 ring-white shadow-lg group-hover:ring-blue-200 transition-all duration-300">
+                    <AvatarImage 
+                      src={user?.avatar}
+                      alt={displayName}
+                      className="object-cover"
+                    />
+                    <AvatarFallback className="bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold text-lg">
+                      {userInitial}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
+                </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
-                    {displayName}
+                  <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
+                    {user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : user?.email || 'User'}
                   </p>
                   <p className="text-xs text-gray-500 truncate">
-                    {user?.email || ''}
+                    {user?.firstName ? user?.email : ''}
                   </p>
+                  <div className="flex items-center mt-1">
+                    <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                    <span className="text-xs text-green-600 font-medium">Online</span>
+                  </div>
                 </div>
-              )}
-            </div>
+                <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-blue-600 transition-colors" />
+              </Link>
+            ) : (
+              <div className="flex justify-center">
+                <Link href="/dashboard/settings" className="group">
+                  <Avatar className="h-10 w-10 ring-2 ring-white shadow-lg group-hover:ring-blue-200 transition-all duration-300">
+                    <AvatarImage 
+                      src={user?.avatar}
+                      alt={displayName}
+                      className="object-cover"
+                    />
+                    <AvatarFallback className="bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold">
+                      {userInitial}
+                    </AvatarFallback>
+                  </Avatar>
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </motion.aside>
+    </>
+  );
+}
 
-      {/* Mobile Sidebar */}
-      <div className="md:hidden">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="fixed top-4 right-4 z-50"
-          onClick={onClose}
-        >
-          <Menu className="h-6 w-6" />
-        </Button>
+// iOS-like Bottom Tab Navigation Component
+export function MobileBottomTabs() {
+  const pathname = usePathname();
 
-        <motion.div
-          initial={{ x: -300 }}
-          animate={{ x: 0 }}
-          exit={{ x: -300 }}
-          transition={{ type: "spring", stiffness: 200, damping: 25 }}
-          className="fixed inset-0 z-[9999] bg-white w-[280px] shadow-xl"
-        >
-          <div className="flex flex-col h-full">
-            <div className="h-16 flex items-center px-4 border-b border-gray-100">
-              <Link href="/dashboard" className="flex items-center space-x-2">
-                <span className="font-semibold text-lg bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  BQI Tech
-                </span>
-              </Link>
-            </div>
-
-            <nav className="flex-1 overflow-y-auto p-3 space-y-2">
-              {tabs.map((tab) => (
+  return (
+    <div className="md:hidden fixed bottom-0 left-0 right-0 z-50">
+      {/* iOS-style backdrop blur effect */}
+      <div className="bg-white/90 ios-backdrop-blur border-t border-gray-200/30 shadow-2xl">
+        <div className="safe-area-pb">
+          <nav className="flex items-center justify-around px-1 py-1">
+            {tabs.map((tab) => {
+              const isActive = pathname === tab.href;
+              return (
                 <Link
                   key={tab.id}
                   href={tab.href}
-                  onClick={onClose}
-                  className={cn(
-                    "flex items-center px-3 py-2 rounded-lg transition-colors relative group",
-                    pathname === tab.href
-                      ? "bg-blue-50 text-blue-600"
-                      : "text-gray-600 hover:bg-gray-50"
-                  )}
+                  className="flex flex-col items-center justify-center min-w-0 flex-1 relative"
                 >
-                  <tab.icon className={cn(
-                    "h-5 w-5 transition-colors",
-                    pathname === tab.href ? "text-blue-600" : "text-gray-500 group-hover:text-blue-600"
-                  )} />
-                  <span className="ml-3 font-medium">{tab.label}</span>
-                  {pathname === tab.href && (
-                    <motion.div
-                      layoutId="activeTabMobile"
-                      className="absolute inset-0 rounded-lg bg-blue-50 -z-10"
-                    />
-                  )}
+                  <motion.div
+                    className="flex flex-col items-center justify-center relative px-3 py-2 rounded-2xl"
+                    whileTap={{ scale: 0.9 }}
+                    whileHover={{ scale: 1.05 }}
+                    transition={{ 
+                      type: "spring", 
+                      stiffness: 400, 
+                      damping: 17,
+                      duration: 0.15
+                    }}
+                  >
+                    {/* Active indicator background */}
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeTabMobile"
+                        className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-blue-600/20 rounded-2xl border border-blue-200/50"
+                        initial={false}
+                        transition={{ 
+                          type: "spring", 
+                          stiffness: 500, 
+                          damping: 35,
+                          duration: 0.3
+                        }}
+                      />
+                    )}
+                    
+                    {/* Icon container */}
+                    <div className="relative z-10 mb-1">
+                      <motion.div
+                        animate={{
+                          scale: isActive ? 1.1 : 1,
+                        }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <tab.icon 
+                          className={cn(
+                            "h-6 w-6 transition-all duration-300",
+                            isActive 
+                              ? "text-blue-600 drop-shadow-sm" 
+                              : "text-gray-500"
+                          )} 
+                        />
+                      </motion.div>
+                    </div>
+                    
+                    {/* Label */}
+                    <motion.span 
+                      className={cn(
+                        "text-xs font-medium transition-all duration-300 relative z-10",
+                        isActive 
+                          ? "text-blue-600 font-semibold" 
+                          : "text-gray-500"
+                      )}
+                      animate={{
+                        scale: isActive ? 1.05 : 1,
+                      }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      {tab.label}
+                    </motion.span>
+                  </motion.div>
                 </Link>
-              ))}
-            </nav>
-
-            <div className="p-4 border-t border-gray-100">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center text-white font-semibold">
-                  {userInitial}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
-                    {displayName}
-                  </p>
-                  <p className="text-xs text-gray-500 truncate">
-                    {user?.email || ''}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </motion.div>
+              );
+            })}
+          </nav>
+        </div>
       </div>
-    </>
+    </div>
   );
 }

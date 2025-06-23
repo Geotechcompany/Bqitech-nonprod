@@ -967,6 +967,22 @@ async def get_latest_application(current_user: dict = Depends(get_current_user))
         )
         if not latest:
             return None
+        
+        # Get job details if jobId exists
+        if "jobId" in latest and latest["jobId"]:
+            try:
+                job = await db.jobpostings.find_one({"_id": ObjectId(latest["jobId"])})
+                if job:
+                    latest["jobDetails"] = {
+                        "id": str(job["_id"]),
+                        "title": job.get("title", "Unknown Position"),
+                        "department": job.get("department", "N/A"),
+                        "location": job.get("location", "N/A")
+                    }
+                    latest["position"] = job.get("title", "Position not specified")
+            except Exception as e:
+                logger.error(f"Error fetching job details: {str(e)}")
+                
         return convert_objectids_to_strings(latest)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) 

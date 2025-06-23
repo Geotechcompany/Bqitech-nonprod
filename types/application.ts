@@ -85,11 +85,8 @@ export interface ApiResponse {
 }
 
 export interface ApplicationStats {
-  totalApplications: number;
-  shortlisted: number;
-  technicalAssessment: number;
-  interviewing: number;
-  hired: number;
-  disqualified: number;
-  rejected: number;
+  total: number;
+  byStatus: {
+    [key: string]: number;
+  };
 }

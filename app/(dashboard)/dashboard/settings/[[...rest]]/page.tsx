@@ -11,7 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, CheckCircle, XCircle, Mail } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Mail, Camera, Upload } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { z } from "zod";
 import {
   Dialog,
@@ -56,6 +57,7 @@ interface UserProfile {
   email: string;
   phone?: string;
   isEmailVerified: boolean;
+  avatar?: string;
 }
 
 const defaultSettings: UserSettings = {
@@ -95,7 +97,8 @@ export default function SettingsPage() {
     lastName: user?.lastName || "",
     email: user?.email || "",
     phone: "",
-    isEmailVerified: false
+    isEmailVerified: false,
+    avatar: user?.avatar || ""
   });
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -106,6 +109,7 @@ export default function SettingsPage() {
     confirmPassword: ""
   });
   const [passwordErrors, setPasswordErrors] = useState<Record<string, string>>({});
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -136,7 +140,8 @@ export default function SettingsPage() {
           lastName: response.lastName || user?.lastName || "",
           email: response.email || user?.email || "",
           phone: response.phone || "",
-          isEmailVerified: response.isEmailVerified || false
+          isEmailVerified: response.isEmailVerified || false,
+          avatar: response.avatar || user?.avatar || ""
         });
       }
     } catch (error) {
@@ -218,6 +223,45 @@ export default function SettingsPage() {
     }
   };
 
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif'];
+    if (!validTypes.includes(file.type)) {
+      toast.error('Please upload a valid image file (JPEG, PNG, or GIF)');
+      return;
+    }
+
+    // Validate file size (5MB limit)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image size should be less than 5MB');
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+
+    try {
+      const response = await userApi.uploadAvatar(file);
+      
+      // Update profile state with new avatar URL
+      setProfile(prev => ({
+        ...prev,
+        avatar: response.url
+      }));
+
+      toast.success('Profile photo updated successfully!');
+    } catch (error) {
+      console.error('Avatar upload error:', error);
+      toast.error('Failed to upload profile photo. Please try again.');
+    } finally {
+      setIsUploadingAvatar(false);
+      // Reset the file input
+      event.target.value = '';
+    }
+  };
+
   if (isLoading) {
     return <FormSkeleton />;
   }
@@ -234,6 +278,46 @@ export default function SettingsPage() {
             <CardDescription>Update your personal information</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Profile Photo Section */}
+            <div className="flex flex-col items-center space-y-4 pb-6 border-b">
+              <div className="relative group">
+                <Avatar className="h-24 w-24 ring-4 ring-white shadow-lg">
+                  <AvatarImage 
+                    src={profile.avatar}
+                    alt={`${profile.firstName} ${profile.lastName}`}
+                    className="object-cover"
+                  />
+                  <AvatarFallback className="text-xl">
+                    {profile.firstName?.[0]?.toUpperCase()}{profile.lastName?.[0]?.toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <label 
+                  htmlFor="avatarUpload"
+                  className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full cursor-pointer"
+                >
+                  {isUploadingAvatar ? (
+                    <Loader2 className="h-6 w-6 text-white animate-spin" />
+                  ) : (
+                    <Camera className="h-6 w-6 text-white" />
+                  )}
+                </label>
+                <input
+                  id="avatarUpload"
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif"
+                  className="hidden"
+                  onChange={handleAvatarUpload}
+                  disabled={isUploadingAvatar}
+                />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-medium">Profile Photo</p>
+                <p className="text-xs text-muted-foreground">
+                  Click to upload a new photo (Max 5MB)
+                </p>
+              </div>
+            </div>
+
             <div className="grid gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="firstName">First Name</Label>
