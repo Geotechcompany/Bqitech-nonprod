@@ -70,7 +70,7 @@ export default function EmailVerificationPage() {
           }
           
           toast.success('Verification code sent! Check your email.')
-        } catch (error) {
+        } catch (error: any) {
           toast.error(error.message || 'Failed to send verification email')
         } finally {
           setStatus('idle')
@@ -130,7 +130,7 @@ export default function EmailVerificationPage() {
       }
       
       toast.success('New verification code sent!')
-    } catch (error) {
+    } catch (error: any) {
       toast.error(error.message || 'Failed to resend code')
     } finally {
       setStatus('idle')
