@@ -267,28 +267,22 @@ function ApplicationForm() {
       const result = await response.json();
       
       if (!response.ok) {
-        throw new Error(result.error || result.message || 'Submission failed');
+        if (response.status === 400 && result.detail === "You have already applied for this position") {
+          toast.error("You have already applied for this position");
+          router.push('/dashboard/applications');
+          return;
+        }
+        throw new Error(result.detail || 'Failed to submit application');
       }
 
-      // Show success notification with email confirmation
-      toast.success(result.message || 'Application submitted successfully!', {
-        duration: 5000,
-        icon: '✅'
-      });
-
-      // Redirect after short delay
-      setTimeout(() => {
-        router.push('/dashboard/apply/thank-you');
-      }, 2000);
-
-      // Reset form after successful submission
-      reset();
-      
-    } catch (error) {
-      setFormErrors([error.message]);
-      setShowErrorDialog(true);
-    } finally {
+      // Show success message and redirect
+      toast.success('Application submitted successfully!');
+      router.push('/dashboard/apply/thank-you');
+    } catch (error: any) {
       setIsSubmitting(false);
+      toast.error(error.message || 'Failed to submit application');
+      setFormErrors([error.message || 'Failed to submit application']);
+      setShowErrorDialog(true);
     }
   };
 

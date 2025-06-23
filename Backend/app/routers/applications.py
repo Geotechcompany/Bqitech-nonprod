@@ -62,6 +62,24 @@ async def submit_application(
             
         db = get_database()
         
+        # Check for existing application
+        user_id = str(current_user["_id"])
+        job_id = application_data.get("jobId")
+        
+        if not job_id:
+            raise HTTPException(status_code=400, detail="Job ID is required")
+            
+        existing_application = await db.applications.find_one({
+            "userId": user_id,
+            "jobId": job_id
+        })
+        
+        if existing_application:
+            raise HTTPException(
+                status_code=400,
+                detail="You have already applied for this position"
+            )
+        
         # Add timestamps and default status
         application_data["appliedDate"] = datetime.utcnow()
         application_data["status"] = application_data.get("status", "New")
@@ -69,7 +87,6 @@ async def submit_application(
         application_data["updatedAt"] = datetime.utcnow()
         
         # Link the application to the current user
-        user_id = str(current_user["_id"])
         application_data["userId"] = user_id
         logger.info(f"Setting userId to: {user_id}")
         
@@ -985,4 +1002,31 @@ async def get_latest_application(current_user: dict = Depends(get_current_user))
                 
         return convert_objectids_to_strings(latest)
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/check/{job_id}")
+async def check_application(
+    job_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Check if user has already applied for a job"""
+    try:
+        if not is_connected():
+            logger.error("Database not connected")
+            raise HTTPException(status_code=503, detail="Database not available")
+            
+        db = get_database()
+        
+        # Get user ID
+        user_id = str(current_user["_id"])
+        
+        # Check for existing application
+        existing_application = await db.applications.find_one({
+            "userId": user_id,
+            "jobId": job_id
+        })
+        
+        return {"hasApplied": existing_application is not None}
+    except Exception as e:
+        logger.error(f"Error checking application status: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 

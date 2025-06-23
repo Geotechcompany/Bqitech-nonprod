@@ -393,9 +393,20 @@ export const userApi = {
     backendApi.upload('/api/upload/avatar', file),
 
   // Jobs
-  getJobs: (params?: { skip?: number; limit?: number }) =>
-    backendApi.get('/api/jobs', params),
+  async getJobs({ skip = 0, limit = 10 } = {}) {
+    return backendApi.get('/api/jobs', { skip, limit });
+  },
   
+  async hasApplied(jobId: string) {
+    try {
+      const response = await backendApi.get(`/api/applications/check/${jobId}`);
+      return response.hasApplied;
+    } catch (error) {
+      console.error('Error checking application status:', error);
+      return false;
+    }
+  },
+
   getJob: (id: string) =>
     backendApi.get(`/api/jobs/${id}`),
 

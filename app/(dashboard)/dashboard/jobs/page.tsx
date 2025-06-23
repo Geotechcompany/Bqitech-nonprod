@@ -10,9 +10,19 @@ import Loader from "@/components/Loader";
 import { Button } from "@/components/ui/button";
 import { userApi } from "@/lib/api-backend";
 import { toast } from "react-hot-toast";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+interface JobWithApplicationStatus extends JobPosting {
+  hasApplied: boolean;
+}
 
 export default function JobListingsPage() {
-  const [jobPostings, setJobPostings] = useState<JobPosting[]>([]);
+  const [jobPostings, setJobPostings] = useState<JobWithApplicationStatus[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -30,7 +40,15 @@ export default function JobListingsPage() {
         });
         
         if (response.jobs) {
-          setJobPostings(response.jobs);
+          // Check application status for each job
+          const jobsWithStatus = await Promise.all(
+            response.jobs.map(async (job) => {
+              const hasApplied = await userApi.hasApplied(job.id);
+              return { ...job, hasApplied };
+            })
+          );
+          
+          setJobPostings(jobsWithStatus);
           setTotalPages(response.totalPages || 1);
         }
       } catch (error) {
@@ -105,13 +123,33 @@ export default function JobListingsPage() {
               </div>
 
               <div className="pt-4 flex gap-3">
-                <Button
-                  onClick={() => router.push(`/dashboard/apply/${job.id}`)}
-                  className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium py-2 rounded-lg transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg flex items-center justify-center gap-2 group"
-                >
-                  Apply Now
-                  <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex-1">
+                        <Button
+                          onClick={() => !job.hasApplied && router.push(`/dashboard/apply/${job.id}`)}
+                          className={`w-full bg-gradient-to-r ${
+                            job.hasApplied
+                              ? 'from-gray-400 to-gray-500 cursor-not-allowed'
+                              : 'from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800'
+                          } text-white font-medium py-2 rounded-lg transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg flex items-center justify-center gap-2 group`}
+                          disabled={job.hasApplied}
+                        >
+                          {job.hasApplied ? 'Already Applied' : 'Apply Now'}
+                          {!job.hasApplied && (
+                            <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                          )}
+                        </Button>
+                      </div>
+                    </TooltipTrigger>
+                    {job.hasApplied && (
+                      <TooltipContent>
+                        <p>You have already applied for this position</p>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
                 <Button
                   variant="outline"
                   onClick={() => router.push(`/careers/jobs`)}
