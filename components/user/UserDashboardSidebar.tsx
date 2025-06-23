@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   BarChart2,
@@ -12,14 +11,19 @@ import {
   Settings,
   LogOut,
   Menu,
+  ChevronRight,
+  Home,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { User } from "@/types/user";
 
 const tabs = [
   {
     id: "overview",
-    icon: BarChart2,
+    icon: Home,
     label: "Overview",
     href: "/dashboard/overview",
   },
@@ -43,91 +47,179 @@ const tabs = [
   },
 ];
 
-export default function UserDashboardSidebar({ onClose }) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const pathname = usePathname();
-  const router = useRouter();
+interface SidebarProps {
+  onClose: () => void;
+  isCollapsed?: boolean;
+  onCollapse?: (collapsed: boolean) => void;
+}
 
-  const handleLogout = async () => {
-    await signOut({ redirect: false });
-    router.push("/");
-  };
+export default function UserDashboardSidebar({ 
+  onClose,
+  isCollapsed = false,
+  onCollapse
+}: SidebarProps) {
+  const pathname = usePathname();
+  const { user } = useAuth();
+
+  const displayName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : 'User';
+  const userInitial = displayName[0]?.toUpperCase() || 'U';
 
   return (
-    <aside className={cn(
-      "bg-white dark:bg-gray-850 shadow-lg h-full relative transition-all duration-300 ease-in-out",
-      isCollapsed ? "w-20" : "w-64"
-    )}>
-      <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-700">
-        {!isCollapsed && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex items-center"
-          >
-            <Image
-              src="/bqilogo.png"
-              alt="BQI Tech Logo"
-              width={40}
-              height={40}
-              className="mr-2 rounded-lg"
-            />
-            <h1 className="text-xl font-bold text-gray-800 dark:text-white">BQI Tech</h1>
-          </motion.div>
-        )}
-        <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-        >
-          <Menu className="w-6 h-6" />
-        </button>
-      </div>
-
-      <div className="p-4">
-        <nav className="space-y-1">
-          {tabs.map((tab) => (
-            <motion.div
-              key={tab.id}
-              className={cn(
-                "rounded-xl overflow-hidden",
-                pathname === tab.href
-                  ? "bg-blue-50/50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-200"
-                  : "text-gray-600 dark:text-gray-400 hover:bg-gray-100/50 dark:hover:bg-gray-700/50"
-              )}
-              whileHover={{ scale: 1.02 }}
+    <>
+      {/* Desktop Sidebar */}
+      <motion.aside
+        initial={{ width: 256 }}
+        animate={{ width: isCollapsed ? 80 : 256 }}
+        transition={{ type: "spring", stiffness: 200, damping: 25 }}
+        className="hidden md:flex flex-col fixed left-0 top-0 bottom-0 z-[9998] bg-white border-r border-gray-100 flex-shrink-0"
+      >
+        <div className="flex flex-col h-full">
+          {/* Header */}
+          <div className="h-16 flex items-center justify-between px-4 border-b border-gray-100">
+            {!isCollapsed && (
+              <Link href="/dashboard" className="flex items-center space-x-2">
+                <span className="font-semibold text-lg bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  BQI Tech
+                </span>
+              </Link>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onCollapse?.(!isCollapsed)}
+              className="ml-auto"
             >
+              <ChevronRight className={`h-4 w-4 transition-transform ${isCollapsed ? 'rotate-180' : ''}`} />
+            </Button>
+          </div>
+
+          {/* Navigation */}
+          <nav className="flex-1 overflow-y-auto p-3 space-y-2">
+            {tabs.map((tab) => (
               <Link
+                key={tab.id}
                 href={tab.href}
                 className={cn(
-                  "flex items-center px-4 py-3 group",
-                  isCollapsed ? "justify-center" : "justify-start"
+                  "flex items-center px-3 py-2 rounded-lg transition-colors relative group",
+                  pathname === tab.href
+                    ? "bg-blue-50 text-blue-600"
+                    : "text-gray-600 hover:bg-gray-50"
                 )}
-                onClick={onClose}
               >
-                <tab.icon className="w-5 h-5 flex-shrink-0" />
+                <tab.icon className={cn(
+                  "h-5 w-5 transition-colors",
+                  pathname === tab.href ? "text-blue-600" : "text-gray-500 group-hover:text-blue-600"
+                )} />
                 {!isCollapsed && (
-                  <span className="ml-3 text-sm font-medium whitespace-nowrap">
-                    {tab.label}
-                  </span>
+                  <span className="ml-3 font-medium">{tab.label}</span>
+                )}
+                {pathname === tab.href && (
+                  <motion.div
+                    layoutId="activeTab"
+                    className="absolute inset-0 rounded-lg bg-blue-50 -z-10"
+                  />
                 )}
               </Link>
-            </motion.div>
-          ))}
-        </nav>
-      </div>
+            ))}
+          </nav>
 
-      <div className={cn(
-        "absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100 dark:border-gray-700",
-        isCollapsed ? "flex flex-col items-center space-y-3" : "flex justify-between items-center"
-      )}>
-    
-        <button
-          onClick={handleLogout}
-          className="text-red-500 hover:text-red-700 dark:hover:text-red-300 p-2 rounded-lg hover:bg-gray-100/50 dark:hover:bg-gray-700/50"
+          {/* Footer */}
+          <div className="p-4 border-t border-gray-100">
+            <div className={cn(
+              "flex items-center",
+              isCollapsed ? "justify-center" : "space-x-3"
+            )}>
+              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center text-white font-semibold">
+                {userInitial}
+              </div>
+              {!isCollapsed && (
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {displayName}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate">
+                    {user?.email || ''}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </motion.aside>
+
+      {/* Mobile Sidebar */}
+      <div className="md:hidden">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="fixed top-4 right-4 z-50"
+          onClick={onClose}
         >
-          <LogOut className="w-5 h-5" />
-        </button>
+          <Menu className="h-6 w-6" />
+        </Button>
+
+        <motion.div
+          initial={{ x: -300 }}
+          animate={{ x: 0 }}
+          exit={{ x: -300 }}
+          transition={{ type: "spring", stiffness: 200, damping: 25 }}
+          className="fixed inset-0 z-[9999] bg-white w-[280px] shadow-xl"
+        >
+          <div className="flex flex-col h-full">
+            <div className="h-16 flex items-center px-4 border-b border-gray-100">
+              <Link href="/dashboard" className="flex items-center space-x-2">
+                <span className="font-semibold text-lg bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  BQI Tech
+                </span>
+              </Link>
+            </div>
+
+            <nav className="flex-1 overflow-y-auto p-3 space-y-2">
+              {tabs.map((tab) => (
+                <Link
+                  key={tab.id}
+                  href={tab.href}
+                  onClick={onClose}
+                  className={cn(
+                    "flex items-center px-3 py-2 rounded-lg transition-colors relative group",
+                    pathname === tab.href
+                      ? "bg-blue-50 text-blue-600"
+                      : "text-gray-600 hover:bg-gray-50"
+                  )}
+                >
+                  <tab.icon className={cn(
+                    "h-5 w-5 transition-colors",
+                    pathname === tab.href ? "text-blue-600" : "text-gray-500 group-hover:text-blue-600"
+                  )} />
+                  <span className="ml-3 font-medium">{tab.label}</span>
+                  {pathname === tab.href && (
+                    <motion.div
+                      layoutId="activeTabMobile"
+                      className="absolute inset-0 rounded-lg bg-blue-50 -z-10"
+                    />
+                  )}
+                </Link>
+              ))}
+            </nav>
+
+            <div className="p-4 border-t border-gray-100">
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center text-white font-semibold">
+                  {userInitial}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {displayName}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate">
+                    {user?.email || ''}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
       </div>
-    </aside>
+    </>
   );
 }

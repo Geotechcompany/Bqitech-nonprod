@@ -1,14 +1,16 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useContext, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { authService, type User, type SessionData } from '@/lib/auth-backend'
+import { authService } from '@/lib/auth-backend'
+import { User } from '@/types/user'
 
 interface AuthContextType {
-  user: User | null
   isAuthenticated: boolean
   isAdmin: boolean
-  isLoading: boolean
+  user: User | null
+  userRole?: string
+  authLoading: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
   refreshToken: () => Promise<void>
@@ -17,21 +19,38 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [authState, setAuthState] = useState({
+    isAuthenticated: false,
+    isAdmin: false,
+    user: null as User | null,
+    userRole: undefined as string | undefined,
+    authLoading: true
+  })
   const router = useRouter()
 
   useEffect(() => {
-    const initAuth = async () => {
+    const initAuth = () => {
       try {
         const session = authService.getSession()
-        if (session) {
-          setUser(session.user)
+        console.log('Initial auth session:', session)
+        
+        if (session?.token && session?.user) {
+          setAuthState({
+            isAuthenticated: true,
+            isAdmin: session.user.role === 'admin',
+            user: {
+              ...session.user,
+              avatar: session.user.avatar || null
+            },
+            userRole: session.user.role,
+            authLoading: false
+          })
+        } else {
+          setAuthState(prev => ({ ...prev, authLoading: false }))
         }
       } catch (error) {
-        console.error('Failed to initialize auth:', error)
-      } finally {
-        setIsLoading(false)
+        console.error('Auth initialization error:', error)
+        setAuthState(prev => ({ ...prev, authLoading: false }))
       }
     }
 
@@ -40,60 +59,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const response = await authService.login(email, password)
+      console.log('Login successful:', response)
+      
+      setAuthState({
+        isAuthenticated: true,
+        isAdmin: response.user.role === 'admin',
+        user: {
+          ...response.user,
+          avatar: response.user.avatar || null
         },
-        credentials: 'include',
-        body: JSON.stringify({ email, password }),
+        userRole: response.user.role,
+        authLoading: false
       })
-
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.detail || 'Login failed')
-      }
-
-      const data = await response.json()
-      const session: SessionData = {
-        user: data.user,
-        token: data.access_token,
-        refreshToken: data.refresh_token
-      }
-
-      authService.setSession(session)
-      setUser(session.user)
-
-      if (!session.user.isEmailVerified) {
-        router.push(`/auth/verify-email?email=${encodeURIComponent(email)}`)
-        throw new Error('VERIFICATION_REQUIRED')
-      }
-
-      router.push('/dashboard')
-    } catch (error: any) {
+    } catch (error) {
+      console.error('Login error:', error)
+      setAuthState(prev => ({
+        ...prev,
+        isAuthenticated: false,
+        isAdmin: false,
+        user: null,
+        userRole: undefined,
+        authLoading: false
+      }))
       throw error
     }
   }
 
   const logout = async () => {
     try {
-      const session = authService.getSession()
-      if (session) {
-        await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/auth/logout`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.token}`
-          },
-          credentials: 'include'
-        })
-      }
+      await authService.logout()
     } catch (error) {
       console.error('Logout error:', error)
     } finally {
-      authService.clearSession()
-      setUser(null)
-      router.push('/login')
+      setAuthState({
+        isAuthenticated: false,
+        isAdmin: false,
+        user: null,
+        userRole: undefined,
+        authLoading: false
+      })
     }
   }
 
@@ -120,7 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const data = await response.json()
-      const newSession: SessionData = {
+      const newSession = {
         ...session,
         token: data.access_token,
         refreshToken: data.refresh_token
@@ -130,23 +135,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Token refresh failed:', error)
       authService.clearSession()
-      setUser(null)
+      setAuthState(prev => ({
+        ...prev,
+        isAuthenticated: false,
+        isAdmin: false,
+        user: null,
+        userRole: undefined,
+        authLoading: false
+      }))
       router.push('/login')
     }
   }
 
-  const value = {
-    user,
-    isAuthenticated: !!user,
-    isAdmin: user?.role?.toUpperCase() === 'ADMIN' || user?.role?.toUpperCase() === 'SUPER_ADMIN',
-    isLoading,
-    login,
-    logout,
-    refreshToken
-  }
+  console.log('Auth State Debug:', authState)
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider
+      value={{
+        ...authState,
+        login,
+        logout,
+        refreshToken
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )
@@ -162,11 +173,11 @@ export function useAuth() {
 
 // Compatibility hooks for easier migration from NextAuth
 export function useSession() {
-  const { user, isLoading } = useAuth();
+  const { user, authLoading } = useAuth();
   
   return {
     data: user ? { user, expires: new Date(Date.now() + 30 * 60 * 1000).toISOString() } : null,
-    status: isLoading ? 'loading' : user ? 'authenticated' : 'unauthenticated',
+    status: authLoading ? 'loading' : user ? 'authenticated' : 'unauthenticated',
   };
 }
 

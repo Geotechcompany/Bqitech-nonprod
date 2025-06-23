@@ -4,33 +4,28 @@ from app.auth import get_current_admin_user, get_current_user
 from app.models import User, Application, Job, BlogPost, Question
 from app.database import get_database
 from bson import ObjectId
+from bson.errors import InvalidId
 from datetime import datetime, timedelta
 import json
 from fastapi.responses import JSONResponse
-import logging
-
-logger = logging.getLogger(__name__)
+from ..logger import logger
+from fastapi import status
 
 router = APIRouter(tags=["admin"])
 
 def convert_objectids_to_strings(doc):
-    """Convert all ObjectId fields in a document to strings"""
-    if isinstance(doc, dict):
+    """Convert ObjectIds to strings in a document"""
+    if isinstance(doc, list):
+        for item in doc:
+            convert_objectids_to_strings(item)
+        return doc
+    elif isinstance(doc, dict):
         for key, value in doc.items():
             if isinstance(value, ObjectId):
                 doc[key] = str(value)
-            elif isinstance(value, dict):
+            elif isinstance(value, (dict, list)):
                 convert_objectids_to_strings(value)
-            elif isinstance(value, list):
-                doc[key] = convert_objectids_to_strings(value)
-    elif isinstance(doc, list):
-        for i, item in enumerate(doc):
-            if isinstance(item, ObjectId):
-                doc[i] = str(item)
-            elif isinstance(item, dict):
-                convert_objectids_to_strings(item)
-            elif isinstance(item, list):
-                doc[i] = convert_objectids_to_strings(item)
+        return doc
     return doc
 
 @router.get("/test-auth")
@@ -53,7 +48,6 @@ async def test_auth_endpoint(request: Request):
 
 @router.get("/jobs")
 async def get_jobs(
-    request: Request,
     current_user: dict = Depends(get_current_admin_user)
 ):
     """Get all jobs for admin use"""
@@ -74,30 +68,143 @@ async def get_jobs(
 async def get_job_postings(
     current_user: dict = Depends(get_current_admin_user),
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100)
+    limit: int = Query(50, ge=1, le=100),
+    search: Optional[str] = Query(None, description="Search in title and description"),
+    status: Optional[bool] = Query(None, description="Filter by isActive status"),
+    department: Optional[str] = Query(None, description="Filter by department"),
+    location: Optional[str] = Query(None, description="Filter by location"),
+    sort_by: Optional[str] = Query("createdAt", description="Field to sort by (createdAt, title, department, location)"),
+    sort_order: Optional[str] = Query("desc", description="Sort order (asc, desc)")
 ):
     """Get all job postings"""
-    db = get_database()
-    
-    postings_cursor = db.jobpostings.find({}).skip(skip).limit(limit).sort("createdAt", -1)
-    postings = await postings_cursor.to_list(length=limit)
-    total = await db.jobpostings.count_documents({})
-    
-    # Convert all ObjectIds to strings
-    for posting in postings:
-        convert_objectids_to_strings(posting)
-        posting["id"] = str(posting["_id"])
-        # Ensure required fields exist with defaults
-        if "isActive" not in posting:
-            posting["isActive"] = True
-        if "department" not in posting:
-            posting["department"] = "N/A"
-        if "location" not in posting:
-            posting["location"] = "N/A"
-        if "postedDate" not in posting:
-            posting["postedDate"] = posting.get("createdAt", datetime.utcnow()).isoformat()
-    
-    return {"jobPostings": postings, "total": total}
+    try:
+        db = get_database()
+        
+        # Validate sort parameters
+        valid_sort_fields = ["createdAt", "title", "department", "location"]
+        if sort_by not in valid_sort_fields:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid sort_by field. Must be one of: {', '.join(valid_sort_fields)}"
+            )
+        
+        if sort_order not in ["asc", "desc"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid sort_order. Must be 'asc' or 'desc'"
+            )
+        
+        # Build query
+        query = {}
+        
+        # Add search
+        if search:
+            query["$or"] = [
+                {"title": {"$regex": search, "$options": "i"}},
+                {"description": {"$regex": search, "$options": "i"}}
+            ]
+        
+        # Add filters
+        if status is not None:
+            query["isActive"] = status
+        if department:
+            query["department"] = department
+        if location:
+            query["location"] = location
+        
+        # Build sort
+        sort_direction = -1 if sort_order == "desc" else 1
+        sort_options = [(sort_by, sort_direction)]
+        
+        # Get job postings
+        postings_cursor = db.jobpostings.find(query).skip(skip).limit(limit).sort(sort_options)
+        postings = await postings_cursor.to_list(length=limit)
+        total = await db.jobpostings.count_documents(query)
+        
+        # Convert ObjectIds to strings and add required fields
+        for posting in postings:
+            try:
+                convert_objectids_to_strings(posting)
+                posting["id"] = str(posting["_id"])
+                
+                # Ensure required fields exist with defaults
+                if "isActive" not in posting:
+                    posting["isActive"] = True
+                if "department" not in posting:
+                    posting["department"] = "N/A"
+                if "location" not in posting:
+                    posting["location"] = "N/A"
+                if "postedDate" not in posting:
+                    posting["postedDate"] = posting.get("createdAt", datetime.utcnow()).isoformat()
+                
+                # Get application count for each job
+                try:
+                    posting["applicationCount"] = await db.applications.count_documents({"jobId": str(posting["_id"])})
+                except Exception as e:
+                    logger.error(f"Error getting application count for job {posting['_id']}: {str(e)}")
+                    posting["applicationCount"] = 0
+                
+                # Get creator details
+                if "createdBy" in posting:
+                    try:
+                        creator = await db.users.find_one({"_id": ObjectId(posting["createdBy"])}, {"password": 0})
+                        if creator:
+                            convert_objectids_to_strings(creator)
+                            posting["creatorDetails"] = creator
+                        else:
+                            posting["creatorDetails"] = None
+                    except Exception as e:
+                        logger.error(f"Error getting creator details for job {posting['_id']}: {str(e)}")
+                        posting["creatorDetails"] = None
+                
+                # Get questions count
+                try:
+                    posting["questionsCount"] = await db.jobquestions.count_documents({"jobId": str(posting["_id"])})
+                except Exception as e:
+                    logger.error(f"Error getting questions count for job {posting['_id']}: {str(e)}")
+                    posting["questionsCount"] = 0
+            except Exception as e:
+                logger.error(f"Error processing job posting {posting.get('_id', 'unknown')}: {str(e)}")
+                continue
+        
+        # Get unique departments and locations for filters
+        try:
+            departments = await db.jobpostings.distinct("department")
+            locations = await db.jobpostings.distinct("location")
+        except Exception as e:
+            logger.error(f"Error getting distinct values: {str(e)}")
+            departments = []
+            locations = []
+        
+        response_data = {
+            "jobPostings": postings,
+            "total": total,
+            "filters": {
+                "departments": departments,
+                "locations": locations
+            },
+            "sort": {
+                "field": sort_by,
+                "order": sort_order
+            }
+        }
+        
+        # Return with proper JSON serialization
+        return JSONResponse(
+            content=json.loads(json.dumps(response_data, cls=CustomJSONEncoder)),
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization"
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error in get_job_postings: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to get job postings"
+        )
 
 @router.post("/job-postings")
 async def create_job_posting(
@@ -276,7 +383,6 @@ async def delete_user(
 # Blog Posts endpoints
 @router.get("/blog-posts")
 async def get_blog_posts(
-    request: Request,
     current_user: dict = Depends(get_current_admin_user),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100)
@@ -284,44 +390,49 @@ async def get_blog_posts(
     """Get all blog posts"""
     try:
         db = get_database()
+        if db is None:
+            raise HTTPException(status_code=503, detail="Database not available")
         
         posts_cursor = db.blogposts.find({}).skip(skip).limit(limit).sort("createdAt", -1)
         posts = await posts_cursor.to_list(length=limit)
         total = await db.blogposts.count_documents({})
         
-        # Convert ObjectIds and datetime objects to strings
+        # Convert ObjectIds to strings and format dates
         for post in posts:
-            post["_id"] = str(post["_id"])
+            convert_objectids_to_strings(post)
             post["id"] = str(post["_id"])
-            if "createdAt" in post and isinstance(post["createdAt"], datetime):
+            
+            # Format dates
+            if "createdAt" in post and hasattr(post["createdAt"], "isoformat"):
                 post["createdAt"] = post["createdAt"].isoformat()
-            if "updatedAt" in post and isinstance(post["updatedAt"], datetime):
+            if "updatedAt" in post and hasattr(post["updatedAt"], "isoformat"):
                 post["updatedAt"] = post["updatedAt"].isoformat()
-            if "publishedAt" in post and isinstance(post["publishedAt"], datetime):
+            if "publishedAt" in post and hasattr(post["publishedAt"], "isoformat"):
                 post["publishedAt"] = post["publishedAt"].isoformat()
+                
+            # Ensure required fields are present
+            post.setdefault("title", "")
+            post.setdefault("content", "")
+            post.setdefault("excerpt", "")
+            post.setdefault("category", "Uncategorized")
+            post.setdefault("tags", [])
+            post.setdefault("imageUrl", "")
+            post.setdefault("readTime", "")
+            post.setdefault("published", False)
+            post.setdefault("isPublished", False)
         
+        # Return with the expected structure
         return JSONResponse(
             content={"blogPosts": posts, "total": total},
             headers={
-                "Access-Control-Allow-Origin": request.headers.get("origin", "http://localhost:3000"),
-                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "GET, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept"
             }
         )
     except Exception as e:
         logger.error(f"Error in get_blog_posts: {str(e)}")
-        logger.exception("Full traceback:")
-        return JSONResponse(
-            content={"detail": str(e)},
-            status_code=500,
-            headers={
-                "Access-Control-Allow-Origin": request.headers.get("origin", "http://localhost:3000"),
-                "Access-Control-Allow-Credentials": "true",
-                "Access-Control-Allow-Methods": "GET, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
-            }
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.options("/blog-posts", include_in_schema=False)
 async def options_blog_posts(request: Request):
@@ -331,7 +442,7 @@ async def options_blog_posts(request: Request):
         content={"message": "OK"},
         headers={
             "Access-Control-Allow-Origin": origin,
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
             "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
             "Access-Control-Allow-Credentials": "true",
             "Access-Control-Max-Age": "3600",
@@ -340,52 +451,21 @@ async def options_blog_posts(request: Request):
 
 @router.post("/blog-posts")
 async def create_blog_post(
-    request: Request,
     post_data: Dict[str, Any],
     current_user: dict = Depends(get_current_admin_user)
 ):
     """Create new blog post"""
-    try:
-        db = get_database()
-        
-        post_data["createdAt"] = datetime.utcnow()
-        post_data["updatedAt"] = datetime.utcnow()
-        post_data["authorId"] = str(current_user["_id"])
-        
-        result = await db.blogposts.insert_one(post_data)
-        post_data["_id"] = str(result.inserted_id)
-        post_data["id"] = str(result.inserted_id)
-        
-        # Convert datetime objects to strings for response
-        if "createdAt" in post_data and isinstance(post_data["createdAt"], datetime):
-            post_data["createdAt"] = post_data["createdAt"].isoformat()
-        if "updatedAt" in post_data and isinstance(post_data["updatedAt"], datetime):
-            post_data["updatedAt"] = post_data["updatedAt"].isoformat()
-        if "publishedAt" in post_data and isinstance(post_data["publishedAt"], datetime):
-            post_data["publishedAt"] = post_data["publishedAt"].isoformat()
-        
-        return JSONResponse(
-            content=post_data,
-            headers={
-                "Access-Control-Allow-Origin": request.headers.get("origin", "http://localhost:3000"),
-                "Access-Control-Allow-Credentials": "true",
-                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
-            }
-        )
-    except Exception as e:
-        logger.error(f"Error in create_blog_post: {str(e)}")
-        logger.exception("Full traceback:")
-        return JSONResponse(
-            content={"detail": str(e)},
-            status_code=500,
-            headers={
-                "Access-Control-Allow-Origin": request.headers.get("origin", "http://localhost:3000"),
-                "Access-Control-Allow-Credentials": "true",
-                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
-            }
-        )
+    db = get_database()
+    
+    post_data["createdAt"] = datetime.utcnow()
+    post_data["updatedAt"] = datetime.utcnow()
+    post_data["authorId"] = str(current_user["_id"])
+    
+    result = await db.blogposts.insert_one(post_data)
+    post_data["_id"] = str(result.inserted_id)
+    post_data["id"] = str(result.inserted_id)
+    
+    return post_data
 
 @router.get("/blog-posts/{post_id}")
 async def get_blog_post(
@@ -430,6 +510,40 @@ async def update_blog_post(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.patch("/blog-posts/{post_id}")
+async def patch_blog_post(
+    post_id: str,
+    update_data: Dict[str, Any],
+    current_user: dict = Depends(get_current_admin_user)
+):
+    """Patch blog post (for partial updates like status changes)"""
+    try:
+        db = get_database()
+        if db is None:
+            raise HTTPException(status_code=503, detail="Database not available")
+        
+        update_data["updatedAt"] = datetime.utcnow()
+        
+        result = await db.blogposts.update_one(
+            {"_id": ObjectId(post_id)},
+            {"$set": update_data}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Blog post not found")
+        
+        return JSONResponse(
+            content={"message": "Blog post updated successfully"},
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "PATCH, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept"
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error in patch_blog_post: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.delete("/blog-posts/{post_id}")
 async def delete_blog_post(
     post_id: str,
@@ -447,83 +561,71 @@ async def delete_blog_post(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.options("/blog-posts/{post_id}", include_in_schema=False)
+async def options_blog_post_by_id(request: Request, post_id: str):
+    """Handle CORS preflight requests for specific blog post"""
+    origin = request.headers.get("origin", "http://localhost:3000")
+    return JSONResponse(
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "GET, PUT, PATCH, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "3600",
+        }
+    )
+
 # Analytics and Overview endpoints
 @router.get("/overview")
 async def get_admin_overview(
-    request: Request,
     current_user: dict = Depends(get_current_admin_user)
 ):
-    """Get admin dashboard overview"""
+    """Get admin overview"""
     try:
         db = get_database()
+        if db is None:
+            raise HTTPException(status_code=503, detail="Database connection failed")
         
-        # Get applications by status
-        pipeline = [
-            {
-                "$facet": {
-                    "total": [{"$count": "count"}],
-                    "new": [{"$match": {"status": "Applied"}}, {"$count": "count"}],
-                    "shortlisted": [{"$match": {"status": "Shortlisted"}}, {"$count": "count"}],
-                    "interviewing": [{"$match": {"status": "Interviewing"}}, {"$count": "count"}],
-                    "hired": [{"$match": {"status": "Hired"}}, {"$count": "count"}],
-                    "rejected": [{"$match": {"status": "Rejected"}}, {"$count": "count"}],
-                    "technical_assessment": [{"$match": {"status": "Technical Assessment"}}, {"$count": "count"}],
-                    "disqualified": [{"$match": {"status": "Disqualified"}}, {"$count": "count"}],
-                    "recent": [
-                        {
-                            "$match": {
-                                "appliedDate": {
-                                    "$gte": datetime.utcnow() - timedelta(days=7)
-                                }
-                            }
-                        },
-                        {"$count": "count"}
-                    ]
-                }
-            }
-        ]
-        
-        application_stats = await db.applications.aggregate(pipeline).to_list(length=1)
-        stats = application_stats[0] if application_stats else {}
-        
-        # Get active jobs count
-        active_jobs = await db.jobpostings.count_documents({"isActive": True})
-        total_jobs = await db.jobpostings.count_documents({})
-        
-        # Get total users
+        # Get base counts
         total_users = await db.users.count_documents({})
+        total_jobs = await db.jobpostings.count_documents({})
+        active_jobs = await db.jobpostings.count_documents({"status": "active"})
+        total_applications = await db.applications.count_documents({})
+        
+        # Get application counts by status
+        new_applications = await db.applications.count_documents({"status": "New"})
+        shortlisted = await db.applications.count_documents({"status": "Shortlisted"})
+        interviewing = await db.applications.count_documents({"status": "Interviewing"})
+        hired = await db.applications.count_documents({"status": "Hired"})
+        rejected = await db.applications.count_documents({"status": "Rejected"})
+        technical_assessment = await db.applications.count_documents({"status": "Technical Assessment"})
+        disqualified = await db.applications.count_documents({"status": "Disqualified"})
+        
+        # Get recent applications (last 7 days)
+        seven_days_ago = datetime.utcnow() - timedelta(days=7)
+        recent_count = await db.applications.count_documents({
+            "createdAt": {"$gte": seven_days_ago}
+        })
         
         # Get status breakdown for chart
-        status_pipeline = [
-            {"$group": {"_id": "$status", "count": {"$sum": 1}}}
-        ]
-        status_breakdown = await db.applications.aggregate(status_pipeline).to_list(length=None)
+        status_breakdown = []
+        statuses = ["New", "Shortlisted", "Interviewing", "Technical Assessment", "Hired", "Rejected", "Disqualified"]
+        for status in statuses:
+            count = await db.applications.count_documents({"status": status})
+            status_breakdown.append({"status": status, "count": count})
         
-        # Format status breakdown to match frontend expectations
-        formatted_status_breakdown = []
-        for item in status_breakdown:
-            if item["_id"] is not None:  # Skip null statuses
-                formatted_status_breakdown.append({
-                    "status": item["_id"],
-                    "count": item["count"]
-                })
-        
-        # Safely get counts with default values
-        def get_count(key):
-            result = stats.get(key, [])
-            return result[0].get("count", 0) if result else 0
-        
-        response = {
+        response_data = {
             "applications": {
-                "total": get_count("total"),
-                "new": get_count("new"),
-                "shortlisted": get_count("shortlisted"),
-                "interviewing": get_count("interviewing"),
-                "hired": get_count("hired"),
-                "rejected": get_count("rejected"),
-                "technical_assessment": get_count("technical_assessment"),
-                "disqualified": get_count("disqualified"),
-                "recent": get_count("recent")
+                "total": total_applications,
+                "new": new_applications,
+                "shortlisted": shortlisted,
+                "interviewing": interviewing,
+                "hired": hired,
+                "rejected": rejected,
+                "technical_assessment": technical_assessment,
+                "disqualified": disqualified,
+                "recent": recent_count
             },
             "jobs": {
                 "total": total_jobs,
@@ -532,174 +634,215 @@ async def get_admin_overview(
             "users": {
                 "total": total_users
             },
-            "status_breakdown": formatted_status_breakdown
+            "status_breakdown": status_breakdown
         }
         
-        # Add CORS headers to the response
         return JSONResponse(
-            content=response,
+            content=json.loads(json.dumps(response_data, cls=CustomJSONEncoder)),
             headers={
-                "Access-Control-Allow-Origin": request.headers.get("origin", "http://localhost:3000"),
-                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "GET, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization"
             }
         )
+        
     except Exception as e:
         logger.error(f"Error in get_admin_overview: {str(e)}")
-        logger.exception("Full traceback:")
-        return JSONResponse(
-            content={"detail": str(e)},
-            status_code=500,
-            headers={
-                "Access-Control-Allow-Origin": request.headers.get("origin", "http://localhost:3000"),
-                "Access-Control-Allow-Credentials": "true",
-                "Access-Control-Allow-Methods": "GET, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
-            }
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
-@router.options("/overview", include_in_schema=False)
+@router.options("/overview")
 async def options_overview(request: Request):
-    """Handle CORS preflight requests"""
+    """Handle CORS preflight requests for overview endpoint"""
     origin = request.headers.get("origin", "http://localhost:3000")
     return JSONResponse(
         content={"message": "OK"},
         headers={
             "Access-Control-Allow-Origin": origin,
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
             "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
             "Access-Control-Allow-Credentials": "true",
             "Access-Control-Max-Age": "3600",
         }
     )
 
+class CustomJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, (ObjectId, datetime)):
+            return str(obj)
+        return super().default(obj)
+
 @router.get("/applications")
 async def get_admin_applications(
-    request: Request,
     current_user: dict = Depends(get_current_admin_user),
     limit: int = Query(10, ge=1, le=100),
     skip: int = Query(0, ge=0),
-    status: Optional[str] = None
+    status: Optional[str] = None,
+    sort_by: Optional[str] = Query("createdAt", description="Field to sort by (createdAt, status, updatedAt)"),
+    sort_order: Optional[str] = Query("desc", description="Sort order (asc, desc)")
 ):
     """Get applications for admin"""
     try:
         db = get_database()
+        if db is None:
+            raise HTTPException(status_code=503, detail="Database not available")
         
         # Build query
         query = {}
         if status:
             query["status"] = status
+            
+        # Get applications with pagination
+        sort_direction = -1 if sort_order == "desc" else 1
+        sort_field = sort_by if sort_by in ["createdAt", "status", "updatedAt"] else "createdAt"
         
-        # Get applications sorted by appliedDate in descending order
-        pipeline = [
-            {"$match": query},
-            {"$sort": {"appliedDate": -1}},  # Sort by appliedDate in descending order
-            {"$skip": skip},
-            {"$limit": limit}
-        ]
-        
-        # Execute aggregation pipeline
-        applications = await db.applications.aggregate(pipeline).to_list(length=None)
+        applications_cursor = db.applications.find(query).skip(skip).limit(limit).sort(sort_field, sort_direction)
+        applications = await applications_cursor.to_list(length=limit)
         total = await db.applications.count_documents(query)
         
-        # Convert ObjectIds and format response
+        # Convert ObjectIds to strings and add job details
         for app in applications:
-            convert_objectids_to_strings(app)
-            app["id"] = str(app["_id"])
+            app["id"] = str(app.pop("_id"))
             
-            # Ensure dates are in ISO format
-            if "appliedDate" in app:
-                app["appliedDate"] = app["appliedDate"].isoformat() if app["appliedDate"] else None
-            if "createdAt" in app:
-                app["createdAt"] = app["createdAt"].isoformat() if app["createdAt"] else None
-            if "updatedAt" in app:
-                app["updatedAt"] = app["updatedAt"].isoformat() if app["updatedAt"] else None
+            # Convert datetime fields
+            for field in ["createdAt", "updatedAt", "appliedDate"]:
+                if field in app and isinstance(app[field], datetime):
+                    app[field] = app[field].isoformat()
             
-            # Format answers if they exist
-            if "answers" in app:
-                for answer in app.get("answers", []):
-                    # Ensure questionText is present (for backward compatibility)
-                    if "question" in answer and "questionText" not in answer:
-                        answer["questionText"] = answer["question"]
+            # Get job details
+            if "jobId" in app:
+                try:
+                    job = await db.jobpostings.find_one({"_id": ObjectId(app["jobId"])})
+                    if job:
+                        job["id"] = str(job.pop("_id"))
+                        # Convert datetime fields in job
+                        for field in ["createdAt", "updatedAt", "postedDate"]:
+                            if field in job and isinstance(job[field], datetime):
+                                job[field] = job[field].isoformat()
+                        app["jobDetails"] = job
+                        app["position"] = job.get("title", "Unknown Position")
+                    else:
+                        app["jobDetails"] = None
+                        app["position"] = "Unknown Position"
+                except Exception as e:
+                    logger.error(f"Error getting job details for application {app['id']}: {str(e)}")
+                    app["jobDetails"] = None
+                    app["position"] = "Unknown Position"
+            
+            # Get user details
+            if "userId" in app:
+                try:
+                    user = await db.users.find_one({"_id": ObjectId(app["userId"])}, {"password": 0})
+                    if user:
+                        user["id"] = str(user.pop("_id"))
+                        # Convert datetime fields in user
+                        for field in ["createdAt", "updatedAt", "lastLoginAt"]:
+                            if field in user and isinstance(user[field], datetime):
+                                user[field] = user[field].isoformat()
+                        app["userDetails"] = user
+                    else:
+                        app["userDetails"] = None
+                except Exception as e:
+                    logger.error(f"Error getting user details for application {app['id']}: {str(e)}")
+                    app["userDetails"] = None
         
-        # Log the response for debugging
-        logger.info(f"Returning {len(applications)} applications")
-        logger.debug(f"First application date: {applications[0]['appliedDate'] if applications else 'No applications'}")
-        
-        return {
+        response_data = {
             "applications": applications,
             "total": total,
-            "page": skip // limit + 1,
-            "totalPages": (total + limit - 1) // limit
+            "sort": {
+                "field": sort_by,
+                "order": sort_order
+            }
         }
+        
+        # Use custom JSON encoder to handle any remaining datetime objects
+        return JSONResponse(
+            content=json.loads(json.dumps(response_data, cls=CustomJSONEncoder)),
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization"
+            }
+        )
+        
     except Exception as e:
         logger.error(f"Error in get_admin_applications: {str(e)}")
-        logger.exception("Full traceback:")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/trends")
 async def get_application_trends(
-    request: Request,
     current_user: dict = Depends(get_current_admin_user),
     days: int = Query(30, ge=1, le=365)
 ):
-    """Get application trends data"""
-    try:
-        db = get_database()
-        
-        # Calculate date range
-        end_date = datetime.utcnow()
-        start_date = end_date - timedelta(days=days)
-        
-        # Aggregate applications by date
-        pipeline = [
-            {
-                "$match": {
-                    "appliedDate": {"$gte": start_date, "$lte": end_date}
+    """Get application trends"""
+    db = get_database()
+    
+    # Calculate date range
+    end_date = datetime.utcnow()
+    start_date = end_date - timedelta(days=days)
+    
+    # Get daily application counts
+    pipeline = [
+        {
+            "$match": {
+                "createdAt": {
+                    "$gte": start_date,
+                    "$lte": end_date
                 }
-            },
-            {
-                "$group": {
-                    "_id": {
-                        "$dateToString": {
-                            "format": "%Y-%m-%d",
-                            "date": "$appliedDate"
-                        }
-                    },
-                    "count": {"$sum": 1}
-                }
-            },
-            {"$sort": {"_id": 1}}
-        ]
-        
-        trends = await db.applications.aggregate(pipeline).to_list(length=None)
-        
-        # Format response
-        return {
-            "trends": [
-                {"date": item["_id"], "count": item["count"]}
-                for item in trends
-            ]
+            }
+        },
+        {
+            "$group": {
+                "_id": {
+                    "$dateToString": {
+                        "format": "%Y-%m-%d",
+                        "date": "$createdAt"
+                    }
+                },
+                "count": {"$sum": 1}
+            }
+        },
+        {
+            "$sort": {"_id": 1}
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    ]
+    
+    daily_counts = await db.applications.aggregate(pipeline).to_list(length=None)
+    
+    # Format response
+    trends = []
+    current_date = start_date
+    while current_date <= end_date:
+        date_str = current_date.strftime("%Y-%m-%d")
+        count = next((item["count"] for item in daily_counts if item["_id"] == date_str), 0)
+        trends.append({
+            "date": date_str,
+            "count": count
+        })
+        current_date += timedelta(days=1)
+    
+    return {"trends": trends}
 
 @router.get("/applications-by-job")
 async def get_applications_by_job(
-    request: Request,
     current_user: dict = Depends(get_current_admin_user)
 ):
     """Get applications grouped by job"""
     try:
         db = get_database()
+        if db is None:
+            raise HTTPException(status_code=503, detail="Database not available")
         
-        # Aggregate applications by job
+        # Get applications grouped by job
         pipeline = [
             {
+                "$addFields": {
+                    "jobIdStr": { "$toString": "$jobId" }
+                }
+            },
+            {
                 "$group": {
-                    "_id": "$position",
-                    "count": {"$sum": 1},
+                    "_id": "$jobIdStr",
+                    "count": { "$sum": 1 },
                     "statuses": {
                         "$push": "$status"
                     }
@@ -707,73 +850,111 @@ async def get_applications_by_job(
             }
         ]
         
-        results = await db.applications.aggregate(pipeline).to_list(length=None)
+        job_stats = await db.applications.aggregate(pipeline).to_list(length=None)
         
-        # Format response
-        formatted_results = []
-        for result in results:
-            status_counts = {}
-            for status in result["statuses"]:
-                status_counts[status] = status_counts.get(status, 0) + 1
-            
-            formatted_results.append({
-                "position": result["_id"],
-                "totalApplications": result["count"],
-                "statusBreakdown": status_counts
-            })
+        # Get job details and format response
+        result = []
+        for stat in job_stats:
+            try:
+                job = await db.jobpostings.find_one({"_id": ObjectId(stat["_id"])})
+                if job:
+                    # Count status breakdown
+                    status_breakdown = {}
+                    for status in stat["statuses"]:
+                        status_breakdown[status] = status_breakdown.get(status, 0) + 1
+                    
+                    job_data = {
+                        "jobId": str(stat["_id"]),
+                        "position": job.get("title", "Unknown Job"),  # Frontend expects 'position' not 'title'
+                        "title": job.get("title", "Unknown Job"),
+                        "department": job.get("department", "N/A"),
+                        "totalApplications": stat["count"],  # Frontend expects 'totalApplications' not 'count'
+                        "count": stat["count"],
+                        "statuses": stat["statuses"],
+                        "statusBreakdown": status_breakdown
+                    }
+                    # Convert any datetime fields
+                    for field in ["createdAt", "updatedAt", "postedDate"]:
+                        if field in job and isinstance(job[field], datetime):
+                            job_data[field] = job[field].isoformat()
+                    result.append(job_data)
+            except Exception as e:
+                logger.error(f"Error processing job stats: {str(e)}")
+                continue
         
-        return {"applicationsByJob": formatted_results}
+        response_data = {"applicationsByJob": result}  # Frontend expects 'applicationsByJob' not 'jobs'
+        return JSONResponse(
+            content=json.loads(json.dumps(response_data, cls=CustomJSONEncoder)),
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization"
+            }
+        )
+        
     except Exception as e:
+        logger.error(f"Error in get_applications_by_job: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # Questions Management
 @router.get("/questions")
 async def get_questions(
-    request: Request,
     current_user: dict = Depends(get_current_admin_user),
     job_id: Optional[str] = Query(None)
 ):
     """Get all questions, optionally filtered by job"""
-    db = get_database()
-    
-    filter_query = {}
-    if job_id:
-        filter_query["jobId"] = job_id
-    
-    questions_cursor = db.jobquestions.find(filter_query).sort("order", 1)
-    questions = await questions_cursor.to_list(length=None)
-    
-    # Convert ObjectIds to strings and add id field
-    questions = convert_objectids_to_strings(questions)
-    
-    # Get job titles for each question and ensure proper fields
-    for i, question in enumerate(questions):
-        question["id"] = str(question["_id"])
+    try:
+        db = get_database()
+        if db is None:
+            raise HTTPException(status_code=503, detail="Database not available")
         
-        # Ensure order field exists
-        if "order" not in question or question["order"] is None:
-            question["order"] = i
+        filter_query = {}
+        if job_id:
+            filter_query["jobId"] = job_id
         
-        # Get associated job titles
-        if "jobIds" in question and question["jobIds"]:
-            job_titles = []
-            for job_id in question["jobIds"]:
-                try:
-                    job = await db.jobpostings.find_one({"_id": ObjectId(job_id)}, {"title": 1})
-                    if job:
-                        job_titles.append(job["title"])
-                except:
-                    continue
-            question["jobTitles"] = job_titles
-        else:
-            question["jobTitles"] = []
-    
-    return {"questions": questions}
+        questions_cursor = db.jobquestions.find(filter_query).sort("order", 1)
+        questions = await questions_cursor.to_list(length=None)
+        
+        # Convert ObjectIds to strings and add id field
+        for question in questions:
+            convert_objectids_to_strings(question)
+            question["id"] = str(question.pop("_id"))
+            
+            # Ensure order field exists
+            if "order" not in question or question["order"] is None:
+                question["order"] = 0
+            
+            # Get associated job titles
+            if "jobIds" in question and question["jobIds"]:
+                job_titles = []
+                for job_id in question["jobIds"]:
+                    try:
+                        job = await db.jobpostings.find_one({"_id": ObjectId(job_id)}, {"title": 1})
+                        if job:
+                            job_titles.append(job["title"])
+                    except:
+                        continue
+                question["jobTitles"] = job_titles
+            else:
+                question["jobTitles"] = []
+        
+        # Return with proper JSON serialization and CORS headers
+        return JSONResponse(
+            content=json.loads(json.dumps({"questions": questions}, cls=CustomJSONEncoder)),
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization"
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error in get_questions: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/questions")
 async def create_question(
     question_data: Dict[str, Any],
-    request: Request,
     current_user: dict = Depends(get_current_admin_user)
 ):
     """Create new question"""
@@ -788,19 +969,35 @@ async def create_question(
     
     return question_data
 
+@router.get("/questions/{question_id}")
+async def get_question(
+    question_id: str,
+    current_user: dict = Depends(get_current_admin_user)
+):
+    """Get specific question"""
+    db = get_database()
+    
+    try:
+        question = await db.jobquestions.find_one({"_id": ObjectId(question_id)})
+        if not question:
+            raise HTTPException(status_code=404, detail="Question not found")
+        
+        convert_objectids_to_strings(question)
+        question["id"] = str(question.pop("_id"))
+        return question
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Invalid question ID")
+
 @router.put("/questions/{question_id}")
 async def update_question(
     question_id: str,
     update_data: Dict[str, Any],
-    request: Request,
     current_user: dict = Depends(get_current_admin_user)
 ):
     """Update question"""
     db = get_database()
     
     try:
-        update_data["updatedAt"] = datetime.utcnow()
-        
         result = await db.jobquestions.update_one(
             {"_id": ObjectId(question_id)},
             {"$set": update_data}
@@ -810,13 +1007,12 @@ async def update_question(
             raise HTTPException(status_code=404, detail="Question not found")
         
         return {"message": "Question updated successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Invalid question ID")
 
 @router.delete("/questions/{question_id}")
 async def delete_question(
     question_id: str,
-    request: Request,
     current_user: dict = Depends(get_current_admin_user)
 ):
     """Delete question"""
@@ -828,39 +1024,51 @@ async def delete_question(
             raise HTTPException(status_code=404, detail="Question not found")
         
         return {"message": "Question deleted successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Invalid question ID")
 
-@router.put("/questions/reorder")
+@router.put("/questions/reorder-questions")
 async def reorder_questions(
     reorder_data: Dict[str, Any],
-    request: Request,
     current_user: dict = Depends(get_current_admin_user)
 ):
     """Reorder questions"""
-    db = get_database()
-    
     try:
-        updates = reorder_data.get("updates", [])
+        db = get_database()
+        if db is None:
+            raise HTTPException(status_code=503, detail="Database not available")
         
+        updates = reorder_data.get("updates", [])
         for update in updates:
-            question_id = update.get("id")
-            new_order = update.get("order")
-            
-            if question_id and new_order is not None:
+            try:
                 await db.jobquestions.update_one(
-                    {"_id": ObjectId(question_id)},
-                    {"$set": {"order": new_order, "updatedAt": datetime.utcnow()}}
+                    {"_id": ObjectId(update["id"])},
+                    {"$set": {"order": update["order"]}}
+                )
+            except InvalidId:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid question ID: {update['id']}"
                 )
         
         return {"message": "Questions reordered successfully"}
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error(f"Error in reorder_questions: {str(e)}")
+        logger.exception("Full traceback:")
+    db = get_database()
+    
+    updates = reorder_data.get("updates", [])
+    for update in updates:
+        await db.jobquestions.update_one(
+            {"_id": ObjectId(update["id"])},
+            {"$set": {"order": update["order"]}}
+        )
+    
+    return {"message": "Questions reordered successfully"}
 
 # Settings endpoints
 @router.get("/settings")
 async def get_admin_settings(
-    request: Request,
     current_user: dict = Depends(get_current_admin_user)
 ):
     """Get admin settings"""
@@ -868,28 +1076,47 @@ async def get_admin_settings(
         db = get_database()
         
         settings = await db.settings.find_one({"type": "admin"})
+        
         if not settings:
-            # Create default settings if none exist
-            default_settings = {
+            # Create default settings
+            settings = {
                 "type": "admin",
-                "emailNotifications": True,
-                "autoApproval": False,
-                "maintenanceMode": False,
-                "maxFileSize": 10485760,  # 10MB
-                "allowedFileTypes": ["pdf", "doc", "docx"],
                 "createdAt": datetime.utcnow(),
-                "updatedAt": datetime.utcnow()
+                "updatedAt": datetime.utcnow(),
+                "jobSettings": {
+                    "autoClose": True,
+                    "autoCloseAfterDays": 30,
+                    "requireApproval": True,
+                    "notifyOnNewApplications": True
+                },
+                "emailSettings": {
+                    "sendWelcomeEmail": True,
+                    "sendApplicationConfirmation": True,
+                    "sendStatusUpdates": True
+                },
+                "applicationSettings": {
+                    "allowReapply": True,
+                    "reapplyWaitDays": 90,
+                    "maxActiveApplications": 5
+                }
             }
-            await db.settings.insert_one(default_settings)
-            settings = default_settings
+            try:
+                result = await db.settings.insert_one(settings)
+                settings["_id"] = str(result.inserted_id)
+            except Exception as e:
+                logger.error(f"Error creating default settings: {str(e)}")
+                logger.exception("Full traceback:")
+                raise HTTPException(status_code=500, detail="Failed to create default settings")
+        else:
+            # Convert ObjectIds to strings
+            convert_objectids_to_strings(settings)
+            settings["id"] = str(settings["_id"])
         
-        # Convert ObjectId to string if present
-        if "_id" in settings:
-            settings["_id"] = str(settings["_id"])
-        
-        return settings
+        return {"settings": settings}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch settings: {str(e)}")
+        logger.error(f"Error in get_admin_settings: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/settings/test")
 async def test_settings_endpoint():
@@ -906,114 +1133,95 @@ async def update_admin_settings(
     current_user: dict = Depends(get_current_admin_user)
 ):
     """Update admin settings"""
-    db = get_database()
-    
-    settings_data["updatedAt"] = datetime.utcnow()
-    settings_data["type"] = "admin"
-    
-    result = await db.settings.update_one(
-        {"type": "admin"},
-        {"$set": settings_data},
-        upsert=True
-    )
-    
-    return {"message": "Settings updated successfully"}
+    try:
+        db = get_database()
+        
+        settings_data["updatedAt"] = datetime.utcnow()
+        settings_data["type"] = "admin"
+        
+        result = await db.settings.update_one(
+            {"type": "admin"},
+            {"$set": settings_data},
+            upsert=True
+        )
+        
+        # Get updated settings
+        updated_settings = await db.settings.find_one({"type": "admin"})
+        if not updated_settings:
+            raise HTTPException(status_code=500, detail="Failed to retrieve updated settings")
+        
+        # Convert ObjectIds to strings
+        convert_objectids_to_strings(updated_settings)
+        updated_settings["id"] = str(updated_settings["_id"])
+        
+        return {"settings": updated_settings, "message": "Settings updated successfully"}
+    except Exception as e:
+        logger.error(f"Error in update_admin_settings: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/notifications")
 async def get_admin_notifications(
+    current_user: dict = Depends(get_current_admin_user),
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
-    current_user: dict = Depends(get_current_admin_user)
+    limit: int = Query(20, ge=1, le=100)
 ):
     """Get admin notifications"""
     db = get_database()
     
-    # Get notifications for admin
+    # Get notifications
     notifications_cursor = db.notifications.find({
-        "$or": [
-            {"type": "admin"},
-            {"userId": str(current_user["_id"])}
-        ]
+        "userId": str(current_user["_id"])
     }).skip(skip).limit(limit).sort("createdAt", -1)
     
     notifications = await notifications_cursor.to_list(length=limit)
-    total = await db.notifications.count_documents({
-        "$or": [
-            {"type": "admin"},
-            {"userId": str(current_user["_id"])}
-        ]
-    })
+    total = await db.notifications.count_documents({"userId": str(current_user["_id"])})
     
+    # Convert ObjectIds to strings
     for notification in notifications:
-        notification["_id"] = str(notification["_id"])
+        convert_objectids_to_strings(notification)
         notification["id"] = str(notification["_id"])
-        # Ensure consistent field names
-        if "createdAt" in notification:
-            notification["date"] = notification["createdAt"]
-        notification["isRead"] = notification.get("read", False)
     
-    return {
-        "notifications": notifications,
-        "total": total,
-        "unread": await db.notifications.count_documents({
-            "$or": [
-                {"type": "admin"},
-                {"userId": str(current_user["_id"])}
-            ],
-            "read": {"$ne": True}
-        })
-    }
+    return {"notifications": notifications, "total": total}
 
 @router.post("/notifications")
 async def create_admin_notification(
     notification_data: Dict[str, Any],
     current_user: dict = Depends(get_current_admin_user)
 ):
-    """Create a new notification"""
+    """Create admin notification"""
     db = get_database()
     
-    notification = {
-        "title": notification_data.get("title", ""),
-        "message": notification_data.get("message", ""),
-        "type": notification_data.get("type", "info"),
-        "userId": str(current_user["_id"]),
-        "read": False,
-        "createdAt": datetime.utcnow(),
-        "priority": notification_data.get("priority", "normal")
-    }
+    notification_data["createdAt"] = datetime.utcnow()
+    notification_data["userId"] = str(current_user["_id"])
+    notification_data["isRead"] = False
     
-    result = await db.notifications.insert_one(notification)
-    notification["_id"] = str(result.inserted_id)
-    notification["id"] = str(result.inserted_id)
+    result = await db.notifications.insert_one(notification_data)
+    notification_data["_id"] = str(result.inserted_id)
+    notification_data["id"] = str(result.inserted_id)
     
-    return notification
+    return notification_data
 
 @router.put("/notifications/{notification_id}/read")
 async def mark_notification_as_read(
     notification_id: str,
     current_user: dict = Depends(get_current_admin_user)
 ):
-    """Mark a notification as read"""
+    """Mark notification as read"""
     db = get_database()
     
-    try:
-        result = await db.notifications.update_one(
-            {
-                "_id": ObjectId(notification_id),
-                "$or": [
-                    {"type": "admin"},
-                    {"userId": str(current_user["_id"])}
-                ]
-            },
-            {"$set": {"read": True, "readAt": datetime.utcnow()}}
-        )
-        
-        if result.matched_count == 0:
-            raise HTTPException(status_code=404, detail="Notification not found")
-        
-        return {"message": "Notification marked as read"}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    result = await db.notifications.update_one(
+        {
+            "_id": ObjectId(notification_id),
+            "userId": str(current_user["_id"])
+        },
+        {"$set": {"isRead": True}}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    
+    return {"message": "Notification marked as read"}
 
 @router.put("/notifications/mark-all-read")
 async def mark_all_notifications_as_read(
@@ -1023,14 +1231,8 @@ async def mark_all_notifications_as_read(
     db = get_database()
     
     result = await db.notifications.update_many(
-        {
-            "$or": [
-                {"type": "admin"},
-                {"userId": str(current_user["_id"])}
-            ],
-            "read": {"$ne": True}
-        },
-        {"$set": {"read": True, "readAt": datetime.utcnow()}}
+        {"userId": str(current_user["_id"])},
+        {"$set": {"isRead": True}}
     )
     
     return {"message": f"Marked {result.modified_count} notifications as read"}
@@ -1040,26 +1242,18 @@ async def delete_notification(
     notification_id: str,
     current_user: dict = Depends(get_current_admin_user)
 ):
-    """Delete a notification"""
+    """Delete notification"""
     db = get_database()
     
-    try:
-        result = await db.notifications.delete_one(
-            {
-                "_id": ObjectId(notification_id),
-                "$or": [
-                    {"type": "admin"},
-                    {"userId": str(current_user["_id"])}
-                ]
-            }
-        )
-        
-        if result.deleted_count == 0:
-            raise HTTPException(status_code=404, detail="Notification not found")
-        
-        return {"message": "Notification deleted"}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    result = await db.notifications.delete_one({
+        "_id": ObjectId(notification_id),
+        "userId": str(current_user["_id"])
+    })
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    
+    return {"message": "Notification deleted successfully"}
 
 @router.post("/notifications/seed")
 async def seed_notifications(
@@ -1125,82 +1319,57 @@ async def seed_notifications(
 
 @router.get("/user/application-stats")
 async def get_user_application_stats(
-    request: Request,
     current_user: dict = Depends(get_current_user)
 ):
     """Get application statistics for a user"""
-    try:
-        db = get_database()
-        
-        # Get user's applications
-        pipeline = [
-            {
-                "$match": {
-                    "userId": str(current_user["_id"])
-                }
-            },
-            {
-                "$facet": {
-                    "total": [{"$count": "count"}],
-                    "pending": [{"$match": {"status": "Applied"}}, {"$count": "count"}],
-                    "shortlisted": [{"$match": {"status": "Shortlisted"}}, {"$count": "count"}],
-                    "interviewing": [{"$match": {"status": "Interviewing"}}, {"$count": "count"}],
-                    "hired": [{"$match": {"status": "Hired"}}, {"$count": "count"}],
-                    "rejected": [{"$match": {"status": "Rejected"}}, {"$count": "count"}],
-                    "recent": [
-                        {
-                            "$match": {
-                                "appliedDate": {
-                                    "$gte": datetime.utcnow() - timedelta(days=30)
-                                }
+    db = get_database()
+    
+    # Get user's applications
+    pipeline = [
+        {
+            "$match": {
+                "userId": str(current_user["_id"])
+            }
+        },
+        {
+            "$facet": {
+                "total": [{"$count": "count"}],
+                "pending": [{"$match": {"status": "Applied"}}, {"$count": "count"}],
+                "shortlisted": [{"$match": {"status": "Shortlisted"}}, {"$count": "count"}],
+                "interviewing": [{"$match": {"status": "Interviewing"}}, {"$count": "count"}],
+                "hired": [{"$match": {"status": "Hired"}}, {"$count": "count"}],
+                "rejected": [{"$match": {"status": "Rejected"}}, {"$count": "count"}],
+                "recent": [
+                    {
+                        "$match": {
+                            "appliedDate": {
+                                "$gte": datetime.utcnow() - timedelta(days=30)
                             }
-                        },
-                        {"$count": "count"}
-                    ]
-                }
+                        }
+                    },
+                    {"$count": "count"}
+                ]
             }
-        ]
-        
-        stats = await db.applications.aggregate(pipeline).to_list(length=1)
-        stats = stats[0] if stats else {}
-        
-        # Helper function to safely get counts
-        def get_count(key):
-            result = stats.get(key, [])
-            return result[0].get("count", 0) if result else 0
-        
-        response = {
-            "total": get_count("total"),
-            "pending": get_count("pending"),
-            "shortlisted": get_count("shortlisted"),
-            "interviewing": get_count("interviewing"),
-            "hired": get_count("hired"),
-            "rejected": get_count("rejected"),
-            "recent": get_count("recent")
         }
-        
-        return JSONResponse(
-            content=response,
-            headers={
-                "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
-                "Access-Control-Allow-Credentials": "true",
-                "Access-Control-Allow-Methods": "GET, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
-            }
-        )
-    except Exception as e:
-        logger.error(f"Error in get_user_application_stats: {str(e)}")
-        logger.exception("Full traceback:")
-        return JSONResponse(
-            content={"detail": str(e)},
-            status_code=500,
-            headers={
-                "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
-                "Access-Control-Allow-Credentials": "true",
-                "Access-Control-Allow-Methods": "GET, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
-            }
-        )
+    ]
+    
+    stats = await db.applications.aggregate(pipeline).to_list(length=1)
+    stats = stats[0] if stats else {}
+    
+    # Helper function to safely get counts
+    def get_count(key):
+        result = stats.get(key, [])
+        return result[0].get("count", 0) if result else 0
+    
+    return {
+        "total": get_count("total"),
+        "pending": get_count("pending"),
+        "shortlisted": get_count("shortlisted"),
+        "interviewing": get_count("interviewing"),
+        "hired": get_count("hired"),
+        "rejected": get_count("rejected"),
+        "recent": get_count("recent")
+    }
 
 @router.options("/user/application-stats", include_in_schema=False)
 async def options_user_application_stats(request: Request):
@@ -1215,4 +1384,39 @@ async def options_user_application_stats(request: Request):
             "Access-Control-Allow-Credentials": "true",
             "Access-Control-Max-Age": "3600",
         }
-    ) 
+    )
+
+@router.delete("/applications/bulk")
+async def bulk_delete_applications(
+    request: Request,
+    data: dict = Body(...),
+    current_user: dict = Depends(get_current_admin_user)
+):
+    """Bulk delete applications"""
+    try:
+        if not data.get("ids"):
+            raise HTTPException(status_code=400, detail="No application IDs provided")
+            
+        db = get_database()
+        if db is None:
+            raise HTTPException(status_code=503, detail="Database not available")
+            
+        # Convert string IDs to ObjectIds
+        object_ids = [ObjectId(id) for id in data["ids"]]
+        
+        # Delete applications
+        result = await db.applications.delete_many({"_id": {"$in": object_ids}})
+        
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="No applications found to delete")
+            
+        return {
+            "message": f"Successfully deleted {result.deleted_count} applications",
+            "deleted_count": result.deleted_count
+        }
+        
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Invalid application ID format")
+    except Exception as e:
+        logger.error(f"Error in bulk delete applications: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e)) 

@@ -37,6 +37,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/
 import { Info } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { adminApi } from "@/lib/api-backend";
 
 interface AddQuestionModalProps {
   open: boolean;
@@ -94,24 +95,11 @@ export function AddQuestionModal({
     QuestionFormValues
   >({
     mutationFn: async (data) => {
-      const response = await fetch('/api/admin/questions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...data,
-          jobIds: data.jobIds || [],
-          options: options ?? []
-        })
+      return await adminApi.createQuestion({
+        ...data,
+        jobIds: data.jobIds || [],
+        options: options ?? []
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create question');
-      }
-
-      return response.json();
     },
     onSuccess: () => {
       toast.success("Question created successfully");

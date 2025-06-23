@@ -7,18 +7,19 @@ import { Menu } from "lucide-react";
 import { useRouter, usePathname } from 'next/navigation';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, authLoading, user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (!authLoading && !isAuthenticated) {
       router.push('/login');
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, authLoading, router]);
 
-  if (isLoading) {
+  if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -39,9 +40,17 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </button>
       </div>
       
-      <UserDashboardSidebar onClose={() => setSidebarOpen(false)} />
+      <UserDashboardSidebar 
+        onClose={() => setSidebarOpen(false)} 
+        isCollapsed={isCollapsed}
+        onCollapse={setIsCollapsed}
+      />
       
-      <main className="flex-1 h-full w-full overflow-x-hidden overflow-y-auto bg-gray-100">
+      <main className={`
+        flex-1 h-full w-full overflow-x-hidden overflow-y-auto bg-gray-100 
+        transition-all duration-300
+        ${isCollapsed ? 'md:pl-[80px]' : 'md:pl-[256px]'}
+      `}>
         <div className="h-full w-full">
           {children}
         </div>

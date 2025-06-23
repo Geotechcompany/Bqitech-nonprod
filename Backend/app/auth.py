@@ -1,123 +1,116 @@
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError, jwt
+from jose import JWTError, jwt, ExpiredSignatureError
 from datetime import datetime, timedelta
-from passlib.context import CryptContext
+import os
 from typing import Optional
 from bson import ObjectId
-import os
-import json
+import bcrypt
 import logging
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 from .database import get_database
 
 # Configuration
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against its hash"""
-    return pwd_context.verify(plain_password, hashed_password)
+    """Verify a password against a hash."""
+    try:
+        # Convert the stored hash to bytes if it's a string
+        if isinstance(hashed_password, str):
+            hashed_password = hashed_password.encode('utf-8')
+        
+        # Convert the plain password to bytes
+        if isinstance(plain_password, str):
+            plain_password = plain_password.encode('utf-8')
+            
+        return bcrypt.checkpw(plain_password, hashed_password)
+    except Exception as e:
+        logger.error(f"Password verification error: {e}")
+        return False
 
 def get_password_hash(password: str) -> str:
-    """Hash a password"""
-    return pwd_context.hash(password)
+    """Generate a password hash."""
+    try:
+        # Generate a salt and hash the password
+        salt = bcrypt.gensalt()
+        if isinstance(password, str):
+            password = password.encode('utf-8')
+        hashed = bcrypt.hashpw(password, salt)
+        return hashed.decode('utf-8')
+    except Exception as e:
+        logger.error(f"Password hashing error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error hashing password"
+        )
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    """Create JWT access token"""
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """Create a new JWT token."""
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
         expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-def verify_token(token: str):
-    """Verify JWT token"""
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Could not validate credentials"
-            )
-        return payload
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials"
-        )
-
-async def get_current_user(request: Request):
-    """Get current user from request headers"""
-    # Try to get user from session header (for Next.js integration)
-    session_header = request.headers.get("X-User-Session")
-    if session_header:
+        token = credentials.credentials
         try:
-            user_data = json.loads(session_header)
-            # Ensure both id and _id are set
-            if user_data.get('id') and not user_data.get('_id'):
-                user_data['_id'] = user_data['id']
-            elif user_data.get('_id') and not user_data.get('id'):
-                user_data['id'] = user_data['_id']
-            return user_data
-        except:
-            pass
-    
-    # Fallback to Authorization header
-    authorization = request.headers.get("Authorization")
-    if not authorization:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="No authorization header"
-        )
-    
-    try:
-        scheme, token = authorization.split()
-        if scheme.lower() != "bearer":
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("sub")
+            if user_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Could not validate credentials",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            
+            # Get user from database to ensure they still exist
+            db = get_database()
+            user = await db.users.find_one({"_id": ObjectId(user_id)})
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="User not found",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+                
+            return user
+            
+        except ExpiredSignatureError:
+            # Generate a new token if refresh token is valid
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication scheme"
+                detail="Token has expired",
+                headers={"WWW-Authenticate": "Bearer"},
             )
-        
-        payload = verify_token(token)
-        user_id = payload.get("sub")
-        
-        # Get user from database
-        db = get_database()
-        user = await db.users.find_one({"_id": ObjectId(user_id)})
-        
-        if not user:
+        except JWTError:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found"
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
             )
-        
-        # Convert ObjectId to string and ensure both id and _id are set
-        str_id = str(user["_id"])
-        user["id"] = str_id
-        user["_id"] = str_id
-        return user
-        
     except Exception as e:
-        logger.error(f"Authentication error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials"
+            detail=str(e),
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
-async def get_current_admin_user(request: Request):
+async def get_current_admin_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """Get current admin user"""
-    user = await get_current_user(request)
+    user = await get_current_user(credentials)
     
     if not user:
         raise HTTPException(

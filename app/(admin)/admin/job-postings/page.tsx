@@ -8,6 +8,8 @@ import DataTable from "@/components/admin/DataTable";
 import { Edit, Trash2, Power, PowerOff } from "lucide-react";
 import Loader from "@/components/Loader";
 import toast from "react-hot-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { authService } from "@/lib/auth-backend";
 
 interface JobPosting {
   id: string;
@@ -25,25 +27,76 @@ export default function JobPostingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const router = useRouter();
+  const { isAuthenticated, isAdmin, authLoading } = useAuth();
+
+  useEffect(() => {
+    if (!authLoading && (!isAuthenticated || !isAdmin)) {
+      router.push('/login');
+    }
+  }, [authLoading, isAuthenticated, isAdmin, router]);
 
   useEffect(() => {
     async function fetchJobPostings() {
       try {
-        const response = await fetch("/api/admin/job-postings");
+        const session = authService.getSession();
+        if (!session) {
+          router.push('/login');
+          return;
+        }
+
+        const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/admin/job-postings`, {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.token}`,
+            'Accept': 'application/json'
+          }
+        });
+
+        if (response.status === 401) {
+          const refreshed = await authService.refreshToken();
+          if (!refreshed) {
+            router.push('/login');
+            return;
+          }
+
+          // Retry with new token
+          const retryResponse = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/admin/job-postings`, {
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${refreshed.access_token}`,
+              'Accept': 'application/json'
+            }
+          });
+
+          if (!retryResponse.ok) {
+            throw new Error("Failed to fetch job postings");
+          }
+
+          const data = await retryResponse.json();
+          setJobPostings(data.jobPostings || []);
+          return;
+        }
+
         if (!response.ok) {
           throw new Error("Failed to fetch job postings");
         }
+
         const data = await response.json();
-        setJobPostings(data);
+        setJobPostings(data.jobPostings || []);
       } catch (err) {
+        console.error('Error fetching job postings:', err);
         setError("Failed to load job postings. Please try again.");
       } finally {
         setIsLoading(false);
       }
     }
 
-    fetchJobPostings();
-  }, []);
+    if (isAuthenticated && isAdmin) {
+      fetchJobPostings();
+    }
+  }, [isAuthenticated, isAdmin, router]);
 
   const handleEdit = (id: string) => {
     router.push(`/admin/job-postings/${id}/edit`);
@@ -52,15 +105,43 @@ export default function JobPostingsPage() {
   const handleDelete = async (id: string) => {
     if (confirm("Are you sure you want to delete this job posting?")) {
       try {
-        const response = await fetch(`/api/admin/job-postings/${id}`, {
-          method: "DELETE",
-        });
-        if (!response.ok) {
-          throw new Error("Failed to delete job posting");
+        const session = authService.getSession();
+        if (!session) {
+          router.push('/login');
+          return;
         }
+
+        const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/admin/job-postings/${id}`, {
+          method: "DELETE",
+          credentials: 'include',
+          headers: {
+            'Authorization': `Bearer ${session.token}`,
+            'Accept': 'application/json'
+          }
+        });
+
+        if (response.status === 401) {
+          const refreshed = await authService.refreshToken();
+          if (!refreshed) {
+            router.push('/login');
+            return;
+          }
+
+          // Retry with new token
+          await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/admin/job-postings/${id}`, {
+            method: "DELETE",
+            credentials: 'include',
+            headers: {
+              'Authorization': `Bearer ${refreshed.access_token}`,
+              'Accept': 'application/json'
+            }
+          });
+        }
+
         setJobPostings(jobPostings.filter((posting) => posting.id !== id));
         toast.success("Job posting deleted successfully");
       } catch (err) {
+        console.error('Error deleting job posting:', err);
         toast.error("Failed to delete job posting");
       }
     }
@@ -68,14 +149,41 @@ export default function JobPostingsPage() {
 
   const handleToggleActive = async (id: string, currentStatus: boolean) => {
     try {
-      const response = await fetch(`/api/admin/job-postings/${id}/toggle-status`, {
+      const session = authService.getSession();
+      if (!session) {
+        router.push('/login');
+        return;
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/admin/job-postings/${id}/toggle-status`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.token}`,
+          'Accept': 'application/json'
+        },
         body: JSON.stringify({ isActive: !currentStatus }),
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to update job status");
+      if (response.status === 401) {
+        const refreshed = await authService.refreshToken();
+        if (!refreshed) {
+          router.push('/login');
+          return;
+        }
+
+        // Retry with new token
+        await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/admin/job-postings/${id}/toggle-status`, {
+          method: "PATCH",
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${refreshed.access_token}`,
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ isActive: !currentStatus }),
+        });
       }
 
       setJobPostings(prevPostings =>
@@ -86,6 +194,7 @@ export default function JobPostingsPage() {
 
       toast.success(`Job posting ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
     } catch (err) {
+      console.error('Error toggling job status:', err);
       toast.error("Failed to update job status");
     }
   };

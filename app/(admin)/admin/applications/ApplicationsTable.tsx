@@ -73,11 +73,11 @@ export function ApplicationsTable({
         
         // Extract from answers
         const firstName = row.answers?.find(a => 
-          a.questionText.toLowerCase().includes('first name')
+          a?.questionText?.toLowerCase?.()?.includes('first name')
         )?.answer || '';
         
         const lastName = row.answers?.find(a => 
-          a.questionText.toLowerCase().includes('last name')
+          a?.questionText?.toLowerCase?.()?.includes('last name')
         )?.answer || '';
 
         return `${firstName} ${lastName}`.trim() || 'N/A';
@@ -88,7 +88,7 @@ export function ApplicationsTable({
       accessor: (row: Application) => 
         row.email ||
         row.answers?.find(a => 
-          a.questionText.toLowerCase().includes('email')
+          a?.questionText?.toLowerCase?.()?.includes('email')
         )?.answer ||
         'N/A'
     },
@@ -107,7 +107,7 @@ export function ApplicationsTable({
         
         // Fallback to answers
         return row.answers?.find(a => 
-          a.questionText.toLowerCase().includes('position')
+          a?.questionText?.toLowerCase?.()?.includes('position')
         )?.answer || 'N/A';
       },
       cell: (value: string) => value

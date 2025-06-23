@@ -1,488 +1,486 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Request
 from fastapi.responses import JSONResponse
-from app.auth import get_current_user
+from app.auth import get_current_user, verify_password, get_password_hash
 from app.database import get_database
-from typing import Dict, Any, List
+from app.models.user import UserProfile, PasswordChange
+from typing import Dict, Any, Optional
 from bson import ObjectId
-import logging
 from datetime import datetime
+import logging
 
 logger = logging.getLogger(__name__)
+router = APIRouter(
+    tags=["user"],
+    responses={404: {"description": "Not found"}},
+)
 
-router = APIRouter(tags=["user"])
-
-@router.get("/applications", response_model=Dict[str, Any])
-async def get_user_applications(
+@router.get("/profile")
+@router.get("/me")
+async def get_user_profile(
     request: Request,
-    current_user: dict = Depends(get_current_user),
-    skip: int = Query(default=0, ge=0),
-    limit: int = Query(default=10, ge=1, le=100),
-    status: str = Query(default=None)
+    current_user: dict = Depends(get_current_user)
 ):
-    """Get user applications"""
+    """Get user profile information"""
     try:
-        logger.info(f"Getting applications for user: {current_user.get('email')}")
         db = get_database()
         
-        # Handle both _id and id fields
-        user_id = current_user.get('_id') or current_user.get('id')
-        if not user_id:
-            logger.error("No user ID found in current_user object")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Invalid user data"
-            )
-            
-        # Convert string ID to ObjectId if necessary
-        if isinstance(user_id, str):
-            user_id = ObjectId(user_id)
-            
-        # Build query
-        query = {"userId": user_id}
-        if status:
-            query["status"] = status.upper()
-            
-        # Get applications with pagination
-        applications = await db.applications.find(query).skip(skip).limit(limit).to_list(length=limit)
-        total = await db.applications.count_documents(query)
+        # Get user from database (excluding password)
+        user = await db.users.find_one(
+            {"_id": ObjectId(current_user["_id"])},
+            {"password": 0}
+        )
         
-        # Transform ObjectIds to strings and get job details
-        for app in applications:
-            app["id"] = str(app["_id"])
-            app["_id"] = str(app["_id"])
-            app["userId"] = str(app["userId"])
-            
-            # Get job details if jobId exists
-            if "jobId" in app:
-                job = await db.jobs.find_one({"_id": ObjectId(app["jobId"])})
-                if job:
-                    app["jobDetails"] = {
-                        "title": job.get("title"),
-                        "department": job.get("department"),
-                        "location": job.get("location")
-                    }
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
         
-        logger.info(f"Successfully retrieved {len(applications)} applications for user: {current_user.get('email')}")
+        # Format user profile data
+        profile = {
+            "id": str(user["_id"]),
+            "email": user.get("email", ""),
+            "name": user.get("name", ""),
+            "role": user.get("role", "USER"),
+            "avatar": user.get("avatar", ""),
+            "phone": user.get("phone", ""),
+            "location": user.get("location", ""),
+            "bio": user.get("bio", ""),
+            "skills": user.get("skills", []),
+            "experience": user.get("experience", []),
+            "education": user.get("education", []),
+            "socialLinks": user.get("socialLinks", {}),
+            "createdAt": user.get("createdAt", "").isoformat() if user.get("createdAt") else None,
+            "updatedAt": user.get("updatedAt", "").isoformat() if user.get("updatedAt") else None,
+            "isEmailVerified": user.get("isEmailVerified", False)
+        }
         
-        # Get the origin from the request headers
-        origin = request.headers.get("origin", "http://localhost:3000")
-        
-        # Return response with CORS headers
         return JSONResponse(
-            content={
-                "applications": applications,
-                "total": total,
-                "skip": skip,
-                "limit": limit
-            },
+            content=profile,
             headers={
-                "Access-Control-Allow-Origin": origin,
-                "Access-Control-Allow-Methods": "GET, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
+                "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
                 "Access-Control-Allow-Credentials": "true",
-                "Access-Control-Max-Age": "3600",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session"
             }
         )
     except Exception as e:
-        logger.error(f"Error getting user applications: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+        logger.error(f"Error in get_user_profile: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@router.options("/applications", include_in_schema=False)
-async def options_applications(request: Request):
-    """Handle CORS preflight requests for applications endpoint"""
-    origin = request.headers.get("origin", "http://localhost:3000")
-    return JSONResponse(
-        content={"message": "OK"},
-        headers={
-            "Access-Control-Allow-Origin": origin,
-            "Access-Control-Allow-Methods": "GET, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
-            "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Max-Age": "3600",
-        }
-    )
-
-@router.get("/profile")
-async def get_user_profile():
-    return {"message": "User profile endpoint"}
-
-@router.get("/application-stats")  # Removed response_model temporarily for testing
-async def get_application_stats(current_user: dict = Depends(get_current_user)):
-    """Get application statistics for the current user"""
-    logger.info("Accessing application-stats endpoint")  # Debug log
+@router.put("/profile")
+async def update_user_profile(
+    request: Request,
+    profile_data: Dict[str, Any] = Body(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Update user profile"""
     try:
         db = get_database()
-        logger.info("Got database connection")  # Debug log
         
-        # Get all applications for the user
-        applications = await db.applications.find({
-            "userId": ObjectId(current_user["_id"])
-        }).to_list(length=None)
+        # Remove fields that shouldn't be updated
+        profile_data.pop("_id", None)
+        profile_data.pop("id", None)
+        profile_data.pop("email", None)  # Email updates should be handled separately
+        profile_data.pop("password", None)  # Password updates should be handled separately
+        profile_data.pop("role", None)  # Role updates should be handled by admin
         
-        logger.info(f"Found {len(applications)} applications")  # Debug log
+        # Add update timestamp
+        profile_data["updatedAt"] = datetime.utcnow()
         
-        # Initialize stats
-        stats = {
-            "totalApplications": len(applications),
-            "shortlisted": 0,
-            "technicalAssessment": 0,
-            "interviewing": 0,
-            "hired": 0,
-            "disqualified": 0
-        }
-        
-        # Count applications by status
-        for app in applications:
-            status = app.get("status", "").lower()
-            if status == "shortlisted":
-                stats["shortlisted"] += 1
-            elif status == "technical_assessment":
-                stats["technicalAssessment"] += 1
-            elif status == "interviewing":
-                stats["interviewing"] += 1
-            elif status == "hired":
-                stats["hired"] += 1
-            elif status == "disqualified":
-                stats["disqualified"] += 1
-        
-        logger.info(f"Returning stats: {stats}")  # Debug log
-        return {"stats": stats}
-    except Exception as e:
-        logger.error(f"Error in application-stats: {str(e)}")  # Debug log
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+        # Update user profile
+        result = await db.users.update_one(
+            {"_id": ObjectId(current_user["_id"])},
+            {"$set": profile_data}
         )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return JSONResponse(
+            content={"message": "Profile updated successfully"},
+            headers={
+                "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "PUT, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session"
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error in update_user_profile: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@router.options("/application-stats", include_in_schema=False)
-async def options_application_stats(request: Request):
-    """Handle CORS preflight requests"""
-    logger.info("Handling OPTIONS request for application-stats")  # Debug log
-    origin = request.headers.get("origin", "http://localhost:3000")
-    return JSONResponse(
-        content={"message": "OK"},
-        headers={
-            "Access-Control-Allow-Origin": origin,
-            "Access-Control-Allow-Methods": "GET, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
-            "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Max-Age": "3600",
-        }
-    )
+@router.post("/change-password")
+async def change_password(
+    password_data: PasswordChange,
+    current_user: dict = Depends(get_current_user)
+):
+    """Change the current user's password"""
+    try:
+        db = get_database()
+        user = await db.users.find_one({"_id": ObjectId(current_user["_id"])})
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        # Verify current password
+        if not verify_password(password_data.currentPassword, user["password"]):
+            raise HTTPException(
+                status_code=400,
+                detail="Current password is incorrect"
+            )
+        
+        # Hash new password
+        hashed_password = get_password_hash(password_data.newPassword)
+        
+        # Update password
+        result = await db.users.update_one(
+            {"_id": ObjectId(current_user["_id"])},
+            {
+                "$set": {
+                    "password": hashed_password,
+                    "updatedAt": datetime.utcnow()
+                }
+            }
+        )
+        
+        if result.modified_count == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        return {"message": "Password changed successfully"}
+    except Exception as e:
+        logger.error(f"Error changing password: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/settings", response_model=Dict[str, Any])
+@router.post("/resend-verification")
+async def resend_verification_email(current_user: dict = Depends(get_current_user)):
+    """Resend email verification link"""
+    try:
+        db = get_database()
+        user = await db.users.find_one({"_id": ObjectId(current_user["_id"])})
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        if user.get("isEmailVerified", False):
+            raise HTTPException(
+                status_code=400,
+                detail="Email is already verified"
+            )
+        
+        # TODO: Implement email sending logic here
+        # For now, just return success
+        return {"message": "Verification email sent successfully"}
+    except Exception as e:
+        logger.error(f"Error resending verification email: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/settings")
 async def get_user_settings(
     request: Request,
     current_user: dict = Depends(get_current_user)
 ):
     """Get user settings"""
     try:
-        logger.info(f"Getting settings for user: {current_user.get('email')}")
         db = get_database()
         
-        # Handle both _id and id fields
-        user_id = current_user.get('_id') or current_user.get('id')
-        if not user_id:
-            logger.error("No user ID found in current_user object")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Invalid user data"
-            )
-            
-        # Convert string ID to ObjectId if necessary
-        if isinstance(user_id, str):
-            user_id = ObjectId(user_id)
-            
-        user = await db.users.find_one({"_id": user_id})
+        # Get user settings
+        user = await db.users.find_one(
+            {"_id": ObjectId(current_user["_id"])},
+            {"settings": 1}
+        )
         
         if not user:
-            logger.error(f"User not found: {current_user.get('email')}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
-            )
+            raise HTTPException(status_code=404, detail="User not found")
         
-        # Transform ObjectId to string and ensure both id and _id are set
-        str_id = str(user["_id"])
-        user["id"] = str_id
-        user["_id"] = str_id
+        # Default settings if none exist
+        settings = user.get("settings", {
+            "notifications": {
+                "email": True,
+                "push": True,
+                "jobAlerts": True,
+                "applicationUpdates": True,
+                "marketingEmails": False
+            },
+            "privacy": {
+                "profileVisibility": "public",
+                "showActivity": True,
+                "showApplicationHistory": True
+            },
+            "preferences": {
+                "theme": "light",
+                "language": "en",
+                "timezone": "UTC"
+            }
+        })
         
-        # Get user settings or return defaults
-        settings = {
-            "emailNotifications": user.get("emailNotifications", True),
-            "pushNotifications": user.get("pushNotifications", True),
-            "theme": user.get("theme", "light"),
-            "language": user.get("language", "en"),
-            "name": user.get("name", ""),
-            "email": user.get("email", ""),
-            "phoneNumber": user.get("phoneNumber", ""),
-            "avatar": user.get("avatar", None),
-            "jobAlerts": user.get("jobAlerts", True),
-            "applicationUpdates": user.get("applicationUpdates", True)
-        }
-        
-        logger.info(f"Successfully retrieved settings for user: {current_user.get('email')}")
-        return {"settings": settings}
-    except Exception as e:
-        logger.error(f"Error getting user settings: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+        return JSONResponse(
+            content={"settings": settings},
+            headers={
+                "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session"
+            }
         )
+    except Exception as e:
+        logger.error(f"Error in get_user_settings: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@router.put("/settings", response_model=Dict[str, Any])
+@router.put("/settings")
 async def update_user_settings(
     request: Request,
-    settings: Dict[str, Any] = Body(...),
+    settings_data: Dict[str, Any] = Body(...),
     current_user: dict = Depends(get_current_user)
 ):
     """Update user settings"""
     try:
-        logger.info(f"Updating settings for user: {current_user.get('email')}")
         db = get_database()
         
-        # Handle both _id and id fields
-        user_id = current_user.get('_id') or current_user.get('id')
-        if not user_id:
-            logger.error("No user ID found in current_user object")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Invalid user data"
-            )
-            
-        # Convert string ID to ObjectId if necessary
-        if isinstance(user_id, str):
-            user_id = ObjectId(user_id)
-        
-        # Remove any sensitive or immutable fields
-        settings.pop("password", None)
-        settings.pop("role", None)
-        settings.pop("_id", None)
-        settings.pop("id", None)
-        
-        # Update user settings
-        result = await db.users.update_one(
-            {"_id": user_id},
-            {"$set": settings}
-        )
-        
-        if result.modified_count == 0:
-            logger.warning(f"No changes made for user: {current_user.get('email')}")
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No changes made"
-            )
-        
-        # Get updated user
-        updated_user = await db.users.find_one({"_id": user_id})
-        
-        if not updated_user:
-            logger.error(f"Updated user not found: {current_user.get('email')}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found after update"
-            )
-        
-        # Transform ObjectId to string and ensure both id and _id are set
-        str_id = str(updated_user["_id"])
-        updated_user["id"] = str_id
-        updated_user["_id"] = str_id
-        
-        # Return updated settings
-        updated_settings = {
-            "emailNotifications": updated_user.get("emailNotifications", True),
-            "pushNotifications": updated_user.get("pushNotifications", True),
-            "theme": updated_user.get("theme", "light"),
-            "language": updated_user.get("language", "en"),
-            "name": updated_user.get("name", ""),
-            "email": updated_user.get("email", ""),
-            "phoneNumber": updated_user.get("phoneNumber", ""),
-            "avatar": updated_user.get("avatar", None),
-            "jobAlerts": updated_user.get("jobAlerts", True),
-            "applicationUpdates": updated_user.get("applicationUpdates", True)
+        # Validate settings structure
+        valid_settings = {
+            "notifications": {
+                k: v for k, v in settings_data.get("notifications", {}).items()
+                if k in ["email", "push", "jobAlerts", "applicationUpdates", "marketingEmails"]
+            },
+            "privacy": {
+                k: v for k, v in settings_data.get("privacy", {}).items()
+                if k in ["profileVisibility", "showActivity", "showApplicationHistory"]
+            },
+            "preferences": {
+                k: v for k, v in settings_data.get("preferences", {}).items()
+                if k in ["theme", "language", "timezone"]
+            }
         }
         
-        logger.info(f"Successfully updated settings for user: {current_user.get('email')}")
-        return {"settings": updated_settings}
-    except Exception as e:
-        logger.error(f"Error updating user settings: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+        # Update settings
+        result = await db.users.update_one(
+            {"_id": ObjectId(current_user["_id"])},
+            {
+                "$set": {
+                    "settings": valid_settings,
+                    "updatedAt": datetime.utcnow()
+                }
+            }
         )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return JSONResponse(
+            content={"message": "Settings updated successfully"},
+            headers={
+                "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "PUT, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session"
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error in update_user_settings: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@router.options("/settings", include_in_schema=False)
-async def options_settings(request: Request):
-    """Handle CORS preflight requests"""
-    origin = request.headers.get("origin", "http://localhost:3000")
+@router.options("/profile", include_in_schema=False)
+@router.options("/me", include_in_schema=False)
+async def options_profile(request: Request):
+    """Handle CORS preflight requests for profile endpoints"""
     return JSONResponse(
         content={"message": "OK"},
         headers={
-            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
             "Access-Control-Allow-Methods": "GET, PUT, OPTIONS",
             "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
             "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Max-Age": "3600",
+            "Access-Control-Max-Age": "3600"
         }
     )
 
-@router.get("/latest-application", response_model=Dict[str, Any])
+@router.options("/settings", include_in_schema=False)
+async def options_settings(request: Request):
+    """Handle CORS preflight requests for settings endpoints"""
+    return JSONResponse(
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+            "Access-Control-Allow-Methods": "GET, PUT, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "3600"
+        }
+    )
+
+@router.get("/application-stats")
+async def get_application_stats(
+    request: Request,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get user's application statistics"""
+    try:
+        db = get_database()
+        
+        # Get user's applications
+        pipeline = [
+            {"$match": {"userId": ObjectId(current_user["_id"])}},
+            {"$group": {
+                "_id": None,
+                "total": {"$sum": 1},
+                "pending": {"$sum": {"$cond": [{"$eq": ["$status", "PENDING"]}, 1, 0]}},
+                "shortlisted": {"$sum": {"$cond": [{"$eq": ["$status", "SHORTLISTED"]}, 1, 0]}},
+                "interviewing": {"$sum": {"$cond": [{"$eq": ["$status", "INTERVIEWING"]}, 1, 0]}},
+                "hired": {"$sum": {"$cond": [{"$eq": ["$status", "HIRED"]}, 1, 0]}},
+                "rejected": {"$sum": {"$cond": [{"$eq": ["$status", "REJECTED"]}, 1, 0]}}
+            }}
+        ]
+        
+        stats = await db.applications.aggregate(pipeline).to_list(1)
+        
+        if not stats:
+            return {
+                "total": 0,
+                "pending": 0,
+                "shortlisted": 0,
+                "interviewing": 0,
+                "hired": 0,
+                "rejected": 0
+            }
+            
+        stats = stats[0]
+        stats.pop("_id", None)
+        
+        return JSONResponse(
+            content=stats,
+            headers={
+                "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session"
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error in get_application_stats: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/latest-application")
 async def get_latest_application(
     request: Request,
     current_user: dict = Depends(get_current_user)
 ):
-    """Get the user's latest application"""
+    """Get user's latest application"""
     try:
-        logger.info(f"Getting latest application for user: {current_user.get('email')}")
         db = get_database()
         
-        # Handle both _id and id fields
-        user_id = current_user.get('_id') or current_user.get('id')
-        if not user_id:
-            logger.error("No user ID found in current_user object")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Invalid user data"
-            )
-            
-        # Convert string ID to ObjectId if necessary
-        if isinstance(user_id, str):
-            user_id = ObjectId(user_id)
-            
         # Get latest application
-        latest_app = await db.applications.find_one(
-            {"userId": user_id},
-            sort=[("appliedDate", -1)]
+        latest = await db.applications.find_one(
+            {"userId": ObjectId(current_user["_id"])},
+            sort=[("createdAt", -1)]
         )
         
-        if not latest_app:
-            return {"application": None}
-            
-        # Transform ObjectIds to strings and get job details
-        latest_app["id"] = str(latest_app["_id"])
-        latest_app["_id"] = str(latest_app["_id"])
-        latest_app["userId"] = str(latest_app["userId"])
-        
-        # Get job details if jobId exists
-        if "jobId" in latest_app:
-            job = await db.jobs.find_one({"_id": ObjectId(latest_app["jobId"])})
-            if job:
-                latest_app["jobDetails"] = {
-                    "title": job.get("title"),
-                    "department": job.get("department"),
-                    "location": job.get("location")
+        if not latest:
+            return JSONResponse(
+                content={"application": None},
+                headers={
+                    "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+                    "Access-Control-Allow-Credentials": "true",
+                    "Access-Control-Allow-Methods": "GET, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session"
                 }
+            )
+            
+        # Format application data
+        application = {
+            "id": str(latest["_id"]),
+            "position": latest.get("position", ""),
+            "company": latest.get("company", ""),
+            "status": latest.get("status", "PENDING"),
+            "appliedDate": latest.get("createdAt", "").isoformat() if latest.get("createdAt") else None,
+            "updatedAt": latest.get("updatedAt", "").isoformat() if latest.get("updatedAt") else None
+        }
         
-        logger.info(f"Successfully retrieved latest application for user: {current_user.get('email')}")
-        
-        # Get the origin from the request headers
-        origin = request.headers.get("origin", "http://localhost:3000")
-        
-        # Return response with CORS headers
         return JSONResponse(
-            content={"application": latest_app},
+            content={"application": application},
             headers={
-                "Access-Control-Allow-Origin": origin,
-                "Access-Control-Allow-Methods": "GET, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
+                "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
                 "Access-Control-Allow-Credentials": "true",
-                "Access-Control-Max-Age": "3600",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session"
             }
         )
     except Exception as e:
-        logger.error(f"Error getting latest application: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+        logger.error(f"Error in get_latest_application: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@router.options("/latest-application", include_in_schema=False)
-async def options_latest_application(request: Request):
-    """Handle CORS preflight requests for latest application endpoint"""
-    origin = request.headers.get("origin", "http://localhost:3000")
-    return JSONResponse(
-        content={"message": "OK"},
-        headers={
-            "Access-Control-Allow-Origin": origin,
-            "Access-Control-Allow-Methods": "GET, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
-            "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Max-Age": "3600",
-        }
-    )
-
-@router.get("/hiring-progress", response_model=Dict[str, Any])
+@router.get("/hiring-progress")
 async def get_hiring_progress(
     request: Request,
     current_user: dict = Depends(get_current_user)
 ):
-    """Get the hiring progress for the user's latest application"""
+    """Get the user's hiring progress across all applications"""
     try:
-        logger.info(f"Getting hiring progress for user: {current_user.get('email')}")
         db = get_database()
         
-        # Handle both _id and id fields
-        user_id = current_user.get('_id') or current_user.get('id')
-        if not user_id:
-            logger.error("No user ID found in current_user object")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Invalid user data"
-            )
+        # Define the hiring stages in order
+        stages = ["New", "Shortlisted", "Technical Assessment", "Interviewing", "Hired", "Rejected"]
+        
+        # Get all applications for the user
+        pipeline = [
+            {"$match": {"userId": str(current_user["_id"])}},
+            {"$group": {
+                "_id": "$status",
+                "count": {"$sum": 1},
+                "applications": {"$push": {
+                    "id": {"$toString": "$_id"},
+                    "jobId": "$jobId",
+                    "status": "$status",
+                    "appliedDate": {"$dateToString": {"format": "%Y-%m-%dT%H:%M:%S.%LZ", "date": "$appliedDate"}}
+                }}
+            }},
+            {"$sort": {"_id": 1}}
+        ]
+        
+        progress = await db.applications.aggregate(pipeline).to_list(length=None)
+        
+        # Format progress into a more readable structure
+        formatted_progress = {
+            "stages": stages,
+            "currentStage": None,
+            "stageData": {}
+        }
+        
+        # Initialize all stages with zero counts
+        for stage in stages:
+            formatted_progress["stageData"][stage] = {
+                "count": 0,
+                "applications": []
+            }
+        
+        # Fill in actual data
+        for stage in progress:
+            stage_name = stage["_id"]
+            formatted_progress["stageData"][stage_name] = {
+                "count": stage["count"],
+                "applications": stage["applications"]
+            }
             
-        # Convert string ID to ObjectId if necessary
-        if isinstance(user_id, str):
-            user_id = ObjectId(user_id)
-            
-        # Get latest application
-        latest_app = await db.applications.find_one(
-            {"userId": user_id},
+        # Find current stage (most recent non-rejected application)
+        latest = await db.applications.find_one(
+            {
+                "userId": str(current_user["_id"]),
+                "status": {"$ne": "Rejected"}
+            },
             sort=[("appliedDate", -1)]
         )
         
-        if not latest_app:
-            return {
-                "progress": 0,
-                "stage": 0,
-                "totalStages": 5,
-                "status": "No Application"
-            }
+        if latest:
+            formatted_progress["currentStage"] = latest["status"]
             
-        # Define stages and their order
-        stages = {
-            "APPLIED": 1,
-            "SHORTLISTED": 2,
-            "TECHNICAL_ASSESSMENT": 3,
-            "INTERVIEWING": 4,
-            "HIRED": 5
-        }
-        
-        # Get current stage
-        current_status = latest_app.get("status", "APPLIED").upper()
-        current_stage = stages.get(current_status, 1)
-        
-        # Calculate progress percentage
-        progress = (current_stage / 5) * 100
-        
-        response_data = {
-            "progress": progress,
-            "stage": current_stage,
-            "totalStages": 5,
-            "status": current_status,
-            "applicationId": str(latest_app["_id"])
-        }
-        
-        logger.info(f"Successfully retrieved hiring progress for user: {current_user.get('email')}")
-        
-        # Get the origin from the request headers
-        origin = request.headers.get("origin", "http://localhost:3000")
-        
-        # Return response with CORS headers
+        # Get origin from request headers with fallback
+        origin = request.headers.get("origin", "*")
+            
         return JSONResponse(
-            content=response_data,
+            content=formatted_progress,
             headers={
                 "Access-Control-Allow-Origin": origin,
                 "Access-Control-Allow-Methods": "GET, OPTIONS",
@@ -492,16 +490,14 @@ async def get_hiring_progress(
             }
         )
     except Exception as e:
-        logger.error(f"Error getting hiring progress: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+        logger.error(f"Error in get_hiring_progress: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.options("/hiring-progress", include_in_schema=False)
 async def options_hiring_progress(request: Request):
     """Handle CORS preflight requests for hiring progress endpoint"""
-    origin = request.headers.get("origin", "http://localhost:3000")
+    origin = request.headers.get("origin", "*")
     return JSONResponse(
         content={"message": "OK"},
         headers={

@@ -1,15 +1,13 @@
 "use client";
 import { Inter } from "next/font/google"
-import { ClientWrapper } from './ClientLayout'
+import ClientWrapper from './ClientWrapper'
 import "./globals.css"
 import { ReactNode } from 'react'
-import { AuthProvider } from "@/contexts/AuthContext"
 import { metadata } from './metadata'
 import { usePathname } from 'next/navigation'
 import { Toaster } from "react-hot-toast"
 import { Toaster as SonnerToaster } from 'sonner'
 import { Providers } from './providers'
-
 
 const inter = Inter({
   subsets: ["latin"],
@@ -22,26 +20,24 @@ export default function RootLayout({
   children: ReactNode
 }) {
   return (
-    <AuthProvider>
-      <html lang="en" className={inter.className} suppressHydrationWarning>
-        <head>
-          <link 
-            rel="preload" 
-            href="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX" 
-            as="script"
-          />
-          <meta name="color-scheme" content="light dark" />
-        </head>
-        <body suppressHydrationWarning>
-          <Providers>
-            <ClientWrapper>
-              {children}
-            </ClientWrapper>
-            <Toaster />
-          </Providers>
-        </body>
-      </html>
-    </AuthProvider>
+    <html lang="en" className={inter.className} suppressHydrationWarning>
+      <head>
+        <link 
+          rel="preload" 
+          href="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX" 
+          as="script"
+        />
+        <meta name="color-scheme" content="light dark" />
+      </head>
+      <body suppressHydrationWarning>
+        <Providers>
+          <ClientWrapper>
+            {children}
+          </ClientWrapper>
+          <Toaster />
+        </Providers>
+      </body>
+    </html>
   )
 }
 

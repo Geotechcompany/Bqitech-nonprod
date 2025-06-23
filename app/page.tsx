@@ -1,20 +1,15 @@
 import ClientHomePage from "@/components/ClientHomePage";
 import { ChatbotWidget } from "@/components/ChatbotWidget";
+import CookieConsentBanner from '@/components/CookieConsentBanner';
 
 export default async function HomePage() {
   return (
     <>
       <ClientHomePage />
       <ChatbotWidget />
+      <CookieConsentBanner />
     </>
   );
 }
 
-export const metadata = {
-  title: 'BQI Tech - Innovating for a Better World',
-  description: 'BQI Tech provides innovative technology solutions and professional services to help government agencies succeed in their digital transformation journey.',
-  keywords: ['government technology', 'digital transformation', 'IT solutions', 'professional services'],
-  alternates: {
-    canonical: 'https://bqitech.com'
-  }
-}
+

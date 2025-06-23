@@ -100,7 +100,7 @@ export function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/50 z-40"
+            className="fixed inset-0 bg-black/50 z-[9998]"
             style={{ marginTop: '72px' }}
             onClick={onClose}
           />
@@ -114,7 +114,7 @@ export function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
               damping: 30,
               duration: 0.3
             }}
-            className="fixed top-[72px] left-0 right-0 bg-white z-50 overflow-hidden rounded-b-xl shadow-xl"
+            className="fixed top-[72px] left-0 right-0 bg-white z-[9999] overflow-hidden rounded-b-xl shadow-xl"
           >
             <nav className="py-2 max-h-[calc(100vh-72px)] overflow-y-auto">
               {menuItems.map((item) => (

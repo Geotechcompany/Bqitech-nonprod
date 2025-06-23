@@ -28,6 +28,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { adminApi } from "@/lib/api-backend";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { FormSkeleton } from "@/components/ui/skeleton";
+import { authService } from "@/lib/auth-backend";
 
 
 interface AdminSettings {
@@ -38,6 +39,7 @@ interface AdminSettings {
   sidebarCollapsed: boolean;
   theme: string;
   language: string;
+  avatar: string;
 }
 
 const defaultSettings: AdminSettings = {
@@ -47,7 +49,8 @@ const defaultSettings: AdminSettings = {
   tableRowsPerPage: 25,
   sidebarCollapsed: false,
   theme: 'light',
-  language: 'en'
+  language: 'en',
+  avatar: ''
 };
 
 function SettingsPageContent() {
@@ -158,10 +161,12 @@ function SettingsPageContent() {
             <div className="relative group shrink-0">
               <Avatar className="h-32 w-32 md:h-40 md:w-40 ring-4 ring-white/80 shadow-lg">
                 <AvatarImage 
+                  src={user?.avatar}
+                  alt={user?.name || 'Admin User'}
                   className="object-cover"
                 />
                 <AvatarFallback>
-                  {user?.name?.split(' ').map(n => n[0]).join('') || 'A'}
+                  {[user?.firstName?.[0], user?.lastName?.[0]].filter(Boolean).join('') || 'A'}
                 </AvatarFallback>
               </Avatar>
               <label 
@@ -175,11 +180,59 @@ function SettingsPageContent() {
                 type="file"
                 accept="image/*"
                 className="hidden"
-                onChange={(e) => {
-                  // Handle avatar upload
+                onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (file) {
-                    toast('Avatar upload functionality coming soon');
+                    try {
+                      // Create form data
+                      const formData = new FormData();
+                      formData.append('file', file);
+
+                      // Upload avatar
+                      const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/upload/avatar`, {
+                        method: 'POST',
+                        body: formData,
+                        credentials: 'include',
+                        headers: {
+                          'Authorization': `Bearer ${authService.getSession()?.token}`
+                        }
+                      });
+
+                      if (!response.ok) {
+                        throw new Error('Failed to upload avatar');
+                      }
+
+                      const data = await response.json();
+                      
+                      // Update local state with new avatar URL
+                      setSettings(prev => ({
+                        ...prev,
+                        avatar: data.url
+                      }));
+
+                      // Update auth context
+                      if (user) {
+                        const updatedUser = {
+                          ...user,
+                          avatarUrl: data.url,
+                          name: user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.name || 'Admin User',
+                          isEmailVerified: user?.isEmailVerified || false
+                        };
+                        // Force update the auth context
+                        authService.setSession({
+                          ...authService.getSession(),
+                          user: updatedUser
+                        });
+                      }
+
+                      toast.success('Avatar updated successfully');
+                      
+                      // Reload the page to reflect changes
+                      window.location.reload();
+                    } catch (error) {
+                      console.error('Avatar upload error:', error);
+                      toast.error('Failed to upload avatar');
+                    }
                   }
                 }}
               />
@@ -187,7 +240,7 @@ function SettingsPageContent() {
             
             <div className="space-y-2 text-center md:text-left">
               <h2 className="text-2xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
-                {user?.name || 'Admin User'}
+                {user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Admin User' : 'Admin User'}
               </h2>
               <p className="text-muted-foreground text-sm md:text-base">
                 {user?.email}

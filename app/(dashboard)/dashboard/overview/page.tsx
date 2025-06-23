@@ -23,23 +23,30 @@ interface LatestApplicationResponse {
 export default function DashboardOverview() {
   const { user } = useAuth();
   
-  // Fetch application stats
+  // Get the correct user ID format
+  const userId = user?.id;
+  
+  // Fetch application stats for the current user
   const { data: statsData, isLoading: isStatsLoading } = useQuery<{ stats: ApplicationStats }>({
-    queryKey: ['applicationStats'],
+    queryKey: ['applicationStats', userId],
     queryFn: async () => {
-      const response = await api.get('/api/user/application-stats');
+      if (!userId) throw new Error('User ID not found');
+      const response = await api.get(`/api/users/application-stats`);
       return response.data;
     },
+    enabled: !!userId,
     staleTime: 30000,
   });
 
-  // Fetch latest application
+  // Fetch latest application for the current user
   const { data: latestAppData, isLoading: isLatestAppLoading } = useQuery<LatestApplicationResponse>({
-    queryKey: ['latestApplication'],
+    queryKey: ['latestApplication', userId],
     queryFn: async () => {
-      const response = await api.get('/api/user/latest-application');
+      if (!userId) throw new Error('User ID not found');
+      const response = await api.get(`/api/users/latest-application`);
       return response.data;
     },
+    enabled: !!userId,
     staleTime: 30000,
     gcTime: 60000,
   });
@@ -47,9 +54,11 @@ export default function DashboardOverview() {
   const stats = statsData?.stats;
   const latestApplication = latestAppData?.application;
 
-  if (isStatsLoading) {
+  if (isStatsLoading || !userId) {
     return <DashboardOverviewSkeleton />;
   }
+
+  const userName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : 'User';
 
   const overviewItems = [
     { 
@@ -97,7 +106,7 @@ export default function DashboardOverview() {
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
             <span className="text-blue-600">Welcome back,</span>
             <ChevronRight className="h-4 w-4 text-gray-400" />
-            <span className="font-medium">{user?.name || 'Guest'}</span>
+            <span className="font-medium">{userName}</span>
           </div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
             Application Overview
@@ -107,7 +116,7 @@ export default function DashboardOverview() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3">
             <span className="text-sm font-medium text-gray-700 hidden sm:block">
-              {user?.name || ''}
+              {userName}
             </span>
           </div>
         </div>

@@ -12,7 +12,8 @@
         "post-questions": "node scripts/post-questions-mongodb.js",
         "create-backup": "node scripts/create-backup.js",
         "backup": "node scripts/create-backup.js",
-        "fix-questions": "node scripts/fix-null-job-ids.js"
+        "fix-questions": "node scripts/fix-null-job-ids.js",
+        "test-endpoints": "ts-node scripts/test-endpoints.ts"
     },
     "dependencies": {
         "@hcaptcha/react-hcaptcha": "^1.12.0",
@@ -33,6 +34,7 @@
         "@radix-ui/react-radio-group": "^1.3.6",
         "@radix-ui/react-scroll-area": "^1.2.9",
         "@radix-ui/react-select": "^1.2.2",
+        "@radix-ui/react-separator": "^1.1.7",
         "@radix-ui/react-slot": "^1.1.2",
         "@radix-ui/react-switch": "^1.1.3",
         "@radix-ui/react-tabs": "^1.1.1",
@@ -114,10 +116,13 @@
         "@types/react-beautiful-dnd": "^13.1.8",
         "@types/react-dom": "^18",
         "@types/react-slick": "^0.23.13",
+        "chalk": "^5.4.1",
         "eslint": "^8",
         "eslint-config-next": "14.2.15",
+        "ora": "^8.2.0",
         "postcss": "^8",
         "tailwindcss": "^3.4.1",
+        "ts-node": "^10.9.2",
         "typescript": "^5"
     },
     "resolutions": {

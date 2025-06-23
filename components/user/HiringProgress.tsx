@@ -1,22 +1,32 @@
+"use client";
+
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { userApi } from '@/lib/api-backend';
 import { Progress } from '@/components/ui/progress';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface HiringProgressResponse {
-  progress: number;
-  stage: number;
-  totalStages: number;
-  status: string;
-  applicationId: string;
+  stages: string[];
+  currentStage: string | null;
+  stageData: {
+    [key: string]: {
+      count: number;
+      applications: Array<{
+        id: string;
+        jobId: string;
+        status: string;
+        appliedDate: string;
+      }>;
+    };
+  };
 }
 
 export function HiringProgress() {
+  const { user } = useAuth();
+
   const { data, isLoading } = useQuery<HiringProgressResponse>({
     queryKey: ['hiringProgress'],
-    queryFn: async () => {
-      const response = await api.get('/api/user/hiring-progress');
-      return response.data;
-    },
+    queryFn: () => userApi.getHiringProgress(),
     staleTime: 30000,
     gcTime: 60000,
   });
@@ -35,20 +45,36 @@ export function HiringProgress() {
     return null;
   }
 
+  // Calculate progress based on current stage
+  const currentStageIndex = data.stages.indexOf(data.currentStage || 'New');
+  const progress = ((currentStageIndex + 1) / data.stages.length) * 100;
+
+  const statusColors = {
+    'New': 'text-blue-600',
+    'Shortlisted': 'text-emerald-600',
+    'Technical Assessment': 'text-amber-600',
+    'Interviewing': 'text-violet-600',
+    'Hired': 'text-indigo-600',
+    'Rejected': 'text-rose-600',
+    'Disqualified': 'text-rose-600'
+  };
+
+  const statusColor = statusColors[data.currentStage as keyof typeof statusColors] || 'text-gray-500';
+
   return (
     <div className="bg-white p-4 rounded-lg border border-gray-100 space-y-3">
       <div className="flex justify-between items-center">
         <h3 className="text-sm font-medium text-gray-700">Hiring Progress</h3>
         <span className="text-xs text-blue-600 font-medium">
-          {Math.round(data.progress)}% Complete
+          {Math.round(progress)}% Complete
         </span>
       </div>
       
-      <Progress value={data.progress} className="h-2" />
+      <Progress value={progress} className="h-2" />
       
-      <div className="flex justify-between items-center text-xs text-gray-500">
-        <span>Stage: {data.stage}/{data.totalStages}</span>
-        <span>{data.status}</span>
+      <div className="flex justify-between items-center text-xs">
+        <span className="text-gray-500">Stage: {currentStageIndex + 1}/{data.stages.length}</span>
+        <span className={`font-medium ${statusColor}`}>{data.currentStage || 'No Applications'}</span>
       </div>
     </div>
   );

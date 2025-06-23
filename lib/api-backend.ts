@@ -1,36 +1,50 @@
 import { authService } from './auth-backend';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:8000';
+const BACKEND_URL = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:10000';
 
 // Generic API client class
 export class BackendApiClient {
   private baseUrl: string;
+  private origin: string;
 
   constructor(baseUrl: string = BACKEND_URL) {
     this.baseUrl = baseUrl;
-  }
-
-  // Build full URL
-  private buildUrl(endpoint: string): string {
-    return `${this.baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+    this.origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
   }
 
   // Get auth headers
   private getAuthHeaders(): Headers {
     const headers = new Headers();
     headers.set('Content-Type', 'application/json');
+    headers.set('Accept', 'application/json');
+    headers.set('Origin', this.origin);
 
+    // Get session from auth service
     const session = authService.getSession();
+    
     if (session?.token) {
       headers.set('Authorization', `Bearer ${session.token}`);
-      // Also set session header for compatibility
-      headers.set('X-User-Session', JSON.stringify(session.user));
+    }
+
+    // Add X-User-Session header if we have user data
+    if (session?.user) {
+      const { id, _id, ...userData } = session.user;
+      headers.set('X-User-Session', JSON.stringify({
+        ...userData,
+        id: id || _id,
+        _id: _id || id,
+      }));
     }
 
     return headers;
   }
 
-  // Make authenticated request
+  // Build URL
+  private buildUrl(endpoint: string): string {
+    return `${this.baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  }
+
+  // Make request
   async request<T = any>(
     endpoint: string,
     options: RequestInit = {}
@@ -44,43 +58,42 @@ export class BackendApiClient {
         headers.set(key, value);
       });
     }
-    
+
     try {
       const response = await fetch(url, {
         ...options,
         headers,
-        credentials: 'include'
+        credentials: 'include',
       });
-      
-      if (!response.ok) {
-        if (response.status === 401) {
-          // Try to refresh token
-          const refreshResult = await authService.refreshToken();
-          if (refreshResult) {
-            // Retry with new token
-            headers.set('Authorization', `Bearer ${refreshResult.access_token}`);
-            const retryResponse = await fetch(url, {
-              ...options,
-              headers,
-              credentials: 'include'
-            });
-            
-            if (!retryResponse.ok) {
-              const errorData = await retryResponse.json().catch(() => ({}));
-              throw new Error(errorData.detail || errorData.message || `HTTP ${retryResponse.status}`);
-            }
-            
-            return this.parseResponse(retryResponse);
-          }
+
+      if (response.status === 401) {
+        // Token expired, try to refresh using AuthService
+        const refreshResult = await authService.refreshToken();
+        if (!refreshResult) {
+          throw new Error('Failed to refresh token');
         }
-        
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || errorData.message || `HTTP ${response.status}`);
+
+        // Retry with new token
+        const retryResponse = await fetch(url, {
+          ...options,
+          headers: this.getAuthHeaders(), // Get fresh headers with new token
+          credentials: 'include',
+        });
+
+        if (!retryResponse.ok) {
+          throw new Error(`API request failed: ${retryResponse.status}`);
+        }
+
+        return retryResponse.json();
       }
 
-      return this.parseResponse(response);
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status}`);
+      }
+
+      return response.json();
     } catch (error) {
-      console.error(`API request failed for ${endpoint}:`, error);
+      console.error('API request error:', error);
       throw error;
     }
   }
@@ -134,9 +147,10 @@ export class BackendApiClient {
   }
 
   // DELETE request
-  async delete<T = any>(endpoint: string): Promise<T> {
+  async delete<T = any>(endpoint: string, data?: any): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'DELETE',
+      body: data ? JSON.stringify(data) : undefined,
     });
   }
 
@@ -175,13 +189,23 @@ export class BackendApiClient {
   }
 }
 
-// Create singleton instance
-export const backendApi = new BackendApiClient();
+// Create a singleton instance
+const backendApi = new BackendApiClient();
+
+// Export the singleton instance
+export { backendApi };
 
 // Specific API functions for different modules
 export const adminApi = {
   // Applications
-  getApplications: (params?: { skip?: number; limit?: number; search?: string; status?: string }) =>
+  getApplications: (params?: { 
+    skip?: number; 
+    limit?: number; 
+    search?: string; 
+    status?: string;
+    sort_by?: string;
+    sort_order?: 'asc' | 'desc';
+  }) =>
     backendApi.get('/api/admin/applications', params),
   
   getApplication: (id: string) =>
@@ -192,6 +216,13 @@ export const adminApi = {
   
   deleteApplication: (id: string) =>
     backendApi.delete(`/api/admin/applications/${id}`),
+
+  // Bulk operations
+  updateBulkApplicationStatus: (ids: string[], status: string) =>
+    backendApi.put('/api/admin/applications/bulk-status', { ids, status }),
+    
+  deleteBulkApplications: (ids: string[]) =>
+    backendApi.delete('/api/admin/applications/bulk', { ids }),
 
   // Status-specific endpoints
   getShortlisted: (params?: { skip?: number; limit?: number }) =>
@@ -268,6 +299,9 @@ export const adminApi = {
   getQuestions: (jobId?: string) =>
     backendApi.get('/api/admin/questions', jobId ? { job_id: jobId } : undefined),
   
+  getQuestion: (id: string) =>
+    backendApi.get(`/api/admin/questions/${id}`),
+  
   createQuestion: (data: any) =>
     backendApi.post('/api/admin/questions', data),
   
@@ -278,11 +312,11 @@ export const adminApi = {
     backendApi.delete(`/api/admin/questions/${id}`),
   
   reorderQuestions: (data: { updates: Array<{ id: string; order: number }> }) =>
-    backendApi.put('/api/admin/questions/reorder', data),
+    backendApi.put('/api/admin/questions/reorder-questions', data),
 
   // Settings
   getSettings: async () => {
-    const response = await backendApi.request('/api/admin/settings');
+    const response = await backendApi.get('/api/admin/settings');
     return response;
   },
   
@@ -321,16 +355,33 @@ export const userApi = {
   getApplication: (id: string) =>
     backendApi.get(`/api/applications/${id}`),
 
-  // Settings
-  getSettings: async () => {
-    const response = await backendApi.get('/api/user/settings');
-    return response.data.settings;
-  },
+  getApplicationStats: () =>
+    backendApi.get('/api/users/application-stats'),
 
-  updateSettings: async (data: any) => {
-    const response = await backendApi.put('/api/user/settings', data);
-    return response.data.settings;
-  },
+  getLatestApplication: () =>
+    backendApi.get('/api/users/latest-application'),
+
+  // Profile
+  getProfile: () =>
+    backendApi.get('/api/users/profile'),
+  
+  updateProfile: (data: any) =>
+    backendApi.put('/api/users/profile', data),
+  
+  // Settings
+  getSettings: () =>
+    backendApi.get('/api/users/settings'),
+  
+  updateSettings: (data: any) =>
+    backendApi.put('/api/users/settings', data),
+  
+  // Password
+  changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    backendApi.post('/api/users/change-password', data),
+
+  // Email Verification
+  resendVerification: () =>
+    backendApi.post('/api/users/resend-verification'),
 
   // Jobs
   getJobs: (params?: { skip?: number; limit?: number }) =>
@@ -338,13 +389,16 @@ export const userApi = {
   
   getJob: (id: string) =>
     backendApi.get(`/api/jobs/${id}`),
+
+  getHiringProgress: () =>
+    backendApi.get('/api/users/hiring-progress'),
 };
 
 // Public API (no auth required)
 export const publicApi = {
   // Health check
   healthCheck: () =>
-    fetch(`${BACKEND_URL}/api/health`).then(r => r.json()),
+    fetch(`${BACKEND_URL}/health`).then(r => r.json()),
   
   // Blog posts
   getBlogPosts: (params?: { skip?: number; limit?: number }) =>
@@ -362,4 +416,4 @@ export const publicApi = {
     }).then(r => r.json()),
 };
 
-export default backendApi; 
+export default backendApi;

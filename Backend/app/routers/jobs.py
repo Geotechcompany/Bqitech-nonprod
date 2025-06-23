@@ -21,6 +21,105 @@ router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
+@router.get("/{job_id}", include_in_schema=True)
+async def get_job_by_id(
+    request: Request,
+    job_id: str
+):
+    """Get a specific job posting by ID"""
+    try:
+        logger.info(f"Received GET /jobs/{job_id} request")
+        logger.info(f"Headers: {dict(request.headers)}")
+        
+        if not is_connected():
+            raise HTTPException(status_code=503, detail="Database not available")
+            
+        db = get_database()
+        
+        try:
+            job = await db.jobpostings.find_one({"_id": ObjectId(job_id)})
+        except Exception as e:
+            logger.error(f"Invalid job ID format: {str(e)}")
+            raise HTTPException(status_code=400, detail="Invalid job ID format")
+            
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+            
+        # Convert ObjectId to string and format dates
+        job["id"] = str(job.pop("_id"))
+        if "createdAt" in job:
+            job["createdAt"] = job["createdAt"].isoformat()
+        if "updatedAt" in job:
+            job["updatedAt"] = job["updatedAt"].isoformat()
+        if "postedDate" in job:
+            job["postedDate"] = job["postedDate"].isoformat() if isinstance(job["postedDate"], datetime) else job["postedDate"]
+            
+        # Return with CORS headers
+        return JSONResponse(
+            content=json.loads(json.dumps(job, cls=CustomJSONEncoder)),
+            headers={
+                "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept",
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error in get_job_by_id: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{job_id}/questions", include_in_schema=True)
+async def get_job_questions(
+    request: Request,
+    job_id: str
+):
+    """Get questions for a specific job"""
+    try:
+        logger.info(f"Received GET /jobs/{job_id}/questions request")
+        logger.info(f"Headers: {dict(request.headers)}")
+        
+        if not is_connected():
+            raise HTTPException(status_code=503, detail="Database not available")
+            
+        db = get_database()
+        
+        # First check if the job exists
+        try:
+            job = await db.jobpostings.find_one({"_id": ObjectId(job_id)})
+        except Exception as e:
+            logger.error(f"Invalid job ID format: {str(e)}")
+            raise HTTPException(status_code=400, detail="Invalid job ID format")
+            
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+            
+        # Get questions for this job
+        questions = []
+        if "questions" in job:
+            # Convert question IDs to ObjectIds
+            question_ids = [ObjectId(qid) for qid in job["questions"]]
+            questions = await db.jobquestions.find({"_id": {"$in": question_ids}}).to_list(None)
+            
+        # Convert ObjectIds to strings
+        for question in questions:
+            question["id"] = str(question.pop("_id"))
+            
+        # Return with CORS headers
+        return JSONResponse(
+            content=json.loads(json.dumps(questions, cls=CustomJSONEncoder)),
+            headers={
+                "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept",
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error in get_job_questions: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/", include_in_schema=True)
 async def get_jobs(
     request: Request,
@@ -82,6 +181,36 @@ async def get_jobs(
 @router.options("/", include_in_schema=False)
 async def options_jobs(request: Request):
     """Handle CORS preflight requests"""
+    origin = request.headers.get("origin", "*")
+    return JSONResponse(
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "3600",
+        }
+    )
+
+@router.options("/{job_id}", include_in_schema=False)
+async def options_job_by_id(request: Request):
+    """Handle CORS preflight requests for job details"""
+    origin = request.headers.get("origin", "*")
+    return JSONResponse(
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "3600",
+        }
+    )
+
+@router.options("/{job_id}/questions", include_in_schema=False)
+async def options_job_questions(request: Request):
+    """Handle CORS preflight requests for job questions"""
     origin = request.headers.get("origin", "*")
     return JSONResponse(
         content={"message": "OK"},

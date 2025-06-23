@@ -19,6 +19,7 @@ from .routers.user import router as user_router
 from .routers.contact import router as contact_router
 from .routers.health import router as health_router
 from .routers.notifications import router as notifications_router
+from .routers.upload import router as upload_router
 
 # Try to import misc router if it exists
 try:
@@ -55,38 +56,63 @@ app = FastAPI(
 
 # Configure CORS
 origins = [
+    "http://localhost:3000",
+    "http://localhost:3001",
     "https://bqitech.com",
     "https://www.bqitech.com",
-    "https://bqitech-nonprod.netlify.app",
-    "http://localhost:3000",
-    "*"  # Allow all origins for public endpoints
+    "https://bqitech-nonprod.netlify.app"
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"]
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=[
+        "Content-Type",
+        "Authorization",
+        "Accept",
+        "Origin",
+        "X-User-Session",
+        "Access-Control-Request-Method",
+        "Access-Control-Request-Headers"
+    ],
+    expose_headers=[
+        "Content-Type",
+        "Authorization",
+        "Access-Control-Allow-Origin",
+        "Access-Control-Allow-Credentials"
+    ],
+    max_age=3600
 )
 
 # Include routers with consistent prefixes
 logger.info("Registering routers...")
+logger.info("Registering auth router at /api")
 app.include_router(auth_router, prefix="/api")
+logger.info("Registering admin router at /api/admin")
 app.include_router(admin_router, prefix="/api/admin")
+logger.info("Registering applications router at /api/applications")
 app.include_router(applications_router, prefix="/api/applications")
+logger.info("Registering blog router at /api/blog")
 app.include_router(blog_router, prefix="/api/blog")
+logger.info("Registering jobs router at /api/jobs")
 app.include_router(jobs_router, prefix="/api/jobs")
-logger.info("Registering user router at /api/user")  # Debug log
-app.include_router(user_router, prefix="/api/user")
+logger.info("Registering user router at /api/users")  # Updated prefix
+app.include_router(user_router, prefix="/api/users")  # Changed from /api/user to /api/users
+logger.info("Registering contact router at /api/contact")
 app.include_router(contact_router, prefix="/api/contact")
+logger.info("Registering health router at /api")
 app.include_router(health_router, prefix="/api")
+logger.info("Registering notifications router at /api/notifications")
 app.include_router(notifications_router, prefix="/api/notifications")
+logger.info("Registering upload router at /api/upload")
+app.include_router(upload_router, prefix="/api/upload")
 
 # Include misc router if available
 if HAS_MISC_ROUTER:
-    app.include_router(misc.router, prefix="/api/misc")
+    logger.info("Registering misc router at /api")
+    app.include_router(misc.router, prefix="/api")
 
 # Root endpoints
 @app.get("/")
@@ -126,7 +152,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=8000,
+        port=10000,  # Updated to match NEXT_PUBLIC_PYTHON_API_URL
         reload=True,
         log_level="info",
         access_log=False,

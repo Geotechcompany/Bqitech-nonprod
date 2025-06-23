@@ -13,6 +13,8 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { authService } from "@/lib/auth-backend";
 import { Button } from "@/components/ui/button";
+import { adminApi } from "@/lib/api-backend";
+import { toast } from "react-hot-toast";
 
 const fetcher = async (url: string) => {
   const session = authService.getSession();
@@ -70,7 +72,7 @@ const fetcher = async (url: string) => {
 
 export default function HiredPage() {
   const router = useRouter();
-  const { isAuthenticated, isAdmin, isLoading } = useAuth();
+  const { isAuthenticated, isAdmin, authLoading } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -99,61 +101,31 @@ export default function HiredPage() {
   const totalPages = data?.totalPages || 0;
 
   useEffect(() => {
-    if (!isLoading && (!isAuthenticated || !isAdmin)) {
+    if (!authLoading && !isAuthenticated) {
       router.push('/login');
+    } else if (!authLoading && !isAdmin) {
+      router.push('/dashboard');
     }
-  }, [isLoading, isAuthenticated, isAdmin, router]);
+  }, [isAuthenticated, isAdmin, authLoading, router]);
 
   useEffect(() => {
     const fetchJobTitles = async () => {
       try {
-        const session = authService.getSession();
-        if (!session) return;
-
-        const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/jobs`, {
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.token}`,
-            'Accept': 'application/json'
+        const jobsResponse = await adminApi.getJobPostings();
+        const jobs = Array.isArray(jobsResponse) ? jobsResponse : 
+                    jobsResponse.jobPostings ? jobsResponse.jobPostings : [];
+        
+        const jobTitlesMap: Record<string, string> = {};
+        jobs.forEach((job: any) => {
+          const jobId = job.id || (job._id ? String(job._id) : null);
+          if (jobId && job.title) {
+            jobTitlesMap[jobId] = job.title;
           }
         });
-
-        if (response.status === 401) {
-          const refreshed = await authService.refreshToken();
-          if (!refreshed) {
-            router.push('/login');
-            return;
-          }
-
-          // Retry with new token
-          const retryResponse = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications/jobs`, {
-            credentials: 'include',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${refreshed.access_token}`,
-              'Accept': 'application/json'
-            }
-          });
-
-          if (!retryResponse.ok) return;
-
-          const data = await retryResponse.json();
-          const titles = data.jobs.reduce((acc: Record<string, string>, job: any) => {
-            acc[job.id] = job.title;
-            return acc;
-          }, {});
-          setJobTitles(titles);
-        } else if (response.ok) {
-          const data = await response.json();
-          const titles = data.jobs.reduce((acc: Record<string, string>, job: any) => {
-            acc[job.id] = job.title;
-            return acc;
-          }, {});
-          setJobTitles(titles);
-        }
+        setJobTitles(jobTitlesMap);
       } catch (error) {
         console.error('Failed to fetch job titles:', error);
+        toast.error('Failed to fetch job titles');
       }
     };
     
@@ -162,7 +134,7 @@ export default function HiredPage() {
     }
   }, [isAuthenticated, isAdmin, router]);
 
-  if (isLoading || isDataLoading) {
+  if (authLoading || isDataLoading) {
     return (
       <AdminPageLayout title="Hired" showSearch={false}>
         <TableSkeleton rows={8} columns={5} />

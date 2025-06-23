@@ -3,11 +3,13 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from "react-hot-toast";
 import { useAuth } from './AuthContext';
-import { adminApi } from '@/lib/api-backend';
+import { adminApi, userApi } from '@/lib/api-backend';
 
 interface SettingsContextType {
   emailNotifications: boolean;
   pushNotifications: boolean;
+  jobAlerts: boolean;
+  applicationUpdates: boolean;
   autoLogout: number;
   tableRowsPerPage: number;
   sidebarCollapsed: boolean;
@@ -32,6 +34,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     // Initialize with default values
     emailNotifications: true,
     pushNotifications: true,
+    jobAlerts: true,
+    applicationUpdates: true,
     autoLogout: 30,
     tableRowsPerPage: 25,
     sidebarCollapsed: false,
@@ -43,14 +47,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     theme: 'light'
   });
 
-  // Load settings when user is authenticated and is admin
+  // Load settings when user is authenticated
   useEffect(() => {
-    if (isAuthenticated && isAdmin) {
+    if (isAuthenticated) {
       loadSettings();
     } else {
       setIsLoading(false);
     }
-  }, [isAuthenticated, isAdmin]);
+  }, [isAuthenticated]);
 
   // Update profile when user data changes
   useEffect(() => {
@@ -69,16 +73,17 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const loadSettings = async () => {
     try {
       setIsLoading(true);
-      const data = await adminApi.getSettings();
+      const api = isAdmin ? adminApi : userApi;
+      const response = await api.getSettings();
       
-      if (data) {
+      if (response) {
         setSettings(prev => ({
           ...prev,
-          ...data,
+          ...(isAdmin ? response : response.settings),
           profile: {
             name: user?.name || '',
             email: user?.email || '',
-            avatarUrl: data.profile?.avatarUrl || prev.profile.avatarUrl
+            avatarUrl: response.profile?.avatarUrl || prev.profile.avatarUrl
           }
         }));
       }
@@ -96,7 +101,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       const oldSettings = settings;
       setSettings(prev => ({ ...prev, ...newSettings }));
       
-      await adminApi.updateSettings(newSettings);
+      const api = isAdmin ? adminApi : userApi;
+      await api.updateSettings(newSettings);
       toast.success('Settings updated successfully');
     } catch (error) {
       // Revert on error

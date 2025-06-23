@@ -8,24 +8,60 @@ import { Briefcase, MapPin, Calendar, ArrowRight } from "lucide-react";
 import { JobPosting } from "@/types/jobPosting";
 import Loader from "@/components/Loader";
 import { Button } from "@/components/ui/button";
+import { userApi } from "@/lib/api-backend";
+import { toast } from "react-hot-toast";
 
 export default function JobListingsPage() {
   const [jobPostings, setJobPostings] = useState<JobPosting[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const router = useRouter();
 
   useEffect(() => {
     const fetchJobPostings = async () => {
-      const response = await fetch("/api/admin/job-postings");
-      const data = await response.json();
-      setJobPostings(data);
-      setIsLoading(false);
+      try {
+        setIsLoading(true);
+        setError(null);
+        const response = await userApi.getJobs({ 
+          skip: (currentPage - 1) * 10,
+          limit: 10 
+        });
+        
+        if (response.jobs) {
+          setJobPostings(response.jobs);
+          setTotalPages(response.totalPages || 1);
+        }
+      } catch (error) {
+        console.error("Failed to fetch jobs:", error);
+        setError("Failed to load job postings. Please try again later.");
+        toast.error("Failed to load job postings");
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     fetchJobPostings();
-  }, []);
+  }, [currentPage]);
 
   if (isLoading) return <Loader />;
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <Briefcase className="mx-auto h-12 w-12 text-gray-400" />
+        <h3 className="mt-4 text-lg font-medium text-gray-900">Error</h3>
+        <p className="mt-2 text-gray-500">{error}</p>
+        <Button 
+          onClick={() => window.location.reload()}
+          className="mt-4"
+        >
+          Try Again
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 p-6">
@@ -70,7 +106,7 @@ export default function JobListingsPage() {
 
               <div className="pt-4 flex gap-3">
                 <Button
-                  onClick={() => router.push(`/dashboard/apply/${job._id}`)}
+                  onClick={() => router.push(`/dashboard/apply/${job.id}`)}
                   className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium py-2 rounded-lg transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg flex items-center justify-center gap-2 group"
                 >
                   Apply Now
@@ -78,7 +114,7 @@ export default function JobListingsPage() {
                 </Button>
                 <Button
                   variant="outline"
-                  onClick={() => window.location.href = `/careers/jobs`}
+                  onClick={() => router.push(`/careers/jobs`)}
                   className="px-4 py-2 border border-gray-200 hover:border-gray-300 rounded-lg text-gray-600 hover:text-gray-800 transition-colors duration-200"
                 >
                   View Details
@@ -94,6 +130,28 @@ export default function JobListingsPage() {
           <Briefcase className="mx-auto h-12 w-12 text-gray-400" />
           <h3 className="mt-4 text-lg font-medium text-gray-900">No open positions</h3>
           <p className="mt-2 text-gray-500">Check back later for new opportunities.</p>
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div className="flex justify-center gap-2 mt-8">
+          <Button
+            variant="outline"
+            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            disabled={currentPage === 1}
+          >
+            Previous
+          </Button>
+          <span className="py-2 px-4 text-sm">
+            Page {currentPage} of {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            disabled={currentPage === totalPages}
+          >
+            Next
+          </Button>
         </div>
       )}
     </div>

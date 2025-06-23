@@ -13,9 +13,9 @@ class Settings(BaseModel):
     debug: bool = False
     
     # Database
-    DATABASE_URL: str = Field(default="mongodb://localhost:27017/bqitech")
-    MONGODB_URI: Optional[str] = Field(default=None)
-    mongodb_uri: Optional[str] = None
+    DATABASE_URL: str = Field(default=os.getenv("MONGODB_URI"))
+    MONGODB_URI: Optional[str] = Field(default=os.getenv("MONGODB_URI"))
+    mongodb_uri: Optional[str] = os.getenv("MONGODB_URI")
     
     # API
     API_V1_STR: str = "/api/v1"

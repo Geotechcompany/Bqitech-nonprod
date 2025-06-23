@@ -233,7 +233,7 @@ const TechLoadingScreen = ({ message = "Loading..." }) => {
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const { login, isAuthenticated, isAdmin, isLoading: authLoading, user } = useAuth();
+  const { login, isAuthenticated, isAdmin, authLoading, user } = useAuth();
   const { register, handleSubmit, formState: { isSubmitting } } = useForm();
   const [isLoading, setIsLoading] = useState(false);
   const [hasCheckedAuth, setHasCheckedAuth] = useState(false);

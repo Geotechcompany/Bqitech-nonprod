@@ -1,9 +1,10 @@
 import os
 from motor.motor_asyncio import AsyncIOMotorClient
-from pymongo.errors import ConnectionFailure
+from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 import logging
 from .config import settings
 from fastapi import HTTPException
+import dns.resolver
 
 logger = logging.getLogger(__name__)
 
@@ -17,28 +18,41 @@ async def connect_to_database():
     
     try:
         # Try MONGODB_URI first, then DATABASE_URL from settings, then fallback
-        database_url = settings.MONGODB_URI or os.getenv("MONGODB_URI") or settings.DATABASE_URL or "mongodb://localhost:27017"
+        database_url = settings.MONGODB_URI or os.getenv("MONGODB_URI") or settings.DATABASE_URL
         database_name = os.getenv("DATABASE_NAME", "BQITECH")
         
         logger.info(f"Connecting to MongoDB: {database_url[:30]}...")
         
-        _client = AsyncIOMotorClient(database_url)
+        # Configure DNS resolver
+        dns.resolver.default_resolver = dns.resolver.Resolver(configure=False)
+        dns.resolver.default_resolver.nameservers = ['8.8.8.8', '8.8.4.4']  # Google DNS
+        
+        # Set a longer server selection timeout and other options
+        _client = AsyncIOMotorClient(
+            database_url,
+            serverSelectionTimeoutMS=30000,  # 30 seconds
+            connectTimeoutMS=30000,
+            socketTimeoutMS=30000,
+            waitQueueTimeoutMS=30000,
+            retryWrites=True,
+            w="majority"
+        )
         _database = _client[database_name]
         
-        # Test the connection
-        await _client.admin.command('ping')
+        # Test the connection with timeout
+        await _client.admin.command('ping', serverSelectionTimeoutMS=30000)
         logger.info(f"Connected to MongoDB: {database_name}")
         
-    except ConnectionFailure as e:
+    except (ConnectionFailure, ServerSelectionTimeoutError) as e:
         logger.error(f"Failed to connect to MongoDB: {e}")
         _client = None
         _database = None
-        raise HTTPException(status_code=503, detail="Database connection failed")
+        raise HTTPException(status_code=503, detail=f"Database connection failed: {str(e)}")
     except Exception as e:
         logger.error(f"Unexpected error connecting to MongoDB: {e}")
         _client = None
         _database = None
-        raise HTTPException(status_code=503, detail="Database connection failed")
+        raise HTTPException(status_code=503, detail=f"Database connection failed: {str(e)}")
 
 async def close_database_connection():
     """Close database connection"""

@@ -7,4 +7,5 @@ from .jobs import router as jobs
 from .user import router as user
 from .contact import router as contact
 from .health import router as health
-from .notifications import router as notifications 
+from .notifications import router as notifications
+from .upload import router as upload 

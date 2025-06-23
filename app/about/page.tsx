@@ -275,72 +275,143 @@ export default function AboutPage() {
       </motion.section>
 
       {/* Team Section */}
-      <motion.section className="mb-24 px-4">
-        <h2 className="text-4xl font-bold mb-12 text-center bg-gradient-to-r from-[#31CDFF] to-purple-600 bg-clip-text text-transparent">
-          Our Team
-        </h2>
+      <motion.section className="mb-24 px-4 relative">
+        {/* Background Elements */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute -top-32 -right-32 w-64 h-64 bg-gradient-to-br from-[#31CDFF]/10 to-purple-600/10 rounded-full blur-3xl"></div>
+          <div className="absolute -bottom-32 -left-32 w-64 h-64 bg-gradient-to-tr from-purple-600/10 to-[#31CDFF]/10 rounded-full blur-3xl"></div>
+        </div>
 
-        <div className="flex flex-wrap justify-center gap-8 max-w-7xl mx-auto">
-          {team.map((member, index) => (
-            <motion.div 
-              key={member.name}
-              className="group relative w-full sm:w-[45%] lg:w-[30%] xl:w-[22%] h-[480px] sm:h-[520px] md:h-[560px]"
-              initial={{ opacity: 0, scale: 0.9 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true, margin: "0px 0px -100px 0px" }}
-              transition={{ 
-                delay: index * 0.1, 
-                type: "spring", 
-                stiffness: 120,
-                damping: 20
-              }}
-            >
-              {/* Card Container */}
-              <div className="relative h-full w-full rounded-[2.5rem] overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-500">
-                {/* Dynamic Gradient Background */}
-                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-blue-400/20 animate-gradient-shift" />
-                
-                {/* Image Container */}
-                <div className="relative h-3/4 w-full overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent z-10" />
-                  <Image
-                    src={member.image}
-                    alt={member.name}
-                    fill
-                    className="object-cover object-top scale-100 group-hover:scale-105 transition-transform duration-500"
-                  />
-                </div>
+        <div className="relative z-10">
+          {/* Section Header */}
+          <motion.div
+            className="text-center mb-12"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8 }}
+          >
+            <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-[#31CDFF] to-purple-600 bg-clip-text text-transparent">
+              Meet Our Team
+            </h2>
+            <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto leading-relaxed">
+              Our diverse team of experts brings together years of experience in technology, innovation, and client success.
+            </p>
+          </motion.div>
 
-                {/* Profile Content */}
-                <div className="absolute bottom-0 left-0 right-0 p-6 h-1/4 text-white z-20 bg-black/90 ">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-xl font-bold tracking-tighter text-white">
-                        {member.name}
-                      </h3>
-                      <p className="text-sm text-[#31CDFF] font-medium mt-1">
-                        {member.role}
-                      </p>
-                    </div>
-                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <a href={member.social.linkedin} className="p-2 bg-white/10 rounded-full hover:bg-[#31CDFF] transition-colors">
-                        <Linkedin className="w-5 h-5" />
-                      </a>
-                      <a href={member.social.github} className="p-2 bg-white/10 rounded-full hover:bg-[#31CDFF] transition-colors">
-                        <Github className="w-5 h-5" />
-                      </a>
+          {/* Team Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
+            {team.map((member, index) => (
+              <motion.div 
+                key={member.name}
+                className={`group relative ${index === team.length - 1 && team.length % 4 !== 0 ? 'xl:col-start-2 xl:col-end-4 xl:justify-self-center xl:w-full xl:max-w-[280px]' : ''}`}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-50px" }}
+                transition={{ 
+                  delay: index * 0.1, 
+                  duration: 0.6,
+                  ease: [0.21, 0.47, 0.32, 0.98]
+                }}
+              >
+                {/* Main Card */}
+                <div className="relative bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-500 group-hover:-translate-y-1">
+                  {/* Gradient Border Effect */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-[#31CDFF] via-purple-500 to-pink-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-sm -z-10 scale-105"></div>
+                  
+                  {/* Image Container */}
+                  <div className="relative aspect-[5/4] overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800">
+                    <Image
+                      src={member.image}
+                      alt={member.name}
+                      fill
+                      className="object-cover object-top transition-transform duration-700 group-hover:scale-110"
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
+                    />
+                    
+                    {/* Overlay Gradient */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                    
+                    {/* Social Links Overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-500 transform translate-y-4 group-hover:translate-y-0">
+                      <div className="flex gap-3">
+                        {member.social.linkedin && (
+                          <motion.a
+                            href={member.social.linkedin}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-3 bg-white/20 backdrop-blur-md rounded-full hover:bg-[#31CDFF] transition-all duration-300 hover:scale-110"
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.95 }}
+                          >
+                            <Linkedin className="w-5 h-5 text-white" />
+                          </motion.a>
+                        )}
+                        {member.social.github && (
+                          <motion.a
+                            href={member.social.github}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-3 bg-white/20 backdrop-blur-md rounded-full hover:bg-purple-600 transition-all duration-300 hover:scale-110"
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.95 }}
+                          >
+                            <Github className="w-5 h-5 text-white" />
+                          </motion.a>
+                        )}
+                      </div>
                     </div>
                   </div>
-             
-                </div>
-              </div>
 
-              {/* Floating Blob Element */}
-              <div className="absolute -inset-4 -z-10 opacity-0 group-hover:opacity-40 transition-opacity duration-300">
-                <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-500 rounded-[3rem] blur-xl" />
-              </div>
-            </motion.div>
-          ))}
+                  {/* Content Section */}
+                  <div className="p-4 relative">
+                    {/* Decorative Element */}
+                    <div className="absolute top-0 left-4 w-8 h-1 bg-gradient-to-r from-[#31CDFF] to-purple-600 transform -translate-y-1/2 rounded-full"></div>
+                    
+                    <div className="pt-1">
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1 group-hover:text-[#31CDFF] transition-colors duration-300">
+                        {member.name}
+                      </h3>
+                      <p className="text-xs font-medium text-purple-600 dark:text-purple-400 mb-2 uppercase tracking-wider">
+                        {member.role}
+                      </p>
+                      
+                      {/* Animated Underline */}
+                      <div className="w-0 h-0.5 bg-gradient-to-r from-[#31CDFF] to-purple-600 group-hover:w-full transition-all duration-500 rounded-full"></div>
+                    </div>
+                  </div>
+
+                  {/* Floating Elements */}
+                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-[#31CDFF] rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500 animate-pulse"></div>
+                  <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-purple-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700 animate-pulse delay-150"></div>
+                </div>
+
+                {/* Glowing Background Effect */}
+                <div className="absolute inset-0 bg-gradient-to-br from-[#31CDFF]/20 to-purple-600/20 rounded-3xl blur-xl opacity-0 group-hover:opacity-30 transition-opacity duration-500 -z-20 scale-110"></div>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Call to Action */}
+          <motion.div
+            className="text-center mt-12"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8, delay: 0.5 }}
+          >
+            <p className="text-base text-gray-600 dark:text-gray-300 mb-6 max-w-xl mx-auto">
+              Ready to work with our exceptional team? Let's discuss how we can help transform your business.
+            </p>
+            <motion.button
+              className="bg-gradient-to-r from-[#31CDFF] to-purple-600 text-white px-6 py-3 rounded-full font-semibold hover:shadow-lg hover:shadow-[#31CDFF]/25 transition-all duration-300"
+              whileHover={{ scale: 1.05, y: -2 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => router.push('/contact-us')}
+            >
+              Get In Touch
+            </motion.button>
+          </motion.div>
         </div>
       </motion.section>
 

@@ -42,12 +42,26 @@ export async function submitApplication(data: z.infer<typeof submitApplicationSc
       a => a.questionText.toLowerCase() === 'email'
     )?.answer;
 
+    if (!applicantEmail) {
+      throw new Error('Email is required');
+    }
+
+    // Find user by email to link application
+    const user = await db.collection('users').findOne({ 
+      email: applicantEmail.toLowerCase().trim() 
+    });
+
+    if (!user) {
+      throw new Error('Please create an account before submitting an application');
+    }
+
     const job = await db.collection('jobpostings').findOne({ 
       _id: new mongoose.Types.ObjectId(parsedData.jobId) 
     });
 
     const application = {
       jobId: new mongoose.Types.ObjectId(parsedData.jobId),
+      userId: user._id, // Link to user
       cvUrl: parsedData.cvUrl,
       answers: parsedData.answers.map(answer => ({
         questionId: new mongoose.Types.ObjectId(answer.questionId),
@@ -64,18 +78,16 @@ export async function submitApplication(data: z.infer<typeof submitApplicationSc
     // Send emails only after successful DB insertion
     try {
       // Send confirmation to applicant
-      if (applicantEmail) {
-        await sendEmail({
-          to: applicantEmail,
-          subject: 'Application Received',
-          body: getApplicationConfirmationEmail({
-            applicantName: parsedData.answers.find(a => 
-              a.questionText.toLowerCase().includes('name')
-            )?.answer || 'Applicant',
-            jobTitle: job?.title || 'the position'
-          })
-        });
-      }
+      await sendEmail({
+        to: applicantEmail,
+        subject: 'Application Received',
+        body: getApplicationConfirmationEmail({
+          applicantName: parsedData.answers.find(a => 
+            a.questionText.toLowerCase().includes('name')
+          )?.answer || 'Applicant',
+          jobTitle: job?.title || 'the position'
+        })
+      });
 
       // Send notification to admin
       await sendEmail({

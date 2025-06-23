@@ -50,6 +50,7 @@ import Select from 'react-select';
 import { Label } from "@/components/ui/label";
 import { AddQuestionModal } from '@/components/admin/questions/add-question-modal';
 import { EditQuestionModal } from '@/components/admin/questions/edit-question-modal';
+import { adminApi } from "@/lib/api-backend";
 
 interface Question {
   id: string;
@@ -105,10 +106,11 @@ const questionTypeOptions = [
 ];
 
 const fetchQuestions = async (searchTerm?: string) => {
-  const url = `/api/admin/questions${searchTerm ? `?search=${encodeURIComponent(searchTerm)}` : ''}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('Failed to fetch questions');
-  return res.json();
+  try {
+    return await adminApi.getQuestions(searchTerm);
+  } catch (error) {
+    throw new Error('Failed to fetch questions');
+  }
 };
 
 export default function QuestionsManagementPage() {
@@ -127,19 +129,21 @@ export default function QuestionsManagementPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [questionToDelete, setQuestionToDelete] = useState<string | null>(null);
 
-  const { data: jobs } = useQuery({
+  const { data: jobsData } = useQuery({
     queryKey: ['admin-jobs'],
-    queryFn: async () => {
-      const res = await fetch('/api/admin/jobs');
-      if (!res.ok) throw new Error('Failed to fetch jobs');
-      return res.json();
-    }
+    queryFn: () => adminApi.getJobPostings()
   });
 
-  const { data: questions, isLoading, refetch: refetchQuestions } = useQuery({
+  // Extract jobPostings array from response
+  const jobs = jobsData?.jobPostings || [];
+
+  const { data: questionsData, isLoading, refetch: refetchQuestions } = useQuery({
     queryKey: ['admin-questions', searchTerm],
     queryFn: () => fetchQuestions(searchTerm)
   });
+
+  // Extract questions array from response
+  const questions = questionsData?.questions || [];
 
   const addForm = useForm<QuestionFormValues>({
     resolver: zodResolver(questionSchema),
@@ -167,20 +171,7 @@ export default function QuestionsManagementPage() {
 
   const addQuestionMutation = useMutation<any, Error, QuestionFormValues>({
     mutationFn: async (data: QuestionFormValues) => {
-      const res = await fetch('/api/admin/questions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...data,
-          jobIds: data.jobIds,
-          options: data.options 
-        }),
-      });
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Failed to add question');
-      }
-      return res.json();
+      return await adminApi.createQuestion(data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-questions'] });
@@ -196,17 +187,8 @@ export default function QuestionsManagementPage() {
 
   const editQuestionMutation = useMutation({
     mutationFn: async (data: QuestionFormValues) => {
-      const response = await fetch(`/api/admin/questions/${currentQuestion?.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...data,
-          jobIds: data.jobIds,
-          options: data.options
-        }),
-      });
-      if (!response.ok) throw new Error('Failed to update question');
-      return response.json();
+      if (!currentQuestion?.id) throw new Error('No question ID');
+      return await adminApi.updateQuestion(currentQuestion.id, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-questions'] });
@@ -224,15 +206,7 @@ export default function QuestionsManagementPage() {
         id: question.id,
         order: index
       }));
-      
-      const res = await fetch('/api/admin/questions/reorder', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ updates }),
-      });
-      
-      if (!res.ok) throw new Error('Failed to reorder questions');
-      return res.json();
+      return await adminApi.reorderQuestions({ updates });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-questions'] });
@@ -254,7 +228,7 @@ export default function QuestionsManagementPage() {
   };
 
   const handleEdit = (id: string) => {
-    const question = questions?.find(q => q.id === id);
+    const question = questions.find(q => q.id === id);
     if (question && jobs) {
       setCurrentQuestion(question);
       
@@ -264,7 +238,7 @@ export default function QuestionsManagementPage() {
         .map(j => ({ value: j.id, label: j.title }));
 
       editForm.reset({
-        jobIds: selectedJobs, // Send as array of {value, label}
+        jobIds: selectedJobs,
         question: question.question,
         type: question.type as "text" | "select" | "radio" | "boolean" | "file",
         required: question.required,
@@ -330,7 +304,7 @@ export default function QuestionsManagementPage() {
     },
   ];
 
-  const filteredQuestions = questions?.filter(q => 
+  const filteredQuestions = questions.filter(q => 
     q.question.toLowerCase().includes(searchTerm.toLowerCase()) ||
     q.type.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
@@ -476,8 +450,8 @@ export default function QuestionsManagementPage() {
   };
 
   // Convert jobs to options
-  const jobOptions = jobs?.map(job => ({
-    value: job._id,
+  const jobOptions = jobs.map(job => ({
+    value: job.id,
     label: job.title
   })) || [];
 

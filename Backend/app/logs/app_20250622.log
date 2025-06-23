@@ -1,0 +1,24 @@
+2025-06-22 23:07:50,399 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-22 23:10:40,697 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-22 23:10:41,302 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:02:06,252 - bqitech - ERROR - Error in get_admin_overview: Database objects do not implement truth value testing or bool(). Please compare with None instead: database is not None
+2025-06-23 00:02:06,252 - bqitech - ERROR - Full traceback:
+Traceback (most recent call last):
+  File "C:\xampp\htdocs\GEOTECHCOMPANY\BQINON-PROD\Bqitech-nonprod\backend\app\routers\admin.py", line 494, in get_admin_overview
+    if not db:
+           ^^
+  File "C:\Users\GeoffreyAudia\AppData\Roaming\Python\Python312\site-packages\pymongo\database.py", line 1339, in __bool__
+    raise NotImplementedError(
+NotImplementedError: Database objects do not implement truth value testing or bool(). Please compare with None instead: database is not None
+2025-06-23 00:02:06,515 - bqitech - ERROR - Error in get_admin_overview: Database objects do not implement truth value testing or bool(). Please compare with None instead: database is not None
+2025-06-23 00:02:06,521 - bqitech - ERROR - Full traceback:
+Traceback (most recent call last):
+  File "C:\xampp\htdocs\GEOTECHCOMPANY\BQINON-PROD\Bqitech-nonprod\backend\app\routers\admin.py", line 494, in get_admin_overview
+    if not db:
+           ^^
+  File "C:\Users\GeoffreyAudia\AppData\Roaming\Python\Python312\site-packages\pymongo\database.py", line 1339, in __bool__
+    raise NotImplementedError(
+NotImplementedError: Database objects do not implement truth value testing or bool(). Please compare with None instead: database is not None
+2025-06-23 00:02:06,588 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:02:07,667 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:02:08,746 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string

@@ -1,0 +1,207 @@
+2025-06-23 00:06:34,137 - bqitech - ERROR - Error in get_admin_overview: Database objects do not implement truth value testing or bool(). Please compare with None instead: database is not None
+2025-06-23 00:06:34,137 - bqitech - ERROR - Full traceback:
+Traceback (most recent call last):
+  File "C:\xampp\htdocs\GEOTECHCOMPANY\BQINON-PROD\Bqitech-nonprod\backend\app\routers\admin.py", line 494, in get_admin_overview
+    if not db:
+           ^^
+  File "C:\Users\GeoffreyAudia\AppData\Roaming\Python\Python312\site-packages\pymongo\database.py", line 1339, in __bool__
+    raise NotImplementedError(
+NotImplementedError: Database objects do not implement truth value testing or bool(). Please compare with None instead: database is not None
+2025-06-23 00:06:34,207 - bqitech - ERROR - Error in get_applications_by_job: Database objects do not implement truth value testing or bool(). Please compare with None instead: database is not None
+2025-06-23 00:06:34,207 - bqitech - ERROR - Full traceback:
+Traceback (most recent call last):
+  File "C:\xampp\htdocs\GEOTECHCOMPANY\BQINON-PROD\Bqitech-nonprod\backend\app\routers\admin.py", line 736, in get_applications_by_job
+    if not db:
+           ^^
+  File "C:\Users\GeoffreyAudia\AppData\Roaming\Python\Python312\site-packages\pymongo\database.py", line 1339, in __bool__
+    raise NotImplementedError(
+NotImplementedError: Database objects do not implement truth value testing or bool(). Please compare with None instead: database is not None
+2025-06-23 00:06:34,362 - bqitech - ERROR - Error in get_admin_overview: Database objects do not implement truth value testing or bool(). Please compare with None instead: database is not None
+2025-06-23 00:06:34,364 - bqitech - ERROR - Full traceback:
+Traceback (most recent call last):
+  File "C:\xampp\htdocs\GEOTECHCOMPANY\BQINON-PROD\Bqitech-nonprod\backend\app\routers\admin.py", line 494, in get_admin_overview
+    if not db:
+           ^^
+  File "C:\Users\GeoffreyAudia\AppData\Roaming\Python\Python312\site-packages\pymongo\database.py", line 1339, in __bool__
+    raise NotImplementedError(
+NotImplementedError: Database objects do not implement truth value testing or bool(). Please compare with None instead: database is not None
+2025-06-23 00:06:34,437 - bqitech - ERROR - Error in get_applications_by_job: Database objects do not implement truth value testing or bool(). Please compare with None instead: database is not None
+2025-06-23 00:06:34,439 - bqitech - ERROR - Full traceback:
+Traceback (most recent call last):
+  File "C:\xampp\htdocs\GEOTECHCOMPANY\BQINON-PROD\Bqitech-nonprod\backend\app\routers\admin.py", line 736, in get_applications_by_job
+    if not db:
+           ^^
+  File "C:\Users\GeoffreyAudia\AppData\Roaming\Python\Python312\site-packages\pymongo\database.py", line 1339, in __bool__
+    raise NotImplementedError(
+NotImplementedError: Database objects do not implement truth value testing or bool(). Please compare with None instead: database is not None
+2025-06-23 00:06:34,776 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:06:35,872 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:06:36,949 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:08:58,998 - bqitech - ERROR - Error in get_admin_overview: Database objects do not implement truth value testing or bool(). Please compare with None instead: database is not None
+2025-06-23 00:08:58,998 - bqitech - ERROR - Full traceback:
+Traceback (most recent call last):
+  File "C:\xampp\htdocs\GEOTECHCOMPANY\BQINON-PROD\Bqitech-nonprod\backend\app\routers\admin.py", line 494, in get_admin_overview
+    if not db:
+           ^^
+  File "C:\Users\GeoffreyAudia\AppData\Roaming\Python\Python312\site-packages\pymongo\database.py", line 1339, in __bool__
+    raise NotImplementedError(
+NotImplementedError: Database objects do not implement truth value testing or bool(). Please compare with None instead: database is not None
+2025-06-23 00:08:59,014 - bqitech - ERROR - Error in get_applications_by_job: Database objects do not implement truth value testing or bool(). Please compare with None instead: database is not None
+2025-06-23 00:08:59,088 - bqitech - ERROR - Error in get_admin_overview: Database objects do not implement truth value testing or bool(). Please compare with None instead: database is not None
+2025-06-23 00:08:59,089 - bqitech - ERROR - Full traceback:
+Traceback (most recent call last):
+  File "C:\xampp\htdocs\GEOTECHCOMPANY\BQINON-PROD\Bqitech-nonprod\backend\app\routers\admin.py", line 494, in get_admin_overview
+    if not db:
+           ^^
+  File "C:\Users\GeoffreyAudia\AppData\Roaming\Python\Python312\site-packages\pymongo\database.py", line 1339, in __bool__
+    raise NotImplementedError(
+NotImplementedError: Database objects do not implement truth value testing or bool(). Please compare with None instead: database is not None
+2025-06-23 00:08:59,097 - bqitech - ERROR - Error in get_applications_by_job: Database objects do not implement truth value testing or bool(). Please compare with None instead: database is not None
+2025-06-23 00:08:59,546 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:09:00,616 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:09:01,671 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:09:55,143 - bqitech - ERROR - Error in get_admin_overview: Database objects do not implement truth value testing or bool(). Please compare with None instead: database is not None
+2025-06-23 00:09:55,143 - bqitech - ERROR - Full traceback:
+Traceback (most recent call last):
+  File "C:\xampp\htdocs\GEOTECHCOMPANY\BQINON-PROD\Bqitech-nonprod\backend\app\routers\admin.py", line 494, in get_admin_overview
+    if not db:
+           ^^
+  File "C:\Users\GeoffreyAudia\AppData\Roaming\Python\Python312\site-packages\pymongo\database.py", line 1339, in __bool__
+    raise NotImplementedError(
+NotImplementedError: Database objects do not implement truth value testing or bool(). Please compare with None instead: database is not None
+2025-06-23 00:09:55,256 - bqitech - ERROR - Error in get_applications_by_job: Database objects do not implement truth value testing or bool(). Please compare with None instead: database is not None
+2025-06-23 00:09:55,329 - bqitech - ERROR - Error in get_admin_overview: Database objects do not implement truth value testing or bool(). Please compare with None instead: database is not None
+2025-06-23 00:09:55,338 - bqitech - ERROR - Full traceback:
+Traceback (most recent call last):
+  File "C:\xampp\htdocs\GEOTECHCOMPANY\BQINON-PROD\Bqitech-nonprod\backend\app\routers\admin.py", line 494, in get_admin_overview
+    if not db:
+           ^^
+  File "C:\Users\GeoffreyAudia\AppData\Roaming\Python\Python312\site-packages\pymongo\database.py", line 1339, in __bool__
+    raise NotImplementedError(
+NotImplementedError: Database objects do not implement truth value testing or bool(). Please compare with None instead: database is not None
+2025-06-23 00:09:55,415 - bqitech - ERROR - Error in get_applications_by_job: Database objects do not implement truth value testing or bool(). Please compare with None instead: database is not None
+2025-06-23 00:09:55,457 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:09:56,553 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:09:57,651 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:11:49,240 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:11:49,328 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:11:49,479 - bqitech - ERROR - Error in get_admin_overview: Object of type datetime is not JSON serializable
+2025-06-23 00:11:49,755 - bqitech - ERROR - Error processing job stats: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:11:49,925 - bqitech - ERROR - Error in get_admin_applications: Object of type datetime is not JSON serializable
+2025-06-23 00:11:49,948 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:11:50,102 - bqitech - ERROR - Error in get_admin_overview: Object of type datetime is not JSON serializable
+2025-06-23 00:11:50,321 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:11:50,353 - bqitech - ERROR - Error processing job stats: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:11:51,024 - bqitech - ERROR - Error in get_admin_applications: Object of type datetime is not JSON serializable
+2025-06-23 00:13:29,399 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:13:29,588 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:13:29,595 - bqitech - ERROR - Error processing job stats: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:13:29,742 - bqitech - ERROR - Error in get_admin_overview: Object of type datetime is not JSON serializable
+2025-06-23 00:13:29,981 - bqitech - ERROR - Error processing job stats: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:13:30,213 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:13:30,365 - bqitech - ERROR - Error in get_admin_overview: Object of type datetime is not JSON serializable
+2025-06-23 00:13:30,466 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:13:51,098 - bqitech - ERROR - Error processing job stats: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:13:51,172 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:13:51,408 - bqitech - ERROR - Error processing job stats: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:13:51,502 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:13:51,796 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:13:52,560 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:15:19,333 - bqitech - ERROR - Error processing job stats: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:15:19,389 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:15:19,863 - bqitech - ERROR - Error processing job stats: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:15:20,496 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:23:24,677 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:23:25,897 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:23:26,985 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:24:11,581 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:24:12,669 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:24:19,567 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:24:20,652 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 00:24:21,749 - bqitech - ERROR - Error getting job details for application 68582b1254d81d24b0240aa0: 'test-job-1' is not a valid ObjectId, it must be a 12-byte input or a 24-character hex string
+2025-06-23 10:37:53,569 - bqitech - INFO - Received GET /blog/posts request
+2025-06-23 10:37:53,575 - bqitech - INFO - Query parameters: skip=0, limit=9, category=None
+2025-06-23 10:37:53,577 - bqitech - INFO - Request headers: {'host': '127.0.0.1:10000', 'user-agent': 'python-requests/2.31.0', 'accept-encoding': 'gzip, deflate', 'accept': '*/*', 'connection': 'keep-alive'}
+2025-06-23 10:37:53,578 - bqitech - INFO - MongoDB query: {'status': 'published'}
+2025-06-23 10:37:53,732 - bqitech - INFO - Found 1 posts out of 1 total
+2025-06-23 10:37:53,732 - bqitech - INFO - Successfully prepared response
+2025-06-23 10:38:33,029 - bqitech - INFO - Received GET /blog/posts request
+2025-06-23 10:38:33,030 - bqitech - INFO - Query parameters: skip=0, limit=9, category=None
+2025-06-23 10:38:33,031 - bqitech - INFO - Request headers: {'host': '127.0.0.1:10000', 'user-agent': 'python-requests/2.31.0', 'accept-encoding': 'gzip, deflate', 'accept': '*/*', 'connection': 'keep-alive'}
+2025-06-23 10:38:33,031 - bqitech - INFO - MongoDB query: {'status': 'published'}
+2025-06-23 10:38:33,186 - bqitech - INFO - Found 1 posts out of 1 total
+2025-06-23 10:38:33,186 - bqitech - INFO - Successfully prepared response
+2025-06-23 10:39:11,068 - bqitech - INFO - Received GET /blog/posts request
+2025-06-23 10:39:11,071 - bqitech - INFO - Query parameters: skip=0, limit=9, category=None
+2025-06-23 10:39:11,073 - bqitech - INFO - Request headers: {'host': '127.0.0.1:10000', 'user-agent': 'python-requests/2.31.0', 'accept-encoding': 'gzip, deflate', 'accept': '*/*', 'connection': 'keep-alive'}
+2025-06-23 10:39:11,073 - bqitech - INFO - MongoDB query: {'status': 'published'}
+2025-06-23 10:39:11,466 - bqitech - INFO - Found 1 posts out of 1 total
+2025-06-23 10:39:11,468 - bqitech - INFO - Successfully prepared response
+2025-06-23 10:39:37,272 - bqitech - INFO - Received GET /blog/posts request
+2025-06-23 10:39:37,277 - bqitech - INFO - Query parameters: skip=0, limit=9, category=None
+2025-06-23 10:39:37,281 - bqitech - INFO - Request headers: {'host': '127.0.0.1:10000', 'user-agent': 'python-requests/2.31.0', 'accept-encoding': 'gzip, deflate', 'accept': '*/*', 'connection': 'keep-alive'}
+2025-06-23 10:39:37,281 - bqitech - INFO - MongoDB query: {'status': 'published'}
+2025-06-23 10:39:37,435 - bqitech - INFO - Found 1 posts out of 1 total
+2025-06-23 10:39:37,435 - bqitech - INFO - Successfully prepared response
+2025-06-23 10:39:50,362 - bqitech - INFO - Received GET /blog/posts request
+2025-06-23 10:39:50,362 - bqitech - INFO - Query parameters: skip=0, limit=9, category=None
+2025-06-23 10:39:50,362 - bqitech - INFO - Request headers: {'host': 'localhost:10000', 'connection': 'keep-alive', 'sec-ch-ua-platform': '"Windows"', 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36', 'sec-ch-ua': '"Google Chrome";v="137", "Chromium";v="137", "Not/A)Brand";v="24"', 'sec-ch-ua-mobile': '?0', 'accept': '*/*', 'origin': 'http://localhost:3000', 'sec-fetch-site': 'same-site', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty', 'referer': 'http://localhost:3000/', 'accept-encoding': 'gzip, deflate, br, zstd', 'accept-language': 'en-US,en;q=0.9'}
+2025-06-23 10:39:50,366 - bqitech - INFO - MongoDB query: {'status': 'published'}
+2025-06-23 10:39:50,515 - bqitech - INFO - Found 1 posts out of 1 total
+2025-06-23 10:39:50,515 - bqitech - INFO - Successfully prepared response
+2025-06-23 10:43:05,374 - bqitech - INFO - Received GET /blog/posts request
+2025-06-23 10:43:05,374 - bqitech - INFO - Query parameters: skip=0, limit=9, category=None
+2025-06-23 10:43:05,374 - bqitech - INFO - Request headers: {'host': '127.0.0.1:10000', 'user-agent': 'python-requests/2.31.0', 'accept-encoding': 'gzip, deflate', 'accept': '*/*', 'connection': 'keep-alive'}
+2025-06-23 10:43:05,374 - bqitech - INFO - MongoDB query: {'status': 'published'}
+2025-06-23 10:43:05,861 - bqitech - INFO - Found 0 posts out of 0 total
+2025-06-23 10:43:05,861 - bqitech - INFO - Successfully prepared response
+2025-06-23 10:45:08,612 - bqitech - INFO - Received GET /blog/posts request
+2025-06-23 10:45:08,612 - bqitech - INFO - Query parameters: skip=0, limit=9, category=None
+2025-06-23 10:45:08,612 - bqitech - INFO - Request headers: {'host': '127.0.0.1:10000', 'user-agent': 'python-requests/2.31.0', 'accept-encoding': 'gzip, deflate', 'accept': '*/*', 'connection': 'keep-alive'}
+2025-06-23 10:45:08,619 - bqitech - INFO - MongoDB query: {'status': 'published'}
+2025-06-23 10:45:08,778 - bqitech - INFO - Found 0 posts out of 0 total
+2025-06-23 10:45:08,778 - bqitech - INFO - Successfully prepared response
+2025-06-23 10:46:00,699 - bqitech - INFO - Received GET /blog/posts request
+2025-06-23 10:46:00,699 - bqitech - INFO - Query parameters: skip=0, limit=9, category=None
+2025-06-23 10:46:00,699 - bqitech - INFO - Request headers: {'host': '127.0.0.1:10000', 'user-agent': 'python-requests/2.31.0', 'accept-encoding': 'gzip, deflate', 'accept': '*/*', 'connection': 'keep-alive'}
+2025-06-23 10:46:00,699 - bqitech - INFO - MongoDB query: {'status': 'published'}
+2025-06-23 10:46:00,855 - bqitech - INFO - Found 0 posts out of 0 total
+2025-06-23 10:46:00,860 - bqitech - INFO - Successfully prepared response
+2025-06-23 10:47:09,200 - bqitech - INFO - Received GET /blog/posts request
+2025-06-23 10:47:09,205 - bqitech - INFO - Query parameters: skip=0, limit=9, category=None
+2025-06-23 10:47:09,206 - bqitech - INFO - Request headers: {'host': '127.0.0.1:10000', 'accept': '*/*', 'accept-encoding': 'gzip, deflate', 'user-agent': 'Python/3.12 aiohttp/3.12.13'}
+2025-06-23 10:47:09,206 - bqitech - INFO - MongoDB query: {'isPublished': True}
+2025-06-23 10:47:09,360 - bqitech - INFO - Found 0 posts out of 0 total
+2025-06-23 10:47:09,362 - bqitech - INFO - Successfully prepared response
+2025-06-23 10:48:36,378 - bqitech - INFO - Received GET /blog/posts request
+2025-06-23 10:48:36,380 - bqitech - INFO - Query parameters: skip=0, limit=9, category=None
+2025-06-23 10:48:36,380 - bqitech - INFO - Request headers: {'host': '127.0.0.1:10000', 'accept': '*/*', 'accept-encoding': 'gzip, deflate', 'user-agent': 'Python/3.12 aiohttp/3.12.13'}
+2025-06-23 10:48:36,385 - bqitech - INFO - MongoDB query: {'isPublished': True}
+2025-06-23 10:48:36,535 - bqitech - INFO - Found 0 posts out of 0 total
+2025-06-23 10:48:36,537 - bqitech - INFO - Successfully prepared response
+2025-06-23 10:49:34,533 - bqitech - INFO - Received GET /blog/posts request
+2025-06-23 10:49:34,537 - bqitech - INFO - Query parameters: skip=0, limit=9, category=None
+2025-06-23 10:49:34,539 - bqitech - INFO - Request headers: {'host': '127.0.0.1:10000', 'accept': '*/*', 'accept-encoding': 'gzip, deflate', 'user-agent': 'Python/3.12 aiohttp/3.12.13'}
+2025-06-23 10:49:34,539 - bqitech - INFO - MongoDB query: {'published': True}
+2025-06-23 10:49:34,700 - bqitech - INFO - Found 1 posts out of 1 total
+2025-06-23 10:49:34,704 - bqitech - INFO - Successfully prepared response
+2025-06-23 10:49:47,062 - bqitech - INFO - Received GET /blog/posts request
+2025-06-23 10:49:47,063 - bqitech - INFO - Query parameters: skip=0, limit=9, category=None
+2025-06-23 10:49:47,063 - bqitech - INFO - Request headers: {'host': 'localhost:10000', 'connection': 'keep-alive', 'sec-ch-ua-platform': '"Windows"', 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36', 'sec-ch-ua': '"Google Chrome";v="137", "Chromium";v="137", "Not/A)Brand";v="24"', 'sec-ch-ua-mobile': '?0', 'accept': '*/*', 'origin': 'http://localhost:3000', 'sec-fetch-site': 'same-site', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty', 'referer': 'http://localhost:3000/', 'accept-encoding': 'gzip, deflate, br, zstd', 'accept-language': 'en-US,en;q=0.9'}
+2025-06-23 10:49:47,064 - bqitech - INFO - MongoDB query: {'$or': [{'isPublished': True}, {'published': True}]}
+2025-06-23 10:49:47,213 - bqitech - INFO - Found 1 posts out of 1 total
+2025-06-23 10:49:47,213 - bqitech - INFO - Successfully prepared response
+2025-06-23 11:08:40,210 - bqitech - INFO - Received GET /blog request
+2025-06-23 11:08:40,210 - bqitech - INFO - Query parameters: skip=0, limit=9, category=None
+2025-06-23 11:08:40,210 - bqitech - INFO - Request headers: {'host': 'localhost:10000', 'connection': 'keep-alive', 'sec-ch-ua-platform': '"Windows"', 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36', 'sec-ch-ua': '"Google Chrome";v="137", "Chromium";v="137", "Not/A)Brand";v="24"', 'sec-ch-ua-mobile': '?0', 'accept': '*/*', 'origin': 'http://localhost:3000', 'sec-fetch-site': 'same-site', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty', 'referer': 'http://localhost:3000/', 'accept-encoding': 'gzip, deflate, br, zstd', 'accept-language': 'en-US,en;q=0.9'}
+2025-06-23 11:08:40,210 - bqitech - INFO - MongoDB query: {'$or': [{'isPublished': True}, {'published': True}]}
+2025-06-23 11:08:40,374 - bqitech - INFO - Found 1 posts out of 1 total
+2025-06-23 11:08:40,374 - bqitech - INFO - Successfully prepared response
+2025-06-23 11:10:11,442 - bqitech - INFO - Received GET /blog/by-slug/the-future-of-custom-software-development-a-cto-s-perspective request
+2025-06-23 11:10:11,442 - bqitech - INFO - Searching for blog post with slug: the-future-of-custom-software-development-a-cto-s-perspective
+2025-06-23 11:10:11,521 - bqitech - INFO - Query result: Found
+2025-06-23 11:10:11,522 - bqitech - INFO - Successfully prepared blog post response for slug: the-future-of-custom-software-development-a-cto-s-perspective
+2025-06-23 11:15:24,390 - bqitech - INFO - Received GET /blog/by-slug/the-future-of-custom-software-development-a-cto-s-perspective request
+2025-06-23 11:15:24,390 - bqitech - INFO - Searching for blog post with slug: the-future-of-custom-software-development-a-cto-s-perspective
+2025-06-23 11:15:24,467 - bqitech - INFO - Query result: Found
+2025-06-23 11:15:24,467 - bqitech - INFO - Successfully prepared blog post response for slug: the-future-of-custom-software-development-a-cto-s-perspective

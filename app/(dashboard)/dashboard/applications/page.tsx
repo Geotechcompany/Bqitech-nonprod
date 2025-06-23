@@ -1,7 +1,7 @@
 // app/dashboard/applications/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Application } from "@/types/application";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,32 +9,88 @@ import { api } from "@/lib/api";
 import { ViewApplicationModal } from "@/components/admin/ViewApplicationModal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { authService } from "@/lib/auth-backend";
 
 interface ApplicationResponse {
   applications: Application[];
+  total: number;
+  page: number;
+  totalPages: number;
 }
 
 export default function ApplicationsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [viewApplication, setViewApplication] = useState<Application | null>(null);
+  const { user, refreshToken } = useAuth();
 
   const { data, isLoading, error } = useQuery<ApplicationResponse>({
-    queryKey: ['userApplications'],
+    queryKey: ['userApplications', user?.id],
     queryFn: async () => {
       try {
-        const response = await api.get('/api/user/applications');
-        return response.data;
+        if (!user?.id) {
+          console.error('No user ID available');
+          throw new Error('User not authenticated');
+        }
+
+        console.log('Fetching applications for user:', user.id);
+        const session = authService.getSession();
+        console.log('Current session:', session ? { 
+          ...session, 
+          user: { ...session.user, id: session.user.id } 
+        } : null);
+
+        const response = await authService.authenticatedFetch(
+          `${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/applications`
+        );
+
+        console.log('Response status:', response.status);
+        const data = await response.json();
+        console.log('Response data:', data);
+
+        if (!response.ok) {
+          throw new Error(data.detail || 'Failed to load applications');
+        }
+
+        return data;
       } catch (error: any) {
-        throw new Error(error.response?.data?.detail || 'Failed to load applications');
+        console.error('Error fetching applications:', error);
+        if (error.response?.status === 401) {
+          throw new Error('Please log in to view your applications');
+        }
+        throw new Error(error.response?.data?.detail || error.message || 'Failed to load applications');
       }
     },
     retry: 1,
+    enabled: !!user?.id, // Only run query if we have a user ID
   });
+
+  // Log state changes
+  useEffect(() => {
+    console.log('Auth state:', { 
+      user: user ? { ...user, id: user.id } : null,
+      isLoading, 
+      error: error ? error.toString() : null,
+      hasData: !!data,
+      applicationCount: data?.applications?.length
+    });
+  }, [user, isLoading, error, data]);
 
   const handleView = (id: string) => {
     const application = data?.applications.find(app => app.id === id);
     setViewApplication(application || null);
   };
+
+  if (!user) {
+    return (
+      <Alert variant="destructive" className="mb-6">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          Please log in to view your applications
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   if (error) {
     return (
@@ -131,7 +187,7 @@ export default function ApplicationsPage() {
                         onClick={() => handleView(app.id)}
                         className="text-primary hover:text-primary/80 font-medium"
                       >
-                        View Details
+                        View
                       </button>
                     </td>
                   </tr>
@@ -142,38 +198,63 @@ export default function ApplicationsPage() {
         </div>
       </div>
 
-      <ViewApplicationModal
-        application={viewApplication}
-        isOpen={!!viewApplication}
-        onClose={() => setViewApplication(null)}
-      />
+      {viewApplication && (
+        <ViewApplicationModal
+          application={viewApplication}
+          isOpen={!!viewApplication}
+          onClose={() => setViewApplication(null)}
+        />
+      )}
     </div>
   );
 }
 
 function getStatusStyle(status: string = ''): string {
-  const statusStyles: Record<string, string> = {
-    'pending': 'bg-yellow-100 text-yellow-800',
-    'shortlisted': 'bg-blue-100 text-blue-800',
-    'technical_assessment': 'bg-purple-100 text-purple-800',
-    'interviewing': 'bg-indigo-100 text-indigo-800',
-    'hired': 'bg-green-100 text-green-800',
-    'disqualified': 'bg-red-100 text-red-800',
-    'rejected': 'bg-gray-100 text-gray-800'
+  const statusMap: Record<string, string> = {
+    'New': 'bg-blue-100 text-blue-800',
+    'Shortlisted': 'bg-green-100 text-green-800',
+    'Interviewing': 'bg-yellow-100 text-yellow-800',
+    'Hired': 'bg-green-100 text-green-800',
+    'Rejected': 'bg-red-100 text-red-800',
+    'Disqualified': 'bg-gray-100 text-gray-800',
   };
 
-  return statusStyles[status.toLowerCase()] || 'bg-gray-100 text-gray-800';
+  return statusMap[status] || 'bg-gray-100 text-gray-800';
 }
 
 function ApplicationsTableSkeleton() {
   return (
     <div className="space-y-6">
-      <Skeleton className="h-10 w-64" />
-      <Skeleton className="h-12 w-full" />
-      <div className="space-y-4">
-        {[...Array(5)].map((_, i) => (
-          <Skeleton key={i} className="h-16 w-full" />
-        ))}
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-4 w-64" />
+      </div>
+      <Skeleton className="h-10 w-full" />
+      <div className="rounded-md border">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr>
+                {Array(6).fill(null).map((_, i) => (
+                  <th key={i} className="px-6 py-3">
+                    <Skeleton className="h-4 w-24" />
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Array(5).fill(null).map((_, i) => (
+                <tr key={i}>
+                  {Array(6).fill(null).map((_, j) => (
+                    <td key={j} className="px-6 py-4">
+                      <Skeleton className="h-4 w-24" />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

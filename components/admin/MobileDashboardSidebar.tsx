@@ -22,7 +22,7 @@ export default function MobileDashboardSidebar({ isOpen, onClose }: MobileDashbo
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 bg-black/50 md:hidden"
+            className="fixed inset-0 z-[9998] bg-black/50 md:hidden"
             onClick={onClose}
           />
         )}
@@ -35,7 +35,7 @@ export default function MobileDashboardSidebar({ isOpen, onClose }: MobileDashbo
             animate={{ x: 0 }}
             exit={{ x: -300 }}
             transition={{ type: "spring", stiffness: 200, damping: 30 }}
-            className="fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl p-4 md:hidden transform"
+            className="fixed inset-y-0 left-0 z-[9999] w-64 bg-white shadow-xl p-4 md:hidden transform"
           >
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-2 text-slate-800">

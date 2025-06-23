@@ -12,6 +12,7 @@ interface AuthResponse {
   access_token: string;
   token_type: string;
   user: User;
+  refresh_token: string;
 }
 
 interface SessionData {
@@ -69,30 +70,101 @@ class AuthService {
     }
   }
 
+  // Set session data
+  setSession(session: SessionData): void {
+    if (typeof window !== 'undefined') {
+      console.log('Setting session:', session);
+      localStorage.setItem(this.SESSION_KEY, JSON.stringify(session));
+    }
+  }
+
+  // Get current session
+  getSession(): SessionData | null {
+    if (typeof window === 'undefined') return null;
+    
+    const session = localStorage.getItem(this.SESSION_KEY);
+    console.log('Raw session from storage:', session);
+    
+    if (!session) {
+      console.log('No session found in storage');
+      return null;
+    }
+    
+    try {
+      const parsedSession = JSON.parse(session);
+      console.log('Parsed session:', parsedSession);
+      return parsedSession;
+    } catch (error) {
+      console.error('Error parsing session:', error);
+      this.clearSession();
+      return null;
+    }
+  }
+
+  // Clear session data
+  clearSession(): void {
+    if (typeof window !== 'undefined') {
+      console.log('Clearing session');
+      localStorage.removeItem(this.SESSION_KEY);
+    }
+  }
+
   // Login with email and password
   async login(email: string, password: string): Promise<AuthResponse> {
     try {
+      console.log('Attempting login for:', email);
+      
+      // Use URLSearchParams for form data as required by FastAPI
+      const formData = new URLSearchParams();
+      formData.append('username', email.toLowerCase());
+      formData.append('password', password);
+
       const response = await fetch(`${BACKEND_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: JSON.stringify({ email, password }),
+        body: formData,
+        credentials: 'include',
       });
 
       if (!response.ok) {
         const error = await response.json();
+        console.error('Login error response:', error);
         throw new Error(error.detail || 'Login failed');
       }
 
       const data: AuthResponse = await response.json();
+      console.log('Login response:', data);
       
-      // Store auth data
-      this.setAuthData(data.access_token, data.user);
+      if (!data.access_token || !data.refresh_token || !data.user) {
+        console.error('Invalid login response:', data);
+        throw new Error('Invalid login response');
+      }
+
+      // Normalize user ID
+      const user = {
+        ...data.user,
+        id: data.user.id || data.user._id
+      };
       
-      return data;
+      // Store session data
+      const sessionData: SessionData = {
+        user,
+        token: data.access_token,
+        refreshToken: data.refresh_token
+      };
+      
+      console.log('Setting session after login:', sessionData);
+      this.setSession(sessionData);
+      
+      return {
+        ...data,
+        user
+      };
     } catch (error) {
       console.error('Login error:', error);
+      this.clearSession();
       throw error;
     }
   }
@@ -106,6 +178,7 @@ class AuthService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ email, password, name }),
+        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -115,8 +188,12 @@ class AuthService {
 
       const data: AuthResponse = await response.json();
       
-      // Store auth data
-      this.setAuthData(data.access_token, data.user);
+      // Store session data
+      this.setSession({
+        user: data.user,
+        token: data.access_token,
+        refreshToken: data.refresh_token
+      });
       
       return data;
     } catch (error) {
@@ -128,153 +205,169 @@ class AuthService {
   // Logout
   async logout(): Promise<void> {
     try {
-      const { token } = this.getAuthData();
+      const session = this.getSession();
       
-      if (token) {
-        // Optional: Call backend logout endpoint
+      if (session?.token) {
+        // Call backend logout endpoint
         await fetch(`${BACKEND_URL}/api/auth/logout`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${token}`,
+            'Authorization': `Bearer ${session.token}`,
           },
+          credentials: 'include',
         });
       }
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      // Always clear local data
-      this.clearAuthData();
+      // Always clear session data
+      this.clearSession();
     }
-  }
-
-  // Get current session
-  getSession(): SessionData | null {
-    if (typeof window === 'undefined') return null;
-    
-    const session = localStorage.getItem(this.SESSION_KEY);
-    if (!session) return null;
-    
-    try {
-      return JSON.parse(session);
-    } catch {
-      return null;
-    }
-  }
-
-  setSession(session: SessionData): void {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem(this.SESSION_KEY, JSON.stringify(session));
-  }
-
-  clearSession(): void {
-    if (typeof window === 'undefined') return;
-    localStorage.removeItem(this.SESSION_KEY);
   }
 
   // Refresh token
   async refreshToken(): Promise<AuthResponse | null> {
     try {
-      const { token } = this.getAuthData();
+      const session = this.getSession();
       
-      if (!token) {
+      if (!session?.refreshToken) {
+        console.log('No refresh token available');
+        this.clearSession();
         return null;
       }
 
+      console.log('Attempting to refresh token');
       const response = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          refresh_token: session.refreshToken
+        }),
+        credentials: 'include',
       });
 
       if (!response.ok) {
-        this.clearAuthData();
+        console.error('Token refresh failed:', response.status);
+        this.clearSession();
         return null;
       }
 
-      const data: AuthResponse = await response.json();
-      this.setAuthData(data.access_token, data.user);
+      const data = await response.json();
+      console.log('Token refresh successful:', data);
       
-      return data;
+      if (!data.access_token || !data.refresh_token) {
+        console.error('Invalid refresh response:', data);
+        this.clearSession();
+        return null;
+      }
+
+      // Update session with new tokens while preserving user data
+      const newSession: SessionData = {
+        user: session.user,
+        token: data.access_token,
+        refreshToken: data.refresh_token
+      };
+      
+      console.log('Setting new session after refresh:', newSession);
+      this.setSession(newSession);
+      
+      return {
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        token_type: 'bearer',
+        user: session.user
+      };
     } catch (error) {
       console.error('Token refresh error:', error);
-      this.clearAuthData();
+      this.clearSession();
       return null;
     }
   }
 
-  // Get current user
+  // Helper methods
   getCurrentUser(): User | null {
     const session = this.getSession();
     return session?.user || null;
   }
 
-  // Check if user is authenticated
   isAuthenticated(): boolean {
-    return this.getSession() !== null;
+    return !!this.getSession()?.token;
   }
 
-  // Check if user is admin
   isAdmin(): boolean {
     const user = this.getCurrentUser();
     return user?.role?.toUpperCase() === 'ADMIN' || user?.role?.toUpperCase() === 'SUPER_ADMIN';
   }
 
-  // Get authorization header for API calls
   getAuthHeader(): { Authorization: string } | {} {
-    const { token } = this.getAuthData();
-    return token ? { Authorization: `Bearer ${token}` } : {};
+    const session = this.getSession();
+    return session?.token ? { Authorization: `Bearer ${session.token}` } : {};
   }
 
-  // Make authenticated API call
-  async authenticatedFetch(
-    url: string, 
-    options: RequestInit = {}
-  ): Promise<Response> {
+  async authenticatedFetch(url: string, options: RequestInit = {}): Promise<Response> {
+    console.log('Making authenticated request to:', url);
     const session = this.getSession();
     
     if (!session?.token) {
+      console.error('No authentication token available');
       throw new Error('No authentication token');
     }
 
-    const headers = new Headers(options.headers);
-    headers.set('Authorization', `Bearer ${session.token}`);
-    headers.set('Content-Type', 'application/json');
+    const headers = {
+      ...options.headers,
+      'Authorization': `Bearer ${session.token}`,
+    };
 
-    const response = await fetch(url, {
-      ...options,
-      headers,
-      credentials: 'include',
-    });
+    console.log('Request headers:', headers);
 
-    // If we get a 401, try to refresh the token
-    if (response.status === 401) {
-      try {
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers,
+        credentials: 'include',
+      });
+
+      console.log('Response status:', response.status);
+
+      if (response.status === 401) {
+        console.log('Token expired, attempting refresh');
+        // Token expired, try to refresh
         const refreshResult = await this.refreshToken();
-        if (refreshResult) {
-          // Retry the request with the new token
-          headers.set('Authorization', `Bearer ${refreshResult.access_token}`);
-          return fetch(url, {
-            ...options,
-            headers,
-            credentials: 'include',
-          });
+        if (!refreshResult) {
+          console.error('Token refresh failed');
+          throw new Error('Token refresh failed');
         }
-      } catch (error) {
-        console.error('Token refresh failed:', error);
-        this.clearSession();
-        throw new Error('Authentication failed');
-      }
-    }
 
-    return response;
+        // Retry with new token
+        const newSession = this.getSession();
+        console.log('Retrying request with new token');
+        return fetch(url, {
+          ...options,
+          headers: {
+            ...options.headers,
+            'Authorization': `Bearer ${newSession!.token}`,
+          },
+          credentials: 'include',
+        });
+      }
+
+      return response;
+    } catch (error) {
+      console.error('Authenticated fetch error:', error);
+      throw error;
+    }
   }
 }
 
-// Singleton instance
-export const authService = AuthService.getInstance();
+// Create singleton instance
+const authService = AuthService.getInstance();
 
-// Helper functions for easier use
+export { authService };
+export type { User, AuthResponse, SessionData };
+
+// Export convenience methods
 export const login = (email: string, password: string) => authService.login(email, password);
 export const register = (email: string, password: string, name: string) => authService.register(email, password, name);
 export const logout = () => authService.logout();
@@ -284,6 +377,3 @@ export const isAuthenticated = () => authService.isAuthenticated();
 export const isAdmin = () => authService.isAdmin();
 export const getAuthHeader = () => authService.getAuthHeader();
 export const authenticatedFetch = (url: string, options?: RequestInit) => authService.authenticatedFetch(url, options);
-
-// React hook for auth state (to be used with context)
-export type { User, AuthResponse, SessionData };

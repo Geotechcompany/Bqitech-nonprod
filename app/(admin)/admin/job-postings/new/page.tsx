@@ -1,35 +1,43 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import dynamic from "next/dynamic";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { AdminPageLayout } from "@/components/admin/AdminPageLayout";
+import { Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { authService } from "@/lib/auth-backend";
 
-// Dynamically import Quill to avoid SSR issues
-const ReactQuill = dynamic(() => import("react-quill"), { ssr: false });
-import "react-quill/dist/quill.snow.css"; // Import Quill styles
+interface JobPosting {
+  title: string;
+  department: string;
+  location: string;
+  description: string;
+  isActive: boolean;
+}
 
 export default function AddJobPostingPage() {
   const router = useRouter();
-  const [jobPosting, setJobPosting] = useState({
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { isAuthenticated, isAdmin, authLoading } = useAuth();
+  const [jobPosting, setJobPosting] = useState<JobPosting>({
     title: "",
     department: "",
     location: "",
     description: "",
+    isActive: true,
   });
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setJobPosting((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleDescriptionChange = (value: string) => {
-    setJobPosting((prev) => ({ ...prev, description: value }));
-  };
+  useEffect(() => {
+    if (!authLoading && (!isAuthenticated || !isAdmin)) {
+      router.push('/login');
+    }
+  }, [authLoading, isAuthenticated, isAdmin, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,104 +53,155 @@ export default function AddJobPostingPage() {
       return;
     }
 
-    setIsLoading(true); // Set loading state
+    setIsLoading(true);
 
     try {
-      const response = await fetch("/api/admin/job-postings", {
+      const session = authService.getSession();
+      if (!session) {
+        router.push('/login');
+        return;
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/admin/job-postings`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.token}`,
+          'Accept': 'application/json'
+        },
         body: JSON.stringify(jobPosting),
       });
 
-      if (!response.ok) {
+      if (response.status === 401) {
+        const refreshed = await authService.refreshToken();
+        if (!refreshed) {
+          router.push('/login');
+          return;
+        }
+
+        // Retry with new token
+        const retryResponse = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/admin/job-postings`, {
+          method: "POST",
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${refreshed.access_token}`,
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(jobPosting),
+        });
+
+        if (!retryResponse.ok) {
+          throw new Error("Failed to create job posting");
+        }
+      } else if (!response.ok) {
         throw new Error("Failed to create job posting");
       }
 
-      toast.success("Job posting created successfully!"); // Success toast
+      toast.success("Job posting created successfully!");
       router.push("/admin/job-postings");
     } catch (err) {
+      console.error('Error creating job posting:', err);
       setError("Failed to create job posting. Please try again.");
-      toast.error("Failed to create job posting. Please try again."); // Error toast
+      toast.error("Failed to create job posting. Please try again.");
     } finally {
-      setIsLoading(false); // Reset loading state
+      setIsLoading(false);
     }
   };
 
+  if (authLoading) {
+    return (
+      <AdminPageLayout title="Add New Job Posting" showSearch={false}>
+        <div className="flex items-center justify-center min-h-screen">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      </AdminPageLayout>
+    );
+  }
+
+  if (!isAuthenticated || !isAdmin) {
+    return null; // Router will handle the redirect
+  }
+
   return (
-    <div className="max-w-2xl mx-auto mt-8 p-6 bg-white rounded-lg shadow-md">
-      <h1 className="text-2xl font-bold mb-6">Add New Job Posting</h1>
-      {error && <p className="text-red-500 mb-4">{error}</p>}
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label
-            htmlFor="title"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Job Title
-          </label>
-          <Input
-            id="title"
-            name="title"
-            value={jobPosting.title}
-            onChange={handleInputChange}
-            className="mt-1"
-            required
-          />
-        </div>
-        <div>
-          <label
-            htmlFor="department"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Department
-          </label>
-          <Input
-            id="department"
-            name="department"
-            value={jobPosting.department}
-            onChange={handleInputChange}
-            className="mt-1"
-            required
-          />
-        </div>
-        <div>
-          <label
-            htmlFor="location"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Location
-          </label>
-          <Input
-            id="location"
-            name="location"
-            value={jobPosting.location}
-            onChange={handleInputChange}
-            className="mt-1"
-            required
-          />
-        </div>
-        <div>
-          <label
-            htmlFor="description"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Job Description
-          </label>
-          <ReactQuill
-            value={jobPosting.description}
-            onChange={handleDescriptionChange}
-            className="mt-1"
-          />
-        </div>
-        <div className="flex justify-end space-x-3">
-          <Button type="button" variant="outline" onClick={() => router.back()}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={isLoading}>
-            {isLoading ? "Creating..." : "Create Job Posting"}
-          </Button>
-        </div>
-      </form>
-    </div>
+    <AdminPageLayout title="Add New Job Posting" showSearch={false}>
+      <div className="max-w-2xl mx-auto">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="title">Job Title</Label>
+              <Input
+                id="title"
+                value={jobPosting.title}
+                onChange={(e) =>
+                  setJobPosting({ ...jobPosting, title: e.target.value })
+                }
+                placeholder="Enter job title"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="department">Department</Label>
+              <Input
+                id="department"
+                value={jobPosting.department}
+                onChange={(e) =>
+                  setJobPosting({ ...jobPosting, department: e.target.value })
+                }
+                placeholder="Enter department"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="location">Location</Label>
+              <Input
+                id="location"
+                value={jobPosting.location}
+                onChange={(e) =>
+                  setJobPosting({ ...jobPosting, location: e.target.value })
+                }
+                placeholder="Enter location"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={jobPosting.description}
+                onChange={(e) =>
+                  setJobPosting({ ...jobPosting, description: e.target.value })
+                }
+                placeholder="Enter job description"
+                rows={6}
+              />
+            </div>
+          </div>
+
+          {error && <p className="text-red-500 text-sm">{error}</p>}
+
+          <div className="flex justify-end gap-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.push("/admin/job-postings")}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create Job Posting"
+              )}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </AdminPageLayout>
   );
 }

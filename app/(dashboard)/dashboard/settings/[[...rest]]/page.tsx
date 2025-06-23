@@ -6,46 +6,118 @@ import { userApi } from "@/lib/api-backend";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { FormSkeleton } from "@/components/ui/skeleton";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Loader2, CheckCircle, XCircle, Mail } from "lucide-react";
+import { z } from "zod";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface UserSettings {
-  emailNotifications: boolean;
-  pushNotifications: boolean;
-  jobAlerts: boolean;
-  applicationUpdates: boolean;
-  theme: string;
-  language: string;
+  notifications: {
+    email: boolean;
+    push: boolean;
+    jobAlerts: boolean;
+    applicationUpdates: boolean;
+    marketingEmails: boolean;
+  };
+  privacy: {
+    profileVisibility: string;
+    showActivity: boolean;
+    showApplicationHistory: boolean;
+  };
+  preferences: {
+    theme: string;
+    language: string;
+    timezone: string;
+  };
+}
+
+interface UserProfile {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  isEmailVerified: boolean;
 }
 
 const defaultSettings: UserSettings = {
-  emailNotifications: true,
-  pushNotifications: true,
-  jobAlerts: true,
-  applicationUpdates: true,
-  theme: "light",
-  language: "en",
+  notifications: {
+    email: true,
+    push: true,
+    jobAlerts: true,
+    applicationUpdates: true,
+    marketingEmails: false
+  },
+  privacy: {
+    profileVisibility: "public",
+    showActivity: true,
+    showApplicationHistory: true
+  },
+  preferences: {
+    theme: "light",
+    language: "en",
+    timezone: "UTC"
+  }
 };
+
+const passwordSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required"),
+  newPassword: z.string().min(8, "Password must be at least 8 characters"),
+  confirmPassword: z.string().min(8, "Password must be at least 8 characters"),
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
 
 export default function SettingsPage() {
   const { user } = useAuth();
   const [settings, setSettings] = useState<UserSettings>(defaultSettings);
+  const [profile, setProfile] = useState<UserProfile>({
+    firstName: user?.firstName || "",
+    lastName: user?.lastName || "",
+    email: user?.email || "",
+    phone: "",
+    isEmailVerified: false
+  });
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: ""
+  });
+  const [passwordErrors, setPasswordErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadSettings();
+    loadProfile();
   }, []);
 
   const loadSettings = async () => {
     try {
       setIsLoading(true);
       const response = await userApi.getSettings();
-      if (response) {
-        setSettings({ ...defaultSettings, ...response });
+      if (response?.settings) {
+        setSettings(response.settings);
       }
     } catch (error) {
       console.error("Failed to load settings:", error);
@@ -55,7 +127,25 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSave = async () => {
+  const loadProfile = async () => {
+    try {
+      const response = await userApi.getProfile();
+      if (response) {
+        setProfile({
+          firstName: response.firstName || user?.firstName || "",
+          lastName: response.lastName || user?.lastName || "",
+          email: response.email || user?.email || "",
+          phone: response.phone || "",
+          isEmailVerified: response.isEmailVerified || false
+        });
+      }
+    } catch (error) {
+      console.error("Failed to load profile:", error);
+      toast.error("Failed to load profile");
+    }
+  };
+
+  const handleSaveSettings = async () => {
     if (isSaving) return;
     setIsSaving(true);
 
@@ -70,6 +160,64 @@ export default function SettingsPage() {
     }
   };
 
+  const handleSaveProfile = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+
+    try {
+      await userApi.updateProfile(profile);
+      toast.success("Profile updated successfully");
+    } catch (error) {
+      console.error("Profile update error:", error);
+      toast.error("Failed to update profile");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    try {
+      setIsChangingPassword(true);
+      setPasswordErrors({});
+
+      const validatedData = passwordSchema.parse(passwordData);
+      await userApi.changePassword({
+        currentPassword: validatedData.currentPassword,
+        newPassword: validatedData.newPassword
+      });
+      
+      toast.success("Password changed successfully");
+      setPasswordData({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: ""
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const errors: Record<string, string> = {};
+        error.errors.forEach((err) => {
+          if (err.path[0]) {
+            errors[err.path[0].toString()] = err.message;
+          }
+        });
+        setPasswordErrors(errors);
+      } else {
+        toast.error("Failed to change password");
+      }
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    try {
+      await userApi.resendVerification();
+      toast.success("Verification email sent successfully");
+    } catch (error) {
+      toast.error("Failed to send verification email");
+    }
+  };
+
   if (isLoading) {
     return <FormSkeleton />;
   }
@@ -79,9 +227,164 @@ export default function SettingsPage() {
       <h1 className="text-3xl font-bold mb-8">Settings</h1>
 
       <div className="space-y-6">
+        {/* Profile Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Profile Information</CardTitle>
+            <CardDescription>Update your personal information</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="firstName">First Name</Label>
+                <Input
+                  id="firstName"
+                  value={profile.firstName}
+                  onChange={(e) => setProfile(prev => ({ ...prev, firstName: e.target.value }))}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="lastName">Last Name</Label>
+                <Input
+                  id="lastName"
+                  value={profile.lastName}
+                  onChange={(e) => setProfile(prev => ({ ...prev, lastName: e.target.value }))}
+                />
+              </div>
+              
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="email"
+                    value={profile.email}
+                    onChange={(e) => setProfile(prev => ({ ...prev, email: e.target.value }))}
+                  />
+                  {profile.isEmailVerified ? (
+                    <div className="flex items-center text-green-600">
+                      <CheckCircle className="h-5 w-5 mr-1" />
+                      <span className="text-sm">Verified</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center text-amber-600">
+                        <XCircle className="h-5 w-5 mr-1" />
+                        <span className="text-sm">Unverified</span>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleResendVerification}
+                        className="ml-2"
+                      >
+                        <Mail className="h-4 w-4 mr-1" />
+                        Resend
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="phone">Phone Number</Label>
+                <Input
+                  id="phone"
+                  value={profile.phone || ""}
+                  onChange={(e) => setProfile(prev => ({ ...prev, phone: e.target.value }))}
+                  placeholder="Optional"
+                />
+              </div>
+            </div>
+
+            <Button
+              onClick={handleSaveProfile}
+              disabled={isSaving}
+              className="mt-4"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Profile"
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Password Change Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Password</CardTitle>
+            <CardDescription>Change your password</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="currentPassword">Current Password</Label>
+                <Input
+                  id="currentPassword"
+                  type="password"
+                  value={passwordData.currentPassword}
+                  onChange={(e) => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
+                />
+                {passwordErrors.currentPassword && (
+                  <p className="text-sm text-red-500">{passwordErrors.currentPassword}</p>
+                )}
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="newPassword">New Password</Label>
+                <Input
+                  id="newPassword"
+                  type="password"
+                  value={passwordData.newPassword}
+                  onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
+                />
+                {passwordErrors.newPassword && (
+                  <p className="text-sm text-red-500">{passwordErrors.newPassword}</p>
+                )}
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={passwordData.confirmPassword}
+                  onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                />
+                {passwordErrors.confirmPassword && (
+                  <p className="text-sm text-red-500">{passwordErrors.confirmPassword}</p>
+                )}
+              </div>
+            </div>
+
+            <Button
+              onClick={handleChangePassword}
+              disabled={isChangingPassword}
+              variant="secondary"
+            >
+              {isChangingPassword ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Changing...
+                </>
+              ) : (
+                "Change Password"
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Separator className="my-8" />
+
+        {/* Notifications Section */}
         <Card>
           <CardHeader>
             <CardTitle>Notifications</CardTitle>
+            <CardDescription>Manage your notification preferences</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="flex items-center justify-between">
@@ -92,11 +395,14 @@ export default function SettingsPage() {
                 </p>
               </div>
               <Switch
-                checked={settings.emailNotifications}
+                checked={settings.notifications.email}
                 onCheckedChange={(checked) =>
                   setSettings((prev) => ({
                     ...prev,
-                    emailNotifications: checked,
+                    notifications: {
+                      ...prev.notifications,
+                      email: checked,
+                    },
                   }))
                 }
               />
@@ -110,11 +416,14 @@ export default function SettingsPage() {
                 </p>
               </div>
               <Switch
-                checked={settings.pushNotifications}
+                checked={settings.notifications.push}
                 onCheckedChange={(checked) =>
                   setSettings((prev) => ({
                     ...prev,
-                    pushNotifications: checked,
+                    notifications: {
+                      ...prev.notifications,
+                      push: checked,
+                    },
                   }))
                 }
               />
@@ -128,11 +437,14 @@ export default function SettingsPage() {
                 </p>
               </div>
               <Switch
-                checked={settings.jobAlerts}
+                checked={settings.notifications.jobAlerts}
                 onCheckedChange={(checked) =>
                   setSettings((prev) => ({
                     ...prev,
-                    jobAlerts: checked,
+                    notifications: {
+                      ...prev.notifications,
+                      jobAlerts: checked,
+                    },
                   }))
                 }
               />
@@ -146,11 +458,35 @@ export default function SettingsPage() {
                 </p>
               </div>
               <Switch
-                checked={settings.applicationUpdates}
+                checked={settings.notifications.applicationUpdates}
                 onCheckedChange={(checked) =>
                   setSettings((prev) => ({
                     ...prev,
-                    applicationUpdates: checked,
+                    notifications: {
+                      ...prev.notifications,
+                      applicationUpdates: checked,
+                    },
+                  }))
+                }
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="font-medium">Marketing Emails</Label>
+                <p className="text-sm text-muted-foreground">
+                  Receive promotional emails and newsletters
+                </p>
+              </div>
+              <Switch
+                checked={settings.notifications.marketingEmails}
+                onCheckedChange={(checked) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    notifications: {
+                      ...prev.notifications,
+                      marketingEmails: checked,
+                    },
                   }))
                 }
               />
@@ -158,9 +494,175 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
+        {/* Privacy Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Privacy</CardTitle>
+            <CardDescription>Manage your privacy settings</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label>Profile Visibility</Label>
+                <Select
+                  value={settings.privacy.profileVisibility}
+                  onValueChange={(value) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      privacy: {
+                        ...prev.privacy,
+                        profileVisibility: value,
+                      },
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select visibility" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="public">Public</SelectItem>
+                    <SelectItem value="private">Private</SelectItem>
+                    <SelectItem value="contacts">Contacts Only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="font-medium">Show Activity</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Show your activity status to others
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.privacy.showActivity}
+                  onCheckedChange={(checked) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      privacy: {
+                        ...prev.privacy,
+                        showActivity: checked,
+                      },
+                    }))
+                  }
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="font-medium">Show Application History</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Allow others to see your application history
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.privacy.showApplicationHistory}
+                  onCheckedChange={(checked) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      privacy: {
+                        ...prev.privacy,
+                        showApplicationHistory: checked,
+                      },
+                    }))
+                  }
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Preferences Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Preferences</CardTitle>
+            <CardDescription>Customize your experience</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label>Theme</Label>
+                <Select
+                  value={settings.preferences.theme}
+                  onValueChange={(value) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      preferences: {
+                        ...prev.preferences,
+                        theme: value,
+                      },
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select theme" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="light">Light</SelectItem>
+                    <SelectItem value="dark">Dark</SelectItem>
+                    <SelectItem value="system">System</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Language</Label>
+                <Select
+                  value={settings.preferences.language}
+                  onValueChange={(value) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      preferences: {
+                        ...prev.preferences,
+                        language: value,
+                      },
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select language" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="en">English</SelectItem>
+                    <SelectItem value="es">Spanish</SelectItem>
+                    <SelectItem value="fr">French</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Timezone</Label>
+                <Select
+                  value={settings.preferences.timezone}
+                  onValueChange={(value) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      preferences: {
+                        ...prev.preferences,
+                        timezone: value,
+                      },
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select timezone" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="UTC">UTC</SelectItem>
+                    <SelectItem value="America/New_York">Eastern Time</SelectItem>
+                    <SelectItem value="America/Chicago">Central Time</SelectItem>
+                    <SelectItem value="America/Denver">Mountain Time</SelectItem>
+                    <SelectItem value="America/Los_Angeles">Pacific Time</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="flex justify-end">
           <Button
-            onClick={handleSave}
+            onClick={handleSaveSettings}
             disabled={isSaving}
             size="lg"
             className="min-w-[120px]"

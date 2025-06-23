@@ -16,7 +16,7 @@ router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
-class CustomJSONEncoder(json.JSONEncoder):
+class JSONEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, datetime):
             return obj.isoformat()
@@ -45,72 +45,168 @@ def convert_objectids_to_strings(doc):
     return doc
 
 @router.post("/")
-async def submit_application(application_data: Dict[str, Any] = Body(...)):
+async def submit_application(
+    application_data: Dict[str, Any] = Body(...),
+    current_user: dict = Depends(get_current_user)
+):
     """Submit a new job application"""
     try:
+        logger.info("Received application submission")
+        logger.info(f"Current user: {json.dumps(current_user, default=str)}")
+        logger.info(f"Application data: {json.dumps(application_data, default=str)}")
+        
+        # Check database connection
+        if not is_connected():
+            logger.error("Database not connected")
+            raise HTTPException(status_code=503, detail="Database not available")
+            
         db = get_database()
         
         # Add timestamps and default status
         application_data["appliedDate"] = datetime.utcnow()
-        application_data["status"] = "Applied"
+        application_data["status"] = application_data.get("status", "New")
         application_data["createdAt"] = datetime.utcnow()
         application_data["updatedAt"] = datetime.utcnow()
         
-        result = await db.applications.insert_one(application_data)
+        # Link the application to the current user
+        user_id = str(current_user["_id"])
+        application_data["userId"] = user_id
+        logger.info(f"Setting userId to: {user_id}")
+        
+        # Log the final application data before insertion
+        logger.info(f"Final application data: {json.dumps(application_data, default=str)}")
+        
+        try:
+            result = await db.applications.insert_one(application_data)
+            logger.info(f"Application inserted with ID: {result.inserted_id}")
+        except Exception as e:
+            logger.error(f"Database insertion error: {str(e)}")
+            raise
         
         application_data["_id"] = str(result.inserted_id)
         application_data["id"] = str(result.inserted_id)
+        
+        # Verify the application was saved
+        saved_app = await db.applications.find_one({"_id": result.inserted_id})
+        if saved_app:
+            logger.info(f"Successfully verified application in database: {json.dumps(saved_app, default=str)}")
+        else:
+            logger.warning("Could not verify application in database after insertion")
         
         return {
             "message": "Application submitted successfully",
             "application": application_data
         }
     except Exception as e:
+        logger.error(f"Error submitting application: {str(e)}")
+        logger.exception("Full traceback:")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/")
 async def get_applications(
-    request: Request,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
-    status: Optional[str] = Query(None),
+    page: int = 1,
+    limit: int = 10,
     current_user: dict = Depends(get_current_user)
 ):
-    """Get applications with pagination and filtering"""
+    """Get all applications for the current user"""
     try:
-        logger.info("Received GET /applications request")
-        logger.info(f"Headers: {dict(request.headers)}")
-        logger.info(f"Current user: {current_user}")
-        
         if not is_connected():
+            logger.error("Database not connected")
             raise HTTPException(status_code=503, detail="Database not available")
             
         db = get_database()
         
-        filter_query = {}
-        if status:
-            filter_query["status"] = status
+        # Get user ID
+        user_id = str(current_user["_id"])
+        logger.info(f"Fetching applications for user: {user_id}")
         
-        applications_cursor = db.applications.find(filter_query).skip(skip).limit(limit).sort("appliedDate", -1)
-        applications = await applications_cursor.to_list(length=limit)
-        total = await db.applications.count_documents(filter_query)
+        # Calculate skip value for pagination
+        skip = (page - 1) * limit
         
-        # Convert ObjectIds to strings
+        # Get total count
+        total = await db.applications.count_documents({"userId": user_id})
+        
+        # Use aggregation pipeline to join with jobpostings collection
+        pipeline = [
+            {"$match": {"userId": user_id}},
+            {"$skip": skip},
+            {"$limit": limit},
+            {
+                "$lookup": {
+                    "from": "jobpostings",
+                    "let": { "jobId": { "$toObjectId": "$jobId" } },
+                    "pipeline": [
+                        {
+                            "$match": {
+                                "$expr": {
+                                    "$eq": ["$_id", "$$jobId"]
+                                }
+                            }
+                        },
+                        {
+                            "$project": {
+                                "title": 1,
+                                "department": 1,
+                                "location": 1
+                            }
+                        }
+                    ],
+                    "as": "jobDetails"
+                }
+            },
+            {
+                "$addFields": {
+                    "jobDetails": {
+                        "$cond": {
+                            "if": { "$gt": [{ "$size": "$jobDetails" }, 0] },
+                            "then": { "$arrayElemAt": ["$jobDetails", 0] },
+                            "else": None
+                        }
+                    }
+                }
+            }
+        ]
+        
+        cursor = db.applications.aggregate(pipeline)
+        applications = await cursor.to_list(length=limit)
+        
+        # Convert ObjectIds to strings and ensure job details are properly formatted
         for app in applications:
-            convert_objectids_to_strings(app)
             app["id"] = str(app["_id"])
-            del app["_id"]  # Remove the original _id
+            if "jobDetails" in app and app["jobDetails"]:
+                app["position"] = app["jobDetails"].get("title", "N/A")
+            else:
+                # Try to get job details directly if lookup failed
+                job = await db.jobpostings.find_one({"_id": app["jobId"]})
+                if job:
+                    app["position"] = job.get("title", "N/A")
+                    app["jobDetails"] = {
+                        "title": job.get("title"),
+                        "department": job.get("department"),
+                        "location": job.get("location")
+                    }
+                else:
+                    app["position"] = "N/A"
+                    app["jobDetails"] = None
+            
+        # Calculate total pages
+        total_pages = (total + limit - 1) // limit
         
-        response_data = {
+        logger.info(f"Found {len(applications)} applications for user {user_id}")
+        
+        # Use custom JSON encoder for the response
+        response = {
             "applications": applications,
             "total": total,
-            "page": skip // limit + 1,
-            "totalPages": (total + limit - 1) // limit
+            "page": page,
+            "totalPages": total_pages
         }
-
-        return response_data
+        
+        # Convert to JSON string and back to handle datetime serialization
+        return json.loads(json.dumps(response, cls=JSONEncoder))
+        
     except Exception as e:
-        logger.error(f"Error in get_applications: {str(e)}")
+        logger.error(f"Error getting applications: {str(e)}")
         logger.exception("Full traceback:")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -149,7 +245,7 @@ async def get_technical_assessment_applications(
 
         # Convert to JSON-serializable format
         response_json = json.loads(
-            json.dumps(response_data, cls=CustomJSONEncoder)
+            json.dumps(response_data, cls=JSONEncoder)
         )
 
         # Get the origin from the request headers
@@ -204,7 +300,7 @@ async def get_shortlisted_applications(
 
         # Convert to JSON-serializable format
         response_json = json.loads(
-            json.dumps(response_data, cls=CustomJSONEncoder)
+            json.dumps(response_data, cls=JSONEncoder)
         )
 
         # Get the origin from the request headers
@@ -258,7 +354,7 @@ async def get_interviewing_applications(
 
         # Convert to JSON-serializable format
         response_json = json.loads(
-            json.dumps(response_data, cls=CustomJSONEncoder)
+            json.dumps(response_data, cls=JSONEncoder)
         )
 
         # Get the origin from the request headers
@@ -312,7 +408,7 @@ async def get_hired_applications(
 
         # Convert to JSON-serializable format
         response_json = json.loads(
-            json.dumps(response_data, cls=CustomJSONEncoder)
+            json.dumps(response_data, cls=JSONEncoder)
         )
 
         # Get the origin from the request headers
@@ -343,19 +439,54 @@ async def get_rejected_applications(
     """Get rejected applications"""
     try:
         db = get_database()
+        if db is None:
+            logger.error("Database not connected")
+            raise HTTPException(status_code=503, detail="Database not available")
         
-        applications_cursor = db.applications.find({"status": "rejected"}).skip(skip).limit(limit).sort("rejectedDate", -1)
+        status_filter = {"status": "rejected"}
+        applications_cursor = db.applications.find(status_filter).skip(skip).limit(limit).sort("rejectedDate", -1)
         applications = await applications_cursor.to_list(length=limit)
-        total = await db.applications.count_documents({"status": "rejected"})
+        total = await db.applications.count_documents(status_filter)
         
         # Convert all ObjectIds to strings
         for app in applications:
             convert_objectids_to_strings(app)
             app["id"] = str(app["_id"])
         
-        return {"applications": applications, "total": total}
+        # Structure the response properly
+        response_data = {
+            "applications": applications,
+            "total": total,
+            "page": skip // limit + 1,
+            "totalPages": (total + limit - 1) // limit
+        }
+
+        # Convert to JSON-serializable format
+        response_json = json.loads(
+            json.dumps(response_data, cls=JSONEncoder)
+        )
+
+        # Get the origin from the request headers
+        origin = request.headers.get("origin", "http://localhost:3000")
+
+        # Return applications with proper CORS headers
+        return JSONResponse(
+            content=response_json,
+            headers={
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept",
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Max-Age": "3600",
+            }
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error in get_rejected_applications: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to get rejected applications"
+        )
 
 @router.get("/disqualified")
 async def get_disqualified_applications(
@@ -392,7 +523,7 @@ async def get_disqualified_applications(
 
         # Convert to JSON-serializable format
         response_json = json.loads(
-            json.dumps(response_data, cls=CustomJSONEncoder)
+            json.dumps(response_data, cls=JSONEncoder)
         )
 
         # Get the origin from the request headers
@@ -446,14 +577,46 @@ async def get_application(
     """Get a single application by ID"""
     try:
         db = get_database()
-        application = await db.applications.find_one({"_id": ObjectId(application_id)})
+        if db is None:
+            logger.error("Database not connected")
+            raise HTTPException(status_code=503, detail="Database not available")
+        
+        try:
+            application = await db.applications.find_one({"_id": ObjectId(application_id)})
+        except Exception as e:
+            logger.error(f"Error converting application ID {application_id} to ObjectId: {str(e)}")
+            raise HTTPException(status_code=400, detail="Invalid application ID format")
         
         if not application:
             raise HTTPException(status_code=404, detail="Application not found")
-            
-        return convert_objectids_to_strings(application)
+        
+        # Convert ObjectIds to strings
+        application = convert_objectids_to_strings(application)
+        application["id"] = str(application["_id"])
+        
+        # Get the origin from the request headers
+        origin = request.headers.get("origin", "http://localhost:3000")
+        
+        # Return application with proper CORS headers
+        return JSONResponse(
+            content=json.loads(json.dumps(application, cls=JSONEncoder)),
+            headers={
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept",
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Max-Age": "3600",
+            }
+        )
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error in get_application: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to get application"
+        )
 
 @router.put("/{application_id}", response_model=Dict[str, Any])
 async def update_application(
@@ -465,18 +628,74 @@ async def update_application(
     """Update an application"""
     try:
         db = get_database()
-        result = await db.applications.update_one(
-            {"_id": ObjectId(application_id)},
-            {"$set": application}
-        )
+        if db is None:
+            logger.error("Database not connected")
+            raise HTTPException(status_code=503, detail="Database not available")
+        
+        # Validate application ID format
+        try:
+            obj_id = ObjectId(application_id)
+        except Exception as e:
+            logger.error(f"Error converting application ID {application_id} to ObjectId: {str(e)}")
+            raise HTTPException(status_code=400, detail="Invalid application ID format")
+        
+        # Add update timestamp
+        application["updatedAt"] = datetime.utcnow()
+        
+        try:
+            result = await db.applications.update_one(
+                {"_id": obj_id},
+                {"$set": application}
+            )
+        except Exception as e:
+            logger.error(f"Error updating application {application_id}: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to update application in database"
+            )
         
         if result.modified_count == 0:
-            raise HTTPException(status_code=404, detail="Application not found")
-            
-        updated_application = await db.applications.find_one({"_id": ObjectId(application_id)})
-        return convert_objectids_to_strings(updated_application)
+            if not await db.applications.find_one({"_id": obj_id}):
+                raise HTTPException(status_code=404, detail="Application not found")
+            else:
+                logger.info(f"No changes made to application {application_id}")
+        
+        # Get updated application
+        updated_application = await db.applications.find_one({"_id": obj_id})
+        if not updated_application:
+            logger.error(f"Could not retrieve updated application {application_id}")
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to retrieve updated application"
+            )
+        
+        # Convert ObjectIds to strings
+        updated_application = convert_objectids_to_strings(updated_application)
+        updated_application["id"] = str(updated_application["_id"])
+        
+        # Get the origin from the request headers
+        origin = request.headers.get("origin", "http://localhost:3000")
+        
+        # Return updated application with proper CORS headers
+        return JSONResponse(
+            content=json.loads(json.dumps(updated_application, cls=JSONEncoder)),
+            headers={
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Methods": "GET, PUT, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept",
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Max-Age": "3600",
+            }
+        )
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error in update_application: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to update application"
+        )
 
 @router.delete("/{application_id}")
 async def delete_application(
@@ -612,4 +831,142 @@ async def get_application_stats(current_user: dict = Depends(get_current_user)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
-        ) 
+        )
+
+@router.get("/user/{user_id}")
+async def get_user_applications(
+    user_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100)
+):
+    """Get applications for a specific user"""
+    try:
+        logger.info(f"Fetching applications for user: {user_id}")
+        logger.info(f"Current user: {current_user}")
+        
+        # Verify user has permission to access these applications
+        if str(current_user["_id"]) != user_id and current_user.get("role", "").upper() != "ADMIN":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to view these applications"
+            )
+
+        db = get_database()
+        if not is_connected():
+            raise HTTPException(status_code=503, detail="Database not available")
+
+        # Create filter for user's applications
+        filter_query = {"userId": user_id}
+        
+        logger.info(f"Applying filter: {filter_query}")
+        
+        # Get applications with pagination
+        applications_cursor = db.applications.find(filter_query).skip(skip).limit(limit).sort("appliedDate", -1)
+        applications = await applications_cursor.to_list(length=limit)
+        total = await db.applications.count_documents(filter_query)
+
+        logger.info(f"Found {total} applications")
+
+        # Convert ObjectIds to strings and format response
+        for app in applications:
+            convert_objectids_to_strings(app)
+            app["id"] = str(app["_id"])
+            if "_id" in app:
+                del app["_id"]
+
+        response_data = {
+            "applications": applications,
+            "total": total,
+            "page": skip // limit + 1,
+            "totalPages": (total + limit - 1) // limit
+        }
+
+        return JSONResponse(
+            content=json.loads(json.dumps(response_data, cls=JSONEncoder)),
+            headers={
+                "Access-Control-Allow-Origin": request.headers.get("origin", "http://localhost:3000"),
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization",
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Max-Age": "3600",
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error in get_user_applications: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/users/profile")
+async def get_user_profile(current_user: dict = Depends(get_current_user)):
+    """Get the current user's profile"""
+    try:
+        db = get_database()
+        user = await db.users.find_one({"_id": ObjectId(current_user["_id"])})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return convert_objectids_to_strings(user)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/users/settings")
+async def get_user_settings(current_user: dict = Depends(get_current_user)):
+    """Get the current user's settings"""
+    try:
+        db = get_database()
+        settings = await db.user_settings.find_one({"userId": ObjectId(current_user["_id"])})
+        if not settings:
+            # Return default settings if none exist
+            return {
+                "userId": str(current_user["_id"]),
+                "emailNotifications": True,
+                "applicationUpdates": True,
+                "jobAlerts": True
+            }
+        return convert_objectids_to_strings(settings)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/users/application-stats")
+async def get_application_stats(current_user: dict = Depends(get_current_user)):
+    """Get application statistics for the current user"""
+    try:
+        db = get_database()
+        pipeline = [
+            {"$match": {"userId": str(current_user["_id"])}},
+            {"$group": {
+                "_id": "$status",
+                "count": {"$sum": 1}
+            }}
+        ]
+        stats = await db.applications.aggregate(pipeline).to_list(length=None)
+        
+        # Format stats into a more readable structure
+        formatted_stats = {
+            "total": 0,
+            "byStatus": {}
+        }
+        
+        for stat in stats:
+            count = stat["count"]
+            formatted_stats["total"] += count
+            formatted_stats["byStatus"][stat["_id"]] = count
+            
+        return formatted_stats
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/users/latest-application")
+async def get_latest_application(current_user: dict = Depends(get_current_user)):
+    """Get the user's latest application"""
+    try:
+        db = get_database()
+        latest = await db.applications.find_one(
+            {"userId": str(current_user["_id"])},
+            sort=[("appliedDate", -1)]
+        )
+        if not latest:
+            return None
+        return convert_objectids_to_strings(latest)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) 

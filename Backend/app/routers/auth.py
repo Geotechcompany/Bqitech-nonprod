@@ -1,52 +1,126 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Form, Request, Body
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from app.auth import create_access_token, verify_password, get_password_hash, get_current_user, SECRET_KEY, ALGORITHM
 from app.database import get_database
 from app.models import User
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from datetime import timedelta, datetime
 from bson import ObjectId
 from jose import jwt
 import logging
 import json
+import os
+from pydantic import BaseModel
+from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+
+class LoginCredentials(BaseModel):
+    email: str
+    password: str
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
 @router.post("/login")
-async def login(credentials: Dict[str, Any] = Body(...)):
-    """Login endpoint"""
+async def login(
+    request: Request,
+    credentials: OAuth2PasswordRequestForm = Depends()
+):
+    """Login user and return tokens"""
     try:
         db = get_database()
         
-        email = credentials.get("email")
-        password = credentials.get("password")
-        
-        if not email or not password:
-            raise HTTPException(status_code=400, detail="Email and password required")
-        
-        # Find user
-        user = await db.users.find_one({"email": email})
-        if not user or not verify_password(password, user["password"]):
-            raise HTTPException(status_code=401, detail="Invalid credentials")
-        
+        # Find user by email
+        user = await db.users.find_one({"email": credentials.username})
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid credentials"
+            )
+            
+        # Verify password
+        if not verify_password(credentials.password, user["password"]):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid credentials"
+            )
+            
         # Create access token
-        access_token = create_access_token(data={"sub": str(user["_id"])})
+        access_token = create_access_token(
+            data={"sub": str(user["_id"])}
+        )
         
-        return {
-            "access_token": access_token,
-            "token_type": "bearer",
-            "user": {
-                "id": str(user["_id"]),
-                "email": user["email"],
-                "name": user.get("name", ""),
-                "role": user.get("role", "user")
-            }
+        # Create refresh token
+        refresh_token = create_access_token(
+            data={"sub": str(user["_id"])}
+        )
+        
+        # Get verification status (standardize on isEmailVerified)
+        is_verified = user.get("isEmailVerified", False)
+        if not is_verified:
+            # Check legacy fields for backward compatibility
+            is_verified = user.get("is_verified", False) or user.get("email_verified", False)
+            # Update to new field if verified in legacy fields
+            if is_verified:
+                await db.users.update_one(
+                    {"_id": user["_id"]},
+                    {"$set": {"isEmailVerified": True}}
+                )
+        
+        # Format user data
+        user_data = {
+            "id": str(user["_id"]),
+            "email": user["email"],
+            "name": user.get("name", ""),
+            "role": user.get("role", "USER"),
+            "isEmailVerified": is_verified,
+            "avatar": user.get("avatar", ""),
+            "createdAt": user.get("createdAt", "").isoformat() if user.get("createdAt") else None
         }
-    except HTTPException:
-        raise
+        
+        # Get origin from request headers
+        origin = request.headers.get("origin", "http://localhost:3000")
+        
+        return JSONResponse(
+            content={
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "token_type": "bearer",
+                "user": user_data
+            },
+            headers={
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session"
+            }
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Login error: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+@router.options("/login", include_in_schema=False)
+async def options_login(request: Request):
+    """Handle CORS preflight requests for login"""
+    origin = request.headers.get("origin", "http://localhost:3000")
+    return JSONResponse(
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "3600",
+        }
+    )
 
 @router.post("/signup")
 async def signup(
@@ -76,8 +150,8 @@ async def signup(
             "password": hashed_password,
             "role": "USER",
             "is_active": True,
-            "created_at": "2023-01-01T00:00:00",  # You might want to use datetime.utcnow()
-            "email_verified": False
+            "createdAt": datetime.utcnow(),
+            "isEmailVerified": False
         }
         
         # Insert user into database
@@ -113,28 +187,106 @@ async def logout(current_user: Dict[str, Any] = Depends(get_current_user)):
     return {"message": "Successfully logged out"}
 
 @router.post("/refresh")
-async def refresh_token(current_user: Dict[str, Any] = Depends(get_current_user)):
-    """Refresh JWT token"""
+async def refresh_token(
+    request: Request,
+    refresh_token: str = Body(..., embed=True)
+):
+    """Refresh access token"""
     try:
-        # Create new access token using the user ID
-        access_token_expires = timedelta(minutes=30)
+        # Verify refresh token
+        payload = jwt.decode(
+            refresh_token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM]
+        )
+        user_id = payload.get("sub")
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token"
+            )
+            
+        # Get user from database
+        db = get_database()
+        user = await db.users.find_one({"_id": ObjectId(user_id)})
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found"
+            )
+            
+        # Create new access token
         access_token = create_access_token(
-            data={"sub": str(current_user["_id"])},
-            expires_delta=access_token_expires
+            data={"sub": str(user["_id"])}
         )
         
-        return {
-            "access_token": access_token,
-            "token_type": "bearer",
-            "expires_in": 1800
+        # Create new refresh token
+        new_refresh_token = create_access_token(
+            data={"sub": str(user["_id"])}
+        )
+        
+        # Format user data
+        user_data = {
+            "id": str(user["_id"]),
+            "email": user["email"],
+            "name": user.get("name", ""),
+            "role": user.get("role", "USER"),
+            "isEmailVerified": user.get("isEmailVerified", False),
+            "avatar": user.get("avatar", ""),
+            "createdAt": user.get("createdAt", "").isoformat() if user.get("createdAt") else None
         }
         
+        # Get origin from request headers
+        origin = request.headers.get("origin", "http://localhost:3000")
+        
+        return JSONResponse(
+            content={
+                "access_token": access_token,
+                "refresh_token": new_refresh_token,
+                "token_type": "bearer",
+                "user": user_data
+            },
+            headers={
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session"
+            }
+        )
+    except jwt.ExpiredSignatureError:
+        logger.error("Refresh token expired")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token expired"
+        )
+    except jwt.JWTError as e:
+        logger.error(f"JWT decode error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate refresh token"
+        )
     except Exception as e:
-        logger.error(f"Token refresh error: {e}")
+        logger.error(f"Token refresh error: {str(e)}")
+        logger.exception("Full traceback:")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error"
+            detail=str(e)
         )
+
+@router.options("/refresh", include_in_schema=False)
+async def options_refresh(request: Request):
+    """Handle CORS preflight requests for refresh token"""
+    origin = request.headers.get("origin", "http://localhost:3000")
+    return JSONResponse(
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "3600",
+        }
+    )
 
 @router.post("/register")
 async def register(user_data: Dict[str, Any] = Body(...)):
@@ -252,3 +404,86 @@ async def auth_log(log_data: Dict[str, Any] = Body(...)):
     except Exception as e:
         logger.error(f"Auth log error: {e}")
         return {"success": False, "error": str(e)}
+
+@router.post("/verify-email")
+async def verify_email(
+    request: Request,
+    email: str = Body(...),
+    code: str = Body(...)
+):
+    """Verify user's email address"""
+    try:
+        db = get_database()
+        
+        # Find user
+        user = await db.users.find_one({"email": email})
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Verify code (you'll need to implement your verification logic here)
+        # For now, we'll just mark the email as verified
+        result = await db.users.update_one(
+            {"_id": user["_id"]},
+            {
+                "$set": {
+                    "isEmailVerified": True,
+                    "verifiedAt": datetime.utcnow()
+                }
+            }
+        )
+        
+        if result.modified_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to verify email"
+            )
+        
+        return {"message": "Email verified successfully"}
+        
+    except Exception as e:
+        logger.error(f"Email verification error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+@router.post("/verify-email/status")
+async def check_email_verification(
+    request: Request,
+    email: str = Body(...)
+):
+    """Check email verification status"""
+    try:
+        db = get_database()
+        
+        # Find user
+        user = await db.users.find_one({"email": email})
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Check verification status
+        is_verified = user.get("isEmailVerified", False)
+        if not is_verified:
+            # Check legacy fields
+            is_verified = user.get("is_verified", False) or user.get("email_verified", False)
+            # Update to new field if verified in legacy fields
+            if is_verified:
+                await db.users.update_one(
+                    {"_id": user["_id"]},
+                    {"$set": {"isEmailVerified": True}}
+                )
+        
+        return {"isEmailVerified": is_verified}
+        
+    except Exception as e:
+        logger.error(f"Email verification status check error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )

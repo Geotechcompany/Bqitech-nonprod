@@ -204,10 +204,10 @@ export default function DashboardSidebar({ isOpen, onClose, className }: Dashboa
       animate={{ x: 0 }}
       transition={{ type: "spring", stiffness: 200, damping: 30 }}
       className={`
-        fixed inset-y-0 left-0 z-50 bg-gradient-to-b from-slate-50 to-white
+        fixed inset-y-0 left-0 z-[9999] bg-gradient-to-b from-slate-50 to-white
         shadow-xl transition-all duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-        ${sidebarCollapsed ? 'md:w-20 md:translate-x-0' : 'md:w-64'}
+        ${sidebarCollapsed ? 'w-20' : 'w-64'}
         border-r border-slate-100
         ${className || ''}
       `}

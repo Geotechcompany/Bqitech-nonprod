@@ -20,6 +20,7 @@ import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { adminApi } from "@/lib/api-backend";
 
 const questionSchema = z.object({
   jobIds: z.array(z.string()).min(1, "At least one job must be selected"),
@@ -87,17 +88,8 @@ export function EditQuestionModal({
   const { data: questionData, isLoading: isQuestionLoading } = useQuery({
     queryKey: ['question', questionId],
     queryFn: async () => {
-      const [questionRes, associationsRes] = await Promise.all([
-        fetch(`/api/admin/questions/${questionId}`),
-        fetch('/api/admin/questions/job-associations')
-      ]);
+      const question = await adminApi.getQuestion(questionId);
       
-      if (!questionRes.ok || !associationsRes.ok) {
-        throw new Error('Failed to fetch question data');
-      }
-
-      const question = await questionRes.json();
-
       // Transform the API response to match frontend expectations
       const transformedQuestion = {
         ...question,
