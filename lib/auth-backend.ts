@@ -172,30 +172,26 @@ class AuthService {
   // Register new user
   async register(email: string, password: string, name: string): Promise<AuthResponse> {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/auth/register`, {
+      // Use FormData as required by the backend
+      const formData = new FormData();
+      formData.append('email', email.toLowerCase());
+      formData.append('password', password);
+      formData.append('name', name);
+
+      const response = await fetch(`${BACKEND_URL}/api/auth/signup`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password, name }),
+        body: formData,
         credentials: 'include',
       });
 
       if (!response.ok) {
         const error = await response.json();
+        console.error('Registration error response:', error);
         throw new Error(error.detail || 'Registration failed');
       }
 
-      const data: AuthResponse = await response.json();
-      
-      // Store session data
-      this.setSession({
-        user: data.user,
-        token: data.access_token,
-        refreshToken: data.refresh_token
-      });
-      
-      return data;
+      // After successful registration, login the user
+      return await this.login(email, password);
     } catch (error) {
       console.error('Registration error:', error);
       throw error;

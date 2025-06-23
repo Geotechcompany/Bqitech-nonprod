@@ -132,9 +132,16 @@ async def signup(
     try:
         db = get_database()
         
-        # Check if user already exists
-        existing_user = await db.users.find_one({"email": email})
+        # Normalize email to lowercase
+        email = email.lower()
+        
+        # Check if user already exists (case-insensitive)
+        existing_user = await db.users.find_one({
+            "email": {"$regex": f"^{email}$", "$options": "i"}
+        })
+        
         if existing_user:
+            logger.warning(f"Signup attempt with existing email: {email}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered"
@@ -157,6 +164,7 @@ async def signup(
         # Insert user into database
         result = await db.users.insert_one(user_data)
         
+        logger.info(f"New user registered: {email}")
         return {
             "message": "User created successfully",
             "user_id": str(result.inserted_id)
@@ -165,7 +173,8 @@ async def signup(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Signup error: {e}")
+        logger.error(f"Signup error: {str(e)}")
+        logger.exception("Full traceback:")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
