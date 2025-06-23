@@ -2,87 +2,111 @@
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { signupSchema } from '@/lib/validations/auth';
+import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
+import { Label } from '@/components/ui/label';
+import { Loader2 } from 'lucide-react';
+import Link from 'next/link';
 
-export function SignupForm() {
-  const router = useRouter();
-  const form = useForm({
+const signupSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters'),
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+});
+
+type FormData = z.infer<typeof signupSchema>;
+
+interface SignupFormProps {
+  onSignup: (email: string, password: string, name: string) => Promise<void>;
+}
+
+export function SignupForm({ onSignup }: SignupFormProps) {
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(signupSchema),
-    defaultValues: {
-      email: '',
-      password: '',
-    },
   });
 
-  const onSubmit = async (data) => {
-    try {
-      const response = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
-
-      // Check if response is JSON
-      const contentType = response.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        throw new Error('Server returned non-JSON response');
-      }
-
-      const result = await response.json();
-      
-      if (response.ok) {
-        toast.success('Account created successfully');
-        router.push('/dashboard');
-      } else {
-        toast.error(result.error || 'Signup failed');
-      }
-    } catch (error) {
-      console.error('Signup error:', error);
-      if (error instanceof Error) {
-        toast.error(`Signup failed: ${error.message}`);
-      } else {
-        toast.error('An unexpected error occurred during signup');
-      }
-    }
+  const onSubmit = async (data: FormData) => {
+    await onSignup(data.email, data.password, data.name);
   };
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-      <div className="space-y-2">
-        <Input
-          type="email"
-          placeholder="Email"
-          {...form.register('email')}
-          aria-label="Email"
-        />
-        {form.formState.errors.email && (
-          <p className="text-sm text-red-500">{form.formState.errors.email.message}</p>
-        )}
+    <div className="space-y-6">
+      <div className="space-y-2 text-center">
+        <h1 className="text-3xl font-bold">Create an Account</h1>
+        <p className="text-gray-500 dark:text-gray-400">
+          Enter your information to create your account
+        </p>
       </div>
-      <div className="space-y-2">
-        <Input
-          type="password"
-          placeholder="Password"
-          {...form.register('password')}
-          aria-label="Password"
-        />
-        {form.formState.errors.password && (
-          <p className="text-sm text-red-500">{form.formState.errors.password.message}</p>
-        )}
+      
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="name">Full Name</Label>
+          <Input
+            id="name"
+            placeholder="Enter your full name"
+            type="text"
+            disabled={isSubmitting}
+            {...register("name")}
+            className="h-12"
+          />
+          {errors.name?.message && (
+            <p className="text-sm text-red-500">{errors.name.message}</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            placeholder="Enter your email"
+            type="email"
+            disabled={isSubmitting}
+            {...register("email")}
+            className="h-12"
+          />
+          {errors.email?.message && (
+            <p className="text-sm text-red-500">{errors.email.message}</p>
+          )}
+        </div>
+        
+        <div className="space-y-2">
+          <Label htmlFor="password">Password</Label>
+          <Input
+            id="password"
+            placeholder="Create a password"
+            type="password"
+            disabled={isSubmitting}
+            {...register("password")}
+            className="h-12"
+          />
+          {errors.password?.message && (
+            <p className="text-sm text-red-500">{errors.password.message}</p>
+          )}
+        </div>
+
+        <Button
+          type="submit"
+          className="w-full h-12"
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Creating Account...
+            </>
+          ) : (
+            "Create Account"
+          )}
+        </Button>
+      </form>
+
+      <div className="text-center text-sm">
+        Already have an account?{" "}
+        <Link href="/login" className="text-blue-600 hover:underline">
+          Sign in
+        </Link>
       </div>
-      <Button 
-        type="submit" 
-        className="w-full"
-        disabled={form.formState.isSubmitting}
-      >
-        {form.formState.isSubmitting ? 'Signing up...' : 'Sign Up'}
-      </Button>
-    </form>
+    </div>
   );
 } 

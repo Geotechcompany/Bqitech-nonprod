@@ -222,7 +222,7 @@ export default function CallToAction() {
                 className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-8"
               >
                 <Link
-                  href="/contact-us"
+                  href="/careers/jobs"
                   className="group relative w-full sm:w-auto px-10 py-5 rounded-2xl font-semibold 
                            overflow-hidden transition-all duration-300 transform hover:scale-105
                            hover:[transform:translateZ(20px)] active:scale-95"

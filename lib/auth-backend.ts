@@ -198,26 +198,30 @@ class AuthService {
     }
   }
 
-  // Logout
+  // Logout user
   async logout(): Promise<void> {
     try {
-      const session = this.getSession();
-      
-      if (session?.token) {
-        // Call backend logout endpoint
-        await fetch(`${BACKEND_URL}/api/auth/logout`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.token}`,
-          },
-          credentials: 'include',
-        });
+      const response = await fetch(`${BACKEND_URL}/api/auth/logout`, {
+        method: 'POST',
+        headers: this.getAuthHeader(),
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Logout failed');
+      }
+
+      // Clear session data
+      this.clearSession();
+      this.clearAuthData();
+
+      // Redirect to login page with success message
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login?message=Successfully logged out';
       }
     } catch (error) {
       console.error('Logout error:', error);
-    } finally {
-      // Always clear session data
-      this.clearSession();
+      throw error;
     }
   }
 

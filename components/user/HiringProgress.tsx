@@ -46,8 +46,9 @@ export function HiringProgress() {
   }
 
   // Calculate progress based on current stage
-  const currentStageIndex = data.stages.indexOf(data.currentStage || 'New');
-  const progress = ((currentStageIndex + 1) / data.stages.length) * 100;
+  const hasApplications = Object.values(data.stageData).some(stage => stage.count > 0);
+  const currentStageIndex = hasApplications ? data.stages.indexOf(data.currentStage || 'New') : -1;
+  const progress = hasApplications ? ((currentStageIndex + 1) / data.stages.length) * 100 : 0;
 
   const statusColors = {
     'New': 'text-blue-600',
@@ -73,8 +74,12 @@ export function HiringProgress() {
       <Progress value={progress} className="h-2" />
       
       <div className="flex justify-between items-center text-xs">
-        <span className="text-gray-500">Stage: {currentStageIndex + 1}/{data.stages.length}</span>
-        <span className={`font-medium ${statusColor}`}>{data.currentStage || 'No Applications'}</span>
+        <span className="text-gray-500">
+          Stage: {hasApplications ? `${currentStageIndex + 1}/${data.stages.length}` : '0/6'}
+        </span>
+        <span className={`font-medium ${statusColor}`}>
+          {hasApplications ? (data.currentStage || 'New') : 'No Applications'}
+        </span>
       </div>
     </div>
   );

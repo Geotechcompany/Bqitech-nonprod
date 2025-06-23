@@ -14,6 +14,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
   refreshToken: () => Promise<void>
+  register: (email: string, password: string, name: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -68,6 +69,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
     } catch (error) {
       console.error('Login error:', error)
+      setAuthState(prev => ({
+        ...prev,
+        isAuthenticated: false,
+        isAdmin: false,
+        user: null,
+        userRole: undefined,
+        authLoading: false
+      }))
+      throw error
+    }
+  }
+
+  const register = async (email: string, password: string, name: string) => {
+    try {
+      const response = await authService.register(email, password, name)
+      console.log('Registration successful:', response)
+      
+      setAuthState({
+        isAuthenticated: true,
+        isAdmin: response.user.role === 'admin',
+        user: response.user,
+        userRole: response.user.role,
+        authLoading: false
+      })
+    } catch (error) {
+      console.error('Registration error:', error)
       setAuthState(prev => ({
         ...prev,
         isAuthenticated: false,
@@ -149,7 +176,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ...authState,
         login,
         logout,
-        refreshToken
+        refreshToken,
+        register
       }}
     >
       {children}
