@@ -6,18 +6,18 @@ import { useAuth } from '@/contexts/AuthContext'
 import LoginWrapper from '../LoginWrapper'
 
 export default function LoginPage() {
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, authLoading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectTo = searchParams.get('redirectTo')
 
   useEffect(() => {
-    if (!isLoading && isAuthenticated) {
+    if (!authLoading && isAuthenticated) {
       router.push(redirectTo || '/dashboard')
     }
-  }, [isAuthenticated, isLoading, redirectTo, router])
+  }, [isAuthenticated, authLoading, redirectTo, router])
 
-  if (isLoading) {
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>

@@ -13,13 +13,13 @@ import { useEffect } from "react"
 
 export default function NewBlogPost() {
   const router = useRouter()
-  const { isAuthenticated, isAdmin, isLoading } = useAuth()
+  const { isAuthenticated, isAdmin, authLoading } = useAuth()
 
   useEffect(() => {
-    if (!isLoading && (!isAuthenticated || !isAdmin)) {
+    if (!authLoading && (!isAuthenticated || !isAdmin)) {
       router.push('/login')
     }
-  }, [isLoading, isAuthenticated, isAdmin, router])
+  }, [authLoading, isAuthenticated, isAdmin, router])
 
   const handleSubmit = async (data: Partial<BlogPost>) => {
     try {
@@ -78,7 +78,7 @@ export default function NewBlogPost() {
     }
   }
 
-  if (isLoading) {
+  if (authLoading) {
     return (
       <AdminPageLayout title="Create Blog Post">
         <div className="flex justify-center items-center h-64">

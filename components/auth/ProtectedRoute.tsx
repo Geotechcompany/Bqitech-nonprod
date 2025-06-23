@@ -17,11 +17,11 @@ export function ProtectedRoute({
   fallback,
   redirectTo,
 }: ProtectedRouteProps) {
-  const { isAuthenticated, isAdmin, isLoading, user } = useAuth();
+  const { isAuthenticated, isAdmin, authLoading, user } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading) {
+    if (!authLoading) {
       if (!isAuthenticated) {
         const redirect = redirectTo || '/login';
         router.push(redirect);
@@ -33,9 +33,9 @@ export function ProtectedRoute({
         return;
       }
     }
-  }, [isLoading, isAuthenticated, isAdmin, requireAdmin, router, redirectTo]);
+  }, [authLoading, isAuthenticated, isAdmin, requireAdmin, router, redirectTo]);
 
-  if (isLoading) {
+  if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>

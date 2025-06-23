@@ -1,86 +1,116 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, FileText, Shield, Scale } from "lucide-react";
 import Link from "next/link";
 
 export default function TermsPage() {
   return (
-    <div className="-mt-8">
-      <div className="bg-gradient-to-r from-[#272055] to-[#1B174E] py-16">
+    <div className="-mt-32">
+      <div className="bg-gradient-to-r from-[#0A2540] via-[#1E4D8A] to-[#0066CC] text-white pb-4 py-32 mb-12 relative overflow-hidden">
         <div className="container mx-auto px-4">
-          <div className="flex items-center gap-2 text-sm text-gray-300 mb-4">
+          <motion.div 
+            className="flex items-center gap-2 text-sm text-gray-300/80 mb-8"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
             <Link href="/" className="hover:text-white transition-colors">
               Home
             </Link>
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-4 w-4 opacity-50" />
             <Link href="/about" className="hover:text-white transition-colors">
               About
             </Link>
-            <ChevronRight className="h-4 w-4" />
-            <span className="text-white">Terms & Conditions</span>
-          </div>
-          <h1 className="text-4xl font-bold text-white">Terms and Conditions</h1>
-        </div>
-      </div>
-
-      <div className="container mx-auto px-4 py-12">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="prose prose-lg max-w-none"
-        >
+            <ChevronRight className="h-4 w-4 opacity-50" />
+            <span className="text-white font-medium">Terms & Conditions</span>
+          </motion.div>
+          
           <motion.h1 
-            className="text-4xl font-bold mb-8 bg-gradient-to-r from-teal-500 to-blue-600 bg-clip-text text-transparent"
-            initial={{ opacity: 0, y: -20 }}
+            className="text-4xl md:text-5xl font-bold text-white mb-6"
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
             Terms and Conditions
           </motion.h1>
           
-          <motion.p 
-            className="text-gray-600 mb-8 border-l-4 border-teal-500 pl-4"
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
+          <motion.p
+            className="text-gray-300/90 max-w-2xl mb-8"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
           >
-            Last updated: {new Date().toLocaleDateString()}
+            Please read these terms carefully before using our services
           </motion.p>
+        </div>
+      </div>
 
-          {/* Sections with hover effects and animations */}
-          {sections.map((section, index) => (
-            <motion.section
-              key={section.title}
-              className="mb-12 p-6 rounded-xl bg-white hover:shadow-lg transition-all duration-300 border border-gray-100 hover:border-teal-500"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.1 * index }}
-              whileHover={{ scale: 1.01 }}
-            >
-              <h2 className="text-2xl font-semibold mb-4 text-gray-800 flex items-center gap-2">
-                <span className="text-teal-500">{index + 1}.</span>
-                {section.title}
-              </h2>
-              <div className="prose prose-lg">
-                {section.content}
-              </div>
-            </motion.section>
-          ))}
+      <div className="container mx-auto px-4 py-16">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="prose prose-lg max-w-none dark:prose-invert"
+        >
+          <motion.div 
+            className="inline-flex items-center gap-2 px-4 py-2 bg-[#31CDFF]/5 rounded-full mb-12"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <span className="inline-block w-2 h-2 rounded-full bg-[#31CDFF] animate-pulse" />
+            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+              Last updated: {new Date().toLocaleDateString()}
+            </span>
+          </motion.div>
+
+          <div className="grid gap-8">
+            {sections.map((section, index) => (
+              <motion.section
+                key={section.title}
+                className="bg-white dark:bg-gray-800/50 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 dark:border-gray-700/30"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.1 * index }}
+                whileHover={{ scale: 1.01 }}
+              >
+                <div className="p-8">
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 rounded-xl bg-[#31CDFF]/10 text-[#31CDFF]">
+                      {section.icon}
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold mb-4 bg-gradient-to-r from-[#272055] to-[#31CDFF] bg-clip-text text-transparent">
+                        {section.title}
+                      </h2>
+                      <div className="prose prose-lg dark:prose-invert">
+                        {section.content}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.section>
+            ))}
+          </div>
 
           <motion.section
-            className="bg-gradient-to-r from-teal-500 to-blue-600 text-white p-8 rounded-xl shadow-lg"
+            className="mt-16 p-8 rounded-2xl bg-gradient-to-r from-[#272055] to-[#31CDFF] text-white shadow-xl"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.8 }}
           >
-            <h2 className="text-2xl font-semibold mb-4">Contact Information</h2>
-            <p className="text-white/90">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="p-3 rounded-xl bg-white/10 backdrop-blur-sm">
+                <Shield className="w-6 h-6" />
+              </div>
+              <h2 className="text-white/90 font-bold">Contact Information</h2>
+            </div>
+            <p className="text-white/90 text-lg">
               For questions about these Terms and Conditions, please contact us at{" "}
               <a 
                 href="mailto:hr@bqitech.com" 
-                className="text-white underline decoration-2 decoration-white/30 hover:decoration-white/100 transition-all"
+                className="text-white underline decoration-2 decoration-white/30 hover:decoration-white/100 transition-all font-medium"
               >
                 hr@bqitech.com
               </a>
@@ -92,10 +122,10 @@ export default function TermsPage() {
   );
 }
 
-// Move sections data outside component for better organization
 const sections = [
   {
     title: "Agreement to Terms",
+    icon: <FileText className="w-6 h-6" />,
     content: (
       <p>
         By accessing and using BQI Tech's website and services, you agree to be bound by these Terms and Conditions. 
@@ -105,6 +135,7 @@ const sections = [
   },
   {
     title: "Job Application Process",
+    icon: <Scale className="w-6 h-6" />,
     content: (
       <div className="space-y-4">
         <p>When applying for positions through our platform, you agree to:</p>
@@ -120,6 +151,7 @@ const sections = [
   },
   {
     title: "Intellectual Property",
+    icon: <FileText className="w-6 h-6" />,
     content: (
       <div className="space-y-4">
         <p>
@@ -136,6 +168,7 @@ const sections = [
   },
   {
     title: "User Responsibilities",
+    icon: <Shield className="w-6 h-6" />,
     content: (
       <div className="space-y-4">
         <p>Users of our website agree to:</p>
@@ -151,6 +184,7 @@ const sections = [
   },
   {
     title: "Privacy and Data Protection",
+    icon: <Shield className="w-6 h-6" />,
     content: (
       <div className="space-y-4">
         <p>
@@ -165,6 +199,7 @@ const sections = [
   },
   {
     title: "Limitation of Liability",
+    icon: <Shield className="w-6 h-6" />,
     content: (
       <div className="space-y-4">
         <p>

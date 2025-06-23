@@ -60,16 +60,16 @@ const getNotificationColors = (type: string) => {
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const { isAuthenticated, isAdmin, isLoading } = useAuth();
+  const { isAuthenticated, isAdmin, authLoading } = useAuth();
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<FilterType>('all');
   const [typeFilter, setTypeFilter] = useState<NotificationType>('all');
 
   useEffect(() => {
-    if (!isLoading && (!isAuthenticated || !isAdmin)) {
+    if (!authLoading && (!isAuthenticated || !isAdmin)) {
       router.push('/login');
     }
-  }, [isLoading, isAuthenticated, isAdmin, router]);
+  }, [authLoading, isAuthenticated, isAdmin, router]);
 
   const { data = [], isLoading: isLoadingNotifications } = useQuery({
     queryKey: ['notifications'],
@@ -125,7 +125,7 @@ export default function NotificationsPage() {
 
   const unreadCount = data.filter(n => !n.isRead).length;
 
-  if (isLoading || isLoadingNotifications) {
+  if (authLoading || isLoadingNotifications) {
     return (
       <AdminPageLayout title="Notifications">
         <div className="flex items-center justify-center h-64">

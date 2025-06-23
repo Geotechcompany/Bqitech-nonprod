@@ -25,17 +25,17 @@ import { format } from "date-fns"
 
 export default function BlogManagementPage() {
   const router = useRouter()
-  const { isAuthenticated, isAdmin, isLoading } = useAuth()
+  const { isAuthenticated, isAdmin, authLoading } = useAuth()
   const queryClient = useQueryClient()
   const [postIdToDelete, setPostIdToDelete] = useState<string | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isUpdating, setIsUpdating] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!isLoading && (!isAuthenticated || !isAdmin)) {
+    if (!authLoading && (!isAuthenticated || !isAdmin)) {
       router.push('/login')
     }
-  }, [isLoading, isAuthenticated, isAdmin, router])
+  }, [authLoading, isAuthenticated, isAdmin, router])
 
   const { data, isLoading: isDataLoading, error } = useQuery({
     queryKey: ['blog-posts'],
@@ -224,7 +224,7 @@ export default function BlogManagementPage() {
     await togglePublishMutation.mutateAsync({ id, published: !currentStatus })
   }
 
-  if (isLoading || isDataLoading) {
+  if (authLoading || isDataLoading) {
     return (
       <AdminPageLayout title="Blog Management">
         <div className="flex justify-center items-center h-64">

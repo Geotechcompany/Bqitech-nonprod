@@ -16,7 +16,7 @@ export default function EditBlogPost() {
   const params = useParams()
   const router = useRouter()
   const postId = params.id as string
-  const { isAuthenticated, isAdmin, isLoading: authLoading } = useAuth()
+  const { isAuthenticated, isAdmin, authLoading } = useAuth()
 
   useEffect(() => {
     if (!authLoading && (!isAuthenticated || !isAdmin)) {

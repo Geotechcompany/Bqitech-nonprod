@@ -12,7 +12,7 @@ import { toast } from "react-hot-toast";
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { sidebarCollapsed } = useSettings();
-  const { user, isLoading, isAuthenticated, isAdmin } = useAuth();
+  const { user, authLoading, isAuthenticated, isAdmin } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -20,12 +20,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
     console.log('Admin Layout Debug:', {
       pathname,
-      isLoading,
+      authLoading,
       isAuthenticated,
       isAdmin,
       user: user?.role,
     });
-  }, [pathname, isLoading, isAuthenticated, isAdmin, user]);
+  }, [pathname, authLoading, isAuthenticated, isAdmin, user]);
 
   // Handle authentication redirects ONLY for protected admin pages (not login)
   useEffect(() => {
@@ -34,7 +34,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       return;
     }
     
-    if (!isLoading) {
+    if (!authLoading) {
       // For non-login pages, check authentication
       if (!isAuthenticated) {
         console.log('Not authenticated, redirecting to login');
@@ -49,10 +49,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         return;
       }
     }
-  }, [isLoading, isAuthenticated, isAdmin, pathname]);
+  }, [authLoading, isAuthenticated, isAdmin, pathname]);
 
   // Show loading only for non-login pages
-  if (isLoading && !pathname?.includes('/login')) {
+  if (authLoading && !pathname?.includes('/login')) {
     return (
       <div className="flex items-center justify-center h-screen w-screen">
         <div className="text-center">
@@ -69,7 +69,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   // Don't render admin interface if not authenticated or not admin
-  if (!isLoading && (!isAuthenticated || !isAdmin)) {
+  if (!authLoading && (!isAuthenticated || !isAdmin)) {
     return null;
   }
 

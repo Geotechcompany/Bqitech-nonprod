@@ -10,8 +10,47 @@ const services = [
 ]
 
 function Services() {
+  // Add 3D morph transition variants
+  const serviceMorphVariants = {
+    hidden: { 
+      opacity: 0,
+      rotateX: -8, 
+      rotateY: 5,
+      rotateZ: -1,
+      scale: 0.93,
+      transformPerspective: 1400,
+      z: -100,
+      filter: "blur(6px)"
+    },
+    visible: { 
+      opacity: 1,
+      rotateX: 0, 
+      rotateY: 0,
+      rotateZ: 0,
+      scale: 1,
+      transformPerspective: 1400,
+      z: 0,
+      filter: "blur(0px)",
+      transition: { 
+        type: "spring", 
+        stiffness: 45, 
+        damping: 18,
+        mass: 1.2,
+        duration: 1.0,
+        delay: 0.1
+      } 
+    }
+  };
+
   return (
-    <section className="py-20" id="services">
+    <motion.section 
+      className="py-20 perspective-container transform-3d transform-gpu" 
+      id="services"
+      variants={serviceMorphVariants}
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, amount: 0.2 }}
+    >
       <div className="container mx-auto px-4">
         <motion.h2 
           className="text-3xl font-bold text-center mb-12"
@@ -47,7 +86,7 @@ function Services() {
           ))}
         </div>
       </div>
-    </section>
+    </motion.section>
   )
 }
 

@@ -2,7 +2,7 @@ import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronDown, UserCircle } from "lucide-react"
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
+
 import { useAuth } from "@/contexts/AuthContext"
 import { useRouter } from "next/navigation"
 
@@ -22,6 +22,7 @@ const menuItems: MenuItem[] = [
   { title: "Careers", href: "/careers" },
   { title: "Services",href: "/services" },
   { title: "About", href: "/about" },
+  { title: "Blog", href: "/blog" },
 ]
 
 function MenuItem({ item, onClose }: { item: MenuItem; onClose: () => void }) {
@@ -31,7 +32,7 @@ function MenuItem({ item, onClose }: { item: MenuItem; onClose: () => void }) {
     return (
       <Link 
         href={item.href}
-        className="flex items-center py-3 px-4 border-b border-gray-200 text-[15px] font-medium hover:bg-gray-50"
+        className="flex items-center py-4 px-6 text-[#31CDFF] text-[16px] font-medium hover:bg-white/5 border-b border-white/10"
         onClick={onClose}
       >
         {item.title}
@@ -79,7 +80,7 @@ function MenuItem({ item, onClose }: { item: MenuItem; onClose: () => void }) {
 }
 
 export function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
-  const { user, isAuthenticated } = useAuth()
+  const { isAuthenticated } = useAuth()
   const router = useRouter()
 
   const handleAuthClick = () => {
@@ -100,8 +101,8 @@ export function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/50 z-[9998]"
-            style={{ marginTop: '72px' }}
+            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
+            style={{ marginTop: '80px' }}
             onClick={onClose}
           />
           <motion.div
@@ -114,9 +115,9 @@ export function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
               damping: 30,
               duration: 0.3
             }}
-            className="fixed top-[72px] left-0 right-0 bg-white z-[9999] overflow-hidden rounded-b-xl shadow-xl"
+            className="fixed top-[80px] left-0 right-0 bg-black/40 backdrop-blur-md z-50 overflow-hidden rounded-b-[15px]"
           >
-            <nav className="py-2 max-h-[calc(100vh-72px)] overflow-y-auto">
+            <nav className="py-2 max-h-[calc(100vh-80px)] overflow-y-auto">
               {menuItems.map((item) => (
                 <MenuItem key={item.title} item={item} onClose={onClose} />
               ))}

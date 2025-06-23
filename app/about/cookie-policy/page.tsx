@@ -3,48 +3,11 @@
 import { motion } from "framer-motion";
 import { ChevronRight, Cookie, Shield, Cog, Bell } from "lucide-react";
 import Link from "next/link";
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
 
 export default function CookiePolicyPage() {
-  const [cookiePreferences, setCookiePreferences] = useState({
-    essential: true, // Always true and can't be changed
-    functional: false,
-    analytics: false,
-    marketing: false
-  });
-
-  useEffect(() => {
-    // Load saved preferences from cookies
-    const savedPreferences = document.cookie
-      .split('; ')
-      .find(row => row.startsWith('cookiePreferences='));
-    
-    if (savedPreferences) {
-      try {
-        const preferences = JSON.parse(savedPreferences.split('=')[1]);
-        setCookiePreferences(prev => ({
-          ...prev,
-          ...preferences,
-          essential: true // Always true
-        }));
-      } catch (error) {
-        console.error('Error parsing cookie preferences:', error);
-      }
-    }
-  }, []);
-
-  const saveCookiePreferences = () => {
-    // Save preferences to cookie
-    document.cookie = `cookiePreferences=${JSON.stringify(cookiePreferences)}; path=/; max-age=31536000; secure; samesite=strict`;
-    
-    // Show success message
-    alert('Your cookie preferences have been saved.');
-  };
-
   return (
-    <div className="-mt-8">
-      <div className="bg-gradient-to-r from-[#272055] to-[#1B174E] py-16">
+    <div className="-mt-32">
+      <div className="bg-gradient-to-r from-[#0A2540] via-[#1E4D8A] to-[#0066CC] text-white py-32 mb-4 relative overflow-hidden">
         <div className="container mx-auto px-4">
           <div className="flex items-center gap-2 text-sm text-gray-300 mb-4">
             <Link href="/" className="hover:text-white transition-colors">
@@ -68,86 +31,6 @@ export default function CookiePolicyPage() {
           transition={{ duration: 0.5 }}
           className="prose prose-lg max-w-none"
         >
-          <motion.div 
-            className="mb-12 p-6 rounded-xl bg-white shadow-lg border border-gray-100"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-          >
-            <h2 className="text-2xl font-semibold mb-6">Cookie Preferences</h2>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                <div>
-                  <h3 className="font-medium">Essential Cookies</h3>
-                  <p className="text-sm text-gray-600">Required for the website to function properly</p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={cookiePreferences.essential}
-                  disabled
-                  className="h-5 w-5"
-                />
-              </div>
-              
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                <div>
-                  <h3 className="font-medium">Functional Cookies</h3>
-                  <p className="text-sm text-gray-600">Remember your preferences and settings</p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={cookiePreferences.functional}
-                  onChange={(e) => setCookiePreferences(prev => ({
-                    ...prev,
-                    functional: e.target.checked
-                  }))}
-                  className="h-5 w-5"
-                />
-              </div>
-              
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                <div>
-                  <h3 className="font-medium">Analytics Cookies</h3>
-                  <p className="text-sm text-gray-600">Help us understand how visitors use our website</p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={cookiePreferences.analytics}
-                  onChange={(e) => setCookiePreferences(prev => ({
-                    ...prev,
-                    analytics: e.target.checked
-                  }))}
-                  className="h-5 w-5"
-                />
-              </div>
-              
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                <div>
-                  <h3 className="font-medium">Marketing Cookies</h3>
-                  <p className="text-sm text-gray-600">Used to deliver relevant advertisements</p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={cookiePreferences.marketing}
-                  onChange={(e) => setCookiePreferences(prev => ({
-                    ...prev,
-                    marketing: e.target.checked
-                  }))}
-                  className="h-5 w-5"
-                />
-              </div>
-              
-              <div className="flex justify-end mt-6">
-                <Button
-                  onClick={saveCookiePreferences}
-                  className="bg-teal-500 hover:bg-teal-600 text-white"
-                >
-                  Save Preferences
-                </Button>
-              </div>
-            </div>
-          </motion.div>
-
           <motion.h1 
             className="text-4xl font-bold mb-8 bg-gradient-to-r from-teal-500 to-blue-600 bg-clip-text text-transparent"
             initial={{ opacity: 0, y: -20 }}

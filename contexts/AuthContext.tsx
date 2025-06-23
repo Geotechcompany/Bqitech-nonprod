@@ -38,10 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setAuthState({
             isAuthenticated: true,
             isAdmin: session.user.role === 'admin',
-            user: {
-              ...session.user,
-              avatar: session.user.avatar || null
-            },
+            user: session.user,
             userRole: session.user.role,
             authLoading: false
           })
@@ -65,10 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAuthState({
         isAuthenticated: true,
         isAdmin: response.user.role === 'admin',
-        user: {
-          ...response.user,
-          avatar: response.user.avatar || null
-        },
+        user: response.user,
         userRole: response.user.role,
         authLoading: false
       })
