@@ -201,12 +201,11 @@ export const adminApi = {
   getApplications: (params?: { 
     skip?: number; 
     limit?: number; 
-    search?: string; 
     status?: string;
+    search?: string;
     sort_by?: string;
     sort_order?: 'asc' | 'desc';
-  }) =>
-    backendApi.get('/api/admin/applications', params),
+  }) => backendApi.get('/api/admin/applications', params),
   
   getApplication: (id: string) =>
     backendApi.get(`/api/admin/applications/${id}`),
@@ -362,26 +361,32 @@ export const userApi = {
     backendApi.get('/api/users/latest-application'),
 
   // Profile
-  getProfile: () =>
-    backendApi.get('/api/users/profile'),
+  async getProfile() {
+    return backendApi.get('/api/users/profile');
+  },
   
-  updateProfile: (data: any) =>
-    backendApi.put('/api/users/profile', data),
+  async updateProfile(data: any) {
+    return backendApi.put('/api/users/profile', data);
+  },
   
   // Settings
-  getSettings: () =>
-    backendApi.get('/api/users/settings'),
+  async getSettings() {
+    return backendApi.get('/api/users/settings');
+  },
   
-  updateSettings: (data: any) =>
-    backendApi.put('/api/users/settings', data),
+  async updateSettings(data: any) {
+    return backendApi.put('/api/users/settings', data);
+  },
   
   // Password
   changePassword: (data: { currentPassword: string; newPassword: string }) =>
     backendApi.post('/api/users/change-password', data),
 
-  // Email Verification
-  resendVerification: () =>
-    backendApi.post('/api/users/resend-verification'),
+  // Email verification
+  async resendVerification() {
+    const profile = await this.getProfile();
+    return backendApi.post('/api/users/resend-verification', profile.email);
+  },
 
   // Avatar Upload
   uploadAvatar: (file: File) =>

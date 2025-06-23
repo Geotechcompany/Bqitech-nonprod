@@ -13,6 +13,7 @@ import toast from 'react-hot-toast'
 import OtpInput from 'react-otp-input'
 import { Controller } from 'react-hook-form'
 import { useRouter } from 'next/navigation'
+import { authService } from '@/lib/auth-backend'
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -57,11 +58,10 @@ export default function EmailVerificationPage() {
       if (email && !initialEmailSent && status === 'idle') {
         try {
           setStatus('loading')
-          const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/auth/resend-verification`, {
+          const response = await authService.authenticatedFetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/users/resend-verification`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ email })
+            body: JSON.stringify(email)
           })
 
           if (!response.ok) {
@@ -118,11 +118,10 @@ export default function EmailVerificationPage() {
       }
       
       setStatus('loading')
-      const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/auth/resend-verification`, {
+      const response = await authService.authenticatedFetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/users/resend-verification`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email })
+        body: JSON.stringify(email)
       })
 
       if (!response.ok) {

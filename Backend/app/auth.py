@@ -12,13 +12,18 @@ import logging
 logger = logging.getLogger(__name__)
 
 from .database import get_database
+from .config import settings
 
 # Configuration
-SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+SECRET_KEY = settings.SECRET_KEY
+ALGORITHM = settings.algorithm
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
-security = HTTPBearer()
+class OptionalHTTPBearer(HTTPBearer):
+    def __init__(self, auto_error: bool = False):
+        super().__init__(auto_error=auto_error)
+
+security = OptionalHTTPBearer()
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against a hash."""
@@ -63,13 +68,24 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
     try:
+        if not credentials:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Not authenticated",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+            
         token = credentials.credentials
         try:
+            # Log token for debugging
+            logger.debug(f"Validating token: {token[:10]}...")
+            
             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
             user_id = payload.get("sub")
             if user_id is None:
+                logger.warning("Token payload missing 'sub' claim")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Could not validate credentials",
@@ -80,6 +96,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
             db = get_database()
             user = await db.users.find_one({"_id": ObjectId(user_id)})
             if not user:
+                logger.warning(f"User not found for ID: {user_id}")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="User not found",
@@ -89,19 +106,22 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
             return user
             
         except ExpiredSignatureError:
+            logger.warning("Token has expired")
             # Generate a new token if refresh token is valid
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token has expired",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        except JWTError:
+        except JWTError as e:
+            logger.error(f"JWT validation error: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials",
                 headers={"WWW-Authenticate": "Bearer"},
             )
     except Exception as e:
+        logger.error(f"Authentication error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e),

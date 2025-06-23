@@ -24,12 +24,12 @@ class Settings(BaseModel):
     frontend_url: str = "http://localhost:3000"
     
     # Security
-    SECRET_KEY: str = Field(default="your-secret-key-change-in-production")
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    algorithm: str = "HS256"
+    SECRET_KEY: str = Field(default=os.getenv("SECRET_KEY", "your-secret-key-change-in-production"))
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+    algorithm: str = os.getenv("ALGORITHM", "HS256")
     
     # CORS
-    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000"]
+    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:10000" , "https://bqitech.com" , "https://www.bqitech-nonprod.netlify.app"]
     
     # Email Configuration
     smtp_host: str = os.getenv("SMTP_HOST", "smtp.gmail.com")

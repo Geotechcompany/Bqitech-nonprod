@@ -55,35 +55,14 @@ app = FastAPI(
 )
 
 # Configure CORS
-origins = [
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "https://bqitech.com",
-    "https://www.bqitech.com",
-    "https://bqitech-nonprod.netlify.app"
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=[settings.frontend_url, "http://localhost:3000"],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=[
-        "Content-Type",
-        "Authorization",
-        "Accept",
-        "Origin",
-        "X-User-Session",
-        "Access-Control-Request-Method",
-        "Access-Control-Request-Headers"
-    ],
-    expose_headers=[
-        "Content-Type",
-        "Authorization",
-        "Access-Control-Allow-Origin",
-        "Access-Control-Allow-Credentials"
-    ],
-    max_age=3600
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,
 )
 
 # Include routers with consistent prefixes

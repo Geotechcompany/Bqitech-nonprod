@@ -90,7 +90,7 @@ const passwordSchema = z.object({
 });
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { user, updateUserAvatar } = useAuth();
   const [settings, setSettings] = useState<UserSettings>(defaultSettings);
   const [profile, setProfile] = useState<UserProfile>({
     firstName: user?.firstName || "",
@@ -218,8 +218,8 @@ export default function SettingsPage() {
     try {
       await userApi.resendVerification();
       toast.success("Verification email sent successfully");
-    } catch (error) {
-      toast.error("Failed to send verification email");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to send verification email");
     }
   };
 
@@ -250,6 +250,9 @@ export default function SettingsPage() {
         ...prev,
         avatar: response.url
       }));
+
+      // Update auth context to sync avatar across components
+      updateUserAvatar(response.url);
 
       toast.success('Profile photo updated successfully!');
     } catch (error) {

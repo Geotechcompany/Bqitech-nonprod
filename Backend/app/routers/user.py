@@ -151,8 +151,27 @@ async def change_password(
         logger.error(f"Error changing password: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.options("/resend-verification", include_in_schema=False)
+async def options_resend_verification(request: Request):
+    """Handle CORS preflight requests for resend verification"""
+    origin = request.headers.get("origin", "http://localhost:3000")
+    return JSONResponse(
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "3600",
+        }
+    )
+
 @router.post("/resend-verification")
-async def resend_verification_email(current_user: dict = Depends(get_current_user)):
+async def resend_verification_email(
+    request: Request,
+    email: str = Body(...),
+    current_user: dict = Depends(get_current_user)
+):
     """Resend email verification link"""
     try:
         db = get_database()
@@ -167,9 +186,25 @@ async def resend_verification_email(current_user: dict = Depends(get_current_use
                 detail="Email is already verified"
             )
         
+        # Verify that the email matches the current user's email
+        if user.get("email") != email:
+            raise HTTPException(
+                status_code=400,
+                detail="Email does not match current user"
+            )
+        
         # TODO: Implement email sending logic here
         # For now, just return success
-        return {"message": "Verification email sent successfully"}
+        origin = request.headers.get("origin", "http://localhost:3000")
+        return JSONResponse(
+            content={"message": "Verification email sent successfully"},
+            headers={
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-User-Session"
+            }
+        )
     except Exception as e:
         logger.error(f"Error resending verification email: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -15,6 +15,7 @@ interface AuthContextType {
   logout: () => Promise<void>
   refreshToken: () => Promise<void>
   register: (email: string, password: string, name: string) => Promise<void>
+  updateUserAvatar: (avatarUrl: string) => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -168,6 +169,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const updateUserAvatar = (avatarUrl: string) => {
+    if (!authState.user) return
+
+    const updatedUser = {
+      ...authState.user,
+      avatar: avatarUrl,
+      name: authState.user.firstName && authState.user.lastName 
+        ? `${authState.user.firstName} ${authState.user.lastName}` 
+        : authState.user.email,
+      isEmailVerified: authState.user.isEmailVerified || false
+    }
+
+    // Update local state
+    setAuthState(prev => ({
+      ...prev,
+      user: updatedUser
+    }))
+
+    // Update session storage
+    const currentSession = authService.getSession()
+    if (currentSession) {
+      authService.setSession({
+        ...currentSession,
+        user: updatedUser
+      })
+    }
+  }
+
   console.log('Auth State Debug:', authState)
 
   return (
@@ -177,7 +206,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         logout,
         refreshToken,
-        register
+        register,
+        updateUserAvatar
       }}
     >
       {children}

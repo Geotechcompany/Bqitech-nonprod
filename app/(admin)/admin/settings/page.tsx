@@ -54,7 +54,7 @@ const defaultSettings: AdminSettings = {
 };
 
 function SettingsPageContent() {
-  const { user } = useAuth();
+  const { user, updateUserAvatar } = useAuth();
   const [settings, setSettings] = useState<AdminSettings>(defaultSettings);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -103,6 +103,47 @@ function SettingsPageContent() {
     value: AdminSettings[K]
   ) => {
     setSettings(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      // Create form data
+      const formData = new FormData();
+      formData.append('file', file);
+
+      // Upload avatar
+      const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/upload/avatar`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${authService.getSession()?.token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload avatar');
+      }
+
+      const data = await response.json();
+      
+      // Update local state with new avatar URL
+      setSettings(prev => ({
+        ...prev,
+        avatar: data.url
+      }));
+
+      // Update auth context to sync avatar across components
+      updateUserAvatar(data.url);
+
+      toast.success('Avatar updated successfully');
+    } catch (error) {
+      console.error('Avatar upload error:', error);
+      toast.error('Failed to upload avatar');
+    }
   };
 
   const SettingCard = ({ 
@@ -180,61 +221,7 @@ function SettingsPageContent() {
                 type="file"
                 accept="image/*"
                 className="hidden"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    try {
-                      // Create form data
-                      const formData = new FormData();
-                      formData.append('file', file);
-
-                      // Upload avatar
-                      const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL}/api/upload/avatar`, {
-                        method: 'POST',
-                        body: formData,
-                        credentials: 'include',
-                        headers: {
-                          'Authorization': `Bearer ${authService.getSession()?.token}`
-                        }
-                      });
-
-                      if (!response.ok) {
-                        throw new Error('Failed to upload avatar');
-                      }
-
-                      const data = await response.json();
-                      
-                      // Update local state with new avatar URL
-                      setSettings(prev => ({
-                        ...prev,
-                        avatar: data.url
-                      }));
-
-                      // Update auth context
-                      if (user) {
-                        const updatedUser = {
-                          ...user,
-                          avatarUrl: data.url,
-                          name: user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.name || 'Admin User',
-                          isEmailVerified: user?.isEmailVerified || false
-                        };
-                        // Force update the auth context
-                        authService.setSession({
-                          ...authService.getSession(),
-                          user: updatedUser
-                        });
-                      }
-
-                      toast.success('Avatar updated successfully');
-                      
-                      // Reload the page to reflect changes
-                      window.location.reload();
-                    } catch (error) {
-                      console.error('Avatar upload error:', error);
-                      toast.error('Failed to upload avatar');
-                    }
-                  }
-                }}
+                onChange={handleAvatarUpload}
               />
             </div>
             

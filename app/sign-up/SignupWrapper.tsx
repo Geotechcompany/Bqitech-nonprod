@@ -13,8 +13,8 @@ export default function SignupWrapper() {
   const handleSignup = async (email: string, password: string, name: string) => {
     try {
       await register(email, password, name)
-      toast.success('Account created successfully')
-      router.push('/dashboard')
+      toast.success('Account created successfully! Please verify your email.')
+      router.push(`/auth/verify-email?email=${encodeURIComponent(email)}`)
     } catch (error) {
       toast.error(error.message || 'Failed to create account')
     }
