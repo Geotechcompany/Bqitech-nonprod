@@ -57,7 +57,14 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url, "http://localhost:3000" , "http://localhost:10000" , "https://bqitech.com" , "https://www.bqitech-nonprod.netlify.app"],
+    allow_origins=[
+        settings.frontend_url,
+        "http://localhost:3000",
+        "http://localhost:10000",
+        "https://bqitech.com",
+        "https://bqitech-nonprod.netlify.app",
+        "https://www.bqitech-nonprod.netlify.app"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

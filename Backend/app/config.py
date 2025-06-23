@@ -29,7 +29,13 @@ class Settings(BaseModel):
     algorithm: str = os.getenv("ALGORITHM", "HS256")
     
     # CORS
-    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:10000" , "https://bqitech.com" , "https://www.bqitech-nonprod.netlify.app"]
+    BACKEND_CORS_ORIGINS: List[str] = [
+        "http://localhost:3000",
+        "http://localhost:10000",
+        "https://bqitech.com",
+        "https://bqitech-nonprod.netlify.app",
+        "https://www.bqitech-nonprod.netlify.app"
+    ]
     
     # Email Configuration
     smtp_host: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
