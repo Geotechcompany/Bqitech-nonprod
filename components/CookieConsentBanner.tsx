@@ -26,6 +26,7 @@ interface CookiePolicyData {
 
 interface CookieConsent {
   hasConsent: boolean;
+  consentStatus?: 'accepted' | 'rejected' | null;
   preferences: {
     essential: boolean;
     functional: boolean;
@@ -70,7 +71,9 @@ export default function CookieConsentBanner() {
         }
 
         const data = await response.json();
+        console.log('Cookie consent data:', data); // Debug log
         setConsent(data);
+        setCookiePolicy(data.cookiePolicy || {});
       } catch (error) {
         console.error('Failed to check cookie consent:', error);
       } finally {
@@ -123,15 +126,19 @@ export default function CookieConsentBanner() {
     }))
   }
 
-  const handleAgreeAndProceed = async () => {
+  const handleSavePreferences = async () => {
     try {
       const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:10000';
       const response = await fetch(`${baseUrl}/api/cookie-consent`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
-        body: JSON.stringify(defaultPreferences),
+        body: JSON.stringify({
+          consent: true,
+          ...preferences
+        }),
         credentials: 'include'
       });
 
@@ -139,8 +146,54 @@ export default function CookieConsentBanner() {
         throw new Error('Failed to save cookie preferences');
       }
 
+      const data = await response.json();
+      console.log('Preferences response:', data); // Debug log
+      
       setConsent({
         hasConsent: true,
+        consentStatus: 'accepted',
+        preferences: preferences
+      });
+    } catch (error) {
+      console.error('Error saving cookie preferences:', error);
+      // Still set consent in local state even if server save fails
+      setConsent({
+        hasConsent: true,
+        consentStatus: 'accepted',
+        preferences: preferences
+      });
+    }
+  }
+
+  const handleAgreeAndProceed = async () => {
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:10000';
+      const response = await fetch(`${baseUrl}/api/cookie-consent`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          consent: true,
+          essential: true,
+          functional: true,
+          analytics: true,
+          application: true
+        }),
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save cookie preferences');
+      }
+
+      const data = await response.json();
+      console.log('Accept response:', data); // Debug log
+      
+      setConsent({
+        hasConsent: true,
+        consentStatus: 'accepted',
         preferences: defaultPreferences
       });
     } catch (error) {
@@ -148,6 +201,7 @@ export default function CookieConsentBanner() {
       // Still set consent in local state even if server save fails
       setConsent({
         hasConsent: true,
+        consentStatus: 'accepted',
         preferences: defaultPreferences
       });
     }
@@ -158,9 +212,13 @@ export default function CookieConsentBanner() {
       const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:10000';
       const response = await fetch(`${baseUrl}/api/cookie-consent`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: JSON.stringify({
           consent: false,
+          essential: true,
           functional: false,
           analytics: false,
           application: false
@@ -172,8 +230,12 @@ export default function CookieConsentBanner() {
         throw new Error('Failed to save cookie preferences');
       }
 
+      const data = await response.json();
+      console.log('Reject response:', data); // Debug log
+      
       setConsent({
-        hasConsent: false,
+        hasConsent: true, // User has made a choice (to reject)
+        consentStatus: 'rejected',
         preferences: {
           essential: true,
           functional: false,
@@ -183,6 +245,17 @@ export default function CookieConsentBanner() {
       });
     } catch (error) {
       console.error('Failed to set cookie consent:', error);
+      // Still hide banner locally even if server save fails
+      setConsent({
+        hasConsent: true,
+        consentStatus: 'rejected',
+        preferences: {
+          essential: true,
+          functional: false,
+          analytics: false,
+          application: false
+        }
+      });
     }
   };
 
@@ -221,6 +294,14 @@ export default function CookieConsentBanner() {
                   />
                 </div>
               ))}
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button 
+                onClick={handleSavePreferences}
+                className="px-4 py-2 bg-blue-500 text-white rounded font-bold hover:bg-blue-600"
+              >
+                Save Preferences
+              </button>
             </div>
           </div>
         )}
