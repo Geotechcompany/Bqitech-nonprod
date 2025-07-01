@@ -68,7 +68,13 @@ export default function EditJobPostingPage() {
 
   const handleDescriptionChange = (value: string) => {
     if (jobPosting) {
-      setJobPosting((prev) => ({ ...prev!, description: value }));
+      // Clean up HTML entities and normalize spaces
+      const cleanedValue = value
+        .replace(/&nbsp;/g, ' ')  // Replace &nbsp; with regular space
+        .replace(/\s+/g, ' ')     // Normalize multiple spaces
+        .trim();                  // Trim extra spaces
+      
+      setJobPosting((prev) => ({ ...prev!, description: cleanedValue }));
     }
   };
 

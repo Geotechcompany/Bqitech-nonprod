@@ -202,18 +202,33 @@ export default function QuestionsManagementPage() {
 
   const reorderQuestionsMutation = useMutation({
     mutationFn: async (questions: Question[]) => {
+      // Only send the id and new order for each question
       const updates = questions.map((question, index) => ({
         id: question.id,
         order: index
       }));
-      return await adminApi.reorderQuestions({ updates });
+      
+      // Log the request payload for debugging
+      console.log('Reorder request payload:', { updates });
+      
+      // Send only the updates array
+      const response = await adminApi.reorderQuestions({ updates });
+      if (!response) {
+        throw new Error('Failed to reorder questions');
+      }
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-questions'] });
       toast.success('Questions reordered successfully');
     },
-    onError: (error) => {
-      toast.error(`Failed to reorder questions: ${error.message}`);
+    onError: (error: any) => {
+      // Show the specific error message from the backend
+      const errorMessage = error.response?.data?.detail || error.message || 'Failed to reorder questions';
+      toast.error(errorMessage);
+      
+      // Revert the optimistic update
+      queryClient.invalidateQueries({ queryKey: ['admin-questions'] });
     },
   });
 
@@ -263,13 +278,12 @@ export default function QuestionsManagementPage() {
     }));
 
     // Optimistically update UI
-    queryClient.setQueryData(['admin-questions'], updatedItems);
+    queryClient.setQueryData(['admin-questions'], { questions: updatedItems });
 
     try {
       await reorderQuestionsMutation.mutateAsync(updatedItems);
     } catch (error) {
-      queryClient.setQueryData(['admin-questions'], questions);
-      toast.error('Failed to reorder questions');
+      // Error handling is done in the mutation's onError callback
     }
   };
 
@@ -377,15 +391,11 @@ export default function QuestionsManagementPage() {
     if (!questionToDelete) return;
     
     try {
-      const res = await fetch(`/api/admin/questions/${questionToDelete}`, { 
-        method: 'DELETE' 
-      });
-      if (!res.ok) throw new Error('Failed to delete question');
-      
+      await adminApi.deleteQuestion(questionToDelete);
       queryClient.invalidateQueries({ queryKey: ['admin-questions'] });
       toast.success('Question deleted successfully');
-    } catch (error) {
-      toast.error('Failed to delete question');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete question');
     } finally {
       setIsDeleteDialogOpen(false);
       setQuestionToDelete(null);

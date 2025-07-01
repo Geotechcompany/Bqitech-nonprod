@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { Search, Phone, User, Menu } from "lucide-react"
@@ -14,6 +14,7 @@ export default function Header() {
   const { user, isAuthenticated, logout } = useAuth()
   const router = useRouter()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isScrolled, setIsScrolled] = useState(false)
 
   const toggleMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen)
 
@@ -25,11 +26,26 @@ export default function Header() {
     }
   }
 
+  // Add scroll detection
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollPosition = window.scrollY
+      setIsScrolled(scrollPosition > 50)
+    }
+
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
   return (
     <>
-      <div className="w-full fixed top-0 left-0 right-0 z-50 bg-transparent">
+      <div className="w-full fixed top-0 left-0 right-0 z-50">
         {/* Main Header */}
-        <header className="w-full">
+        <header className={`w-full transition-all duration-300 ${
+          isScrolled 
+            ? 'bg-white/95 backdrop-blur-md shadow-lg border-b border-gray-100' 
+            : 'bg-transparent'
+        }`}>
           <div className="container flex h-[80px] items-center justify-between px-6 max-w-[1400px] mx-auto">
             <Link href="/" className="flex items-center gap-2 py-4">
               <Image
@@ -45,34 +61,54 @@ export default function Header() {
             <nav className="hidden md:flex items-center gap-8">
               <Link 
                 href="/" 
-                className="flex items-center gap-1.5 text-[16px] font-medium text-[#31CDFF] hover:text-[#31CDFF] rounded-md px-2 py-2 transition-colors"
+                className={`flex items-center gap-1.5 text-[16px] font-medium rounded-md px-2 py-2 transition-colors ${
+                  isScrolled 
+                    ? 'text-gray-700 hover:text-[#31CDFF]' 
+                    : 'text-[#31CDFF] hover:text-white'
+                }`}
               >
                 Home
               </Link>
 
               <Link 
                 href="/careers" 
-                className="flex items-center gap-1.5 text-[16px] font-medium text-[#31CDFF] hover:text-[#31CDFF] rounded-md px-2 py-2 transition-colors"
+                className={`flex items-center gap-1.5 text-[16px] font-medium rounded-md px-2 py-2 transition-colors ${
+                  isScrolled 
+                    ? 'text-gray-700 hover:text-[#31CDFF]' 
+                    : 'text-[#31CDFF] hover:text-white'
+                }`}
               >
                 Careers
               </Link>
 
               <Link 
                 href="/services" 
-                className="flex items-center gap-1.5 text-[16px] font-medium text-[#31CDFF] hover:text-[#31CDFF] rounded-md px-2 py-2 transition-colors"
+                className={`flex items-center gap-1.5 text-[16px] font-medium rounded-md px-2 py-2 transition-colors ${
+                  isScrolled 
+                    ? 'text-gray-700 hover:text-[#31CDFF]' 
+                    : 'text-[#31CDFF] hover:text-white'
+                }`}
               >
                 Services
               </Link>
 
               <Link 
                 href="/about" 
-                className="flex items-center gap-1.5 text-[16px] font-medium text-[#31CDFF] hover:text-[#31CDFF] rounded-md px-2 py-2 transition-colors"
+                className={`flex items-center gap-1.5 text-[16px] font-medium rounded-md px-2 py-2 transition-colors ${
+                  isScrolled 
+                    ? 'text-gray-700 hover:text-[#31CDFF]' 
+                    : 'text-[#31CDFF] hover:text-white'
+                }`}
               >
                 About
               </Link>
               <Link 
                 href="/blog" 
-                className="flex items-center gap-1.5 text-[16px] font-medium text-[#31CDFF] hover:text-[#31CDFF] rounded-md px-2 py-2 transition-colors"
+                className={`flex items-center gap-1.5 text-[16px] font-medium rounded-md px-2 py-2 transition-colors ${
+                  isScrolled 
+                    ? 'text-gray-700 hover:text-[#31CDFF]' 
+                    : 'text-[#31CDFF] hover:text-white'
+                }`}
               >
                 Blog
               </Link>
@@ -93,7 +129,9 @@ export default function Header() {
                 whileTap={{ scale: 0.95 }}
               >
                 <Menu 
-                  className="w-6 h-6 text-[#31CDFF] transition-colors duration-200"
+                  className={`w-6 h-6 transition-colors duration-200 ${
+                    isScrolled ? 'text-gray-700' : 'text-[#31CDFF]'
+                  }`}
                 />
               </motion.button>
             </div>
@@ -101,7 +139,7 @@ export default function Header() {
         </header>
       </div>
 
-      {/* Remove or reduce spacer for fixed header */}
+      {/* Spacer for fixed header */}
       <div className="h-[80px] w-full" />
 
       <MobileMenu 

@@ -44,8 +44,16 @@ async def get_cookie_consent(request: Request):
             }
         }
         
+        # Determine consent status
+        has_consent = None
+        if consent:
+            if consent.get("status") == "accepted":
+                has_consent = True
+            elif consent.get("status") == "rejected":
+                has_consent = False
+        
         response = {
-            "hasConsent": bool(consent and consent.get("status") == "accepted"),
+            "hasConsent": has_consent,
             "preferences": consent.get("preferences", {}) if consent else {},
             "cookiePolicy": cookie_policy,
             "lastUpdated": consent.get("updatedAt", "").isoformat() if consent and consent.get("updatedAt") else None
@@ -70,12 +78,47 @@ async def get_cookie_consent(request: Request):
 async def set_cookie_consent(request: Request, preferences: Dict[str, Any]):
     """Set cookie consent preferences"""
     try:
+        db = get_database()
+        
+        # Get user IP or session identifier
+        client_id = request.headers.get("x-forwarded-for") or request.client.host
+        
         # Get the origin from the request headers
         origin = request.headers.get("origin", "http://localhost:3000")
         
+        # Prepare consent data
+        consent_data = {
+            "client_id": client_id,
+            "status": "accepted" if preferences.get("consent", True) else "rejected",
+            "preferences": {
+                "essential": preferences.get("essential", True),
+                "functional": preferences.get("functional", False),
+                "analytics": preferences.get("analytics", False),
+                "application": preferences.get("application", False)
+            },
+            "updatedAt": datetime.utcnow(),
+            "userAgent": request.headers.get("user-agent", ""),
+            "ipAddress": client_id
+        }
+        
+        # Save to database (upsert)
+        await db.cookie_consents.update_one(
+            {"client_id": client_id},
+            {"$set": consent_data},
+            upsert=True
+        )
+        
         # Create a response with the cookie consent preferences
+        response_data = {
+            "message": "Cookie preferences saved successfully",
+            "consent": {
+                "hasConsent": consent_data["status"] == "accepted",
+                "preferences": consent_data["preferences"]
+            }
+        }
+        
         response = JSONResponse(
-            content={"message": "Cookie preferences saved successfully"},
+            content=response_data,
             headers={
                 "Access-Control-Allow-Origin": origin,
                 "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -88,21 +131,21 @@ async def set_cookie_consent(request: Request, preferences: Dict[str, Any]):
         # Set a cookie with the preferences
         response.set_cookie(
             key="cookie_consent",
-            value="true",
+            value="accepted" if preferences.get("consent", True) else "rejected",
             max_age=365 * 24 * 60 * 60,  # 1 year
             httponly=True,
-            secure=True,
+            secure=False,  # Set to True in production with HTTPS
             samesite="lax"
         )
         
         # Set individual preference cookies
-        for key, value in preferences.items():
+        for key, value in consent_data["preferences"].items():
             response.set_cookie(
                 key=f"cookie_pref_{key}",
                 value=str(value).lower(),
                 max_age=365 * 24 * 60 * 60,  # 1 year
                 httponly=True,
-                secure=True,
+                secure=False,  # Set to True in production with HTTPS
                 samesite="lax"
             )
         

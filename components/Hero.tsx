@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { TypeAnimation } from "react-type-animation";
 import { ArrowRight, ChevronDown } from "lucide-react";
@@ -17,23 +18,23 @@ interface HeroContent {
 const heroContent: HeroContent = {
   images: [
     {
-      url: "https://images.unsplash.com/photo-1611348524140-53c9a25263d6?auto=format&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1611348524140-53c9a25263d6?auto=format&fit=crop&q=80&w=2000",
       overlay: "bg-gradient-to-r from-[#0B0F19]/70 to-[#0B0F19]/50"
     },
     {
-      url: "https://images.unsplash.com/photo-1582653291997-079a1c04e5a1?auto=format&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1582653291997-079a1c04e5a1?auto=format&fit=crop&q=80&w=2000",
       overlay: "bg-gradient-to-r from-[#0B0F19]/65 to-[#0B0F19]/50"
     },
     {
-      url: "https://images.unsplash.com/photo-1573164713714-d95e436ab8d6?auto=format&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1573164713714-d95e436ab8d6?auto=format&fit=crop&q=80&w=2000",
       overlay: "bg-gradient-to-r from-[#0B0F19]/65 to-[#0B0F19]/55"
     },
     {
-      url: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=2000",
       overlay: "bg-gradient-to-r from-[#0B0F19]/60 to-[#0B0F19]/50"
     },
     {
-      url: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=2000",
       overlay: "bg-gradient-to-r from-[#0B0F19]/60 to-[#0B0F19]/50"
     }
   ],
@@ -64,8 +65,35 @@ export function Hero() {
   const [currentImage, setCurrentImage] = useState(0);
   const [nextImage, setNextImage] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [imagesLoaded, setImagesLoaded] = useState(false);
+
+  // Preload all images
+  useEffect(() => {
+    const preloadImages = async () => {
+      const imagePromises = heroContent.images.map((image) => {
+        return new Promise((resolve, reject) => {
+          const img = new window.Image();
+          img.src = image.url;
+          img.onload = resolve;
+          img.onerror = reject;
+        });
+      });
+
+      try {
+        await Promise.all(imagePromises);
+        setImagesLoaded(true);
+      } catch (error) {
+        console.warn('Some hero images failed to preload:', error);
+        setImagesLoaded(true); // Still show the component
+      }
+    };
+
+    preloadImages();
+  }, []);
 
   useEffect(() => {
+    if (!imagesLoaded) return;
+
     const interval = setInterval(() => {
       setNextImage((currentImage + 1) % heroContent.images.length);
       setIsTransitioning(true);
@@ -77,7 +105,7 @@ export function Hero() {
     }, 8000);
 
     return () => clearInterval(interval);
-  }, [currentImage, nextImage]);
+  }, [currentImage, nextImage, imagesLoaded]);
 
   return (
     <section className="relative h-screen w-full overflow-hidden -mt-[80px]">
@@ -94,18 +122,33 @@ export function Hero() {
             exit={{ opacity: 0 }}
             className={`absolute inset-0 ${index === currentImage ? 'z-10' : 'z-0'}`}
           >
-            <div 
-              className="absolute inset-0 w-full h-full bg-cover bg-center bg-no-repeat"
-              style={{ 
-                backgroundImage: `url(${image.url})`,
-                transform: "scale(1.05)",
-                transition: "transform 8s ease-out"
-              }}
-            />
+            <div className="absolute inset-0 w-full h-full overflow-hidden">
+              <Image
+                src={image.url}
+                alt={`Hero background image ${index + 1}`}
+                fill
+                sizes="100vw"
+                className="object-cover scale-105 transition-transform duration-[8000ms] ease-out"
+                priority={index === 0} // Prioritize first image
+                quality={90}
+                placeholder="blur"
+                blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
+                loading={index === 0 ? "eager" : "lazy"}
+              />
+            </div>
             <div className={`absolute inset-0 ${image.overlay} transition-opacity duration-1000`} />
           </motion.div>
         ))}
       </AnimatePresence>
+
+      {/* Loading fallback for first image */}
+      {!imagesLoaded && (
+        <div className="absolute inset-0 bg-gradient-to-r from-[#0B0F19] to-[#272055] z-5">
+          <div className="absolute inset-0 animate-pulse opacity-20">
+            <div className="w-full h-full bg-gradient-to-br from-white/5 to-transparent" />
+          </div>
+        </div>
+      )}
 
       {/* Updated Hero Content */}
       <motion.div

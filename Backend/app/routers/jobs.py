@@ -47,6 +47,16 @@ async def get_job_by_id(
             
         # Convert ObjectId to string and format dates
         job["id"] = str(job.pop("_id"))
+        
+        # Clean up HTML entities in description
+        if "description" in job:
+            job["description"] = (
+                job["description"]
+                .replace("&nbsp;", " ")  # Replace &nbsp; with regular space
+                .replace("\\s+", " ")    # Normalize multiple spaces
+                .strip()                 # Trim extra spaces
+            )
+        
         if "createdAt" in job:
             job["createdAt"] = job["createdAt"].isoformat()
         if "updatedAt" in job:
@@ -148,6 +158,16 @@ async def get_jobs(
         # Convert ObjectIds to strings and format dates
         for job in jobs:
             job["id"] = str(job.pop("_id"))  # Replace _id with id
+            
+            # Clean up HTML entities in description
+            if "description" in job:
+                job["description"] = (
+                    job["description"]
+                    .replace("&nbsp;", " ")  # Replace &nbsp; with regular space
+                    .replace("\\s+", " ")    # Normalize multiple spaces
+                    .strip()                 # Trim extra spaces
+                )
+            
             # Format dates if they exist
             if "createdAt" in job:
                 job["createdAt"] = job["createdAt"].isoformat()

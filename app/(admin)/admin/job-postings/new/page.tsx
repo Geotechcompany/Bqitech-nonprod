@@ -170,9 +170,15 @@ export default function AddJobPostingPage() {
               <Textarea
                 id="description"
                 value={jobPosting.description}
-                onChange={(e) =>
-                  setJobPosting({ ...jobPosting, description: e.target.value })
-                }
+                onChange={(e) => {
+                  // Clean up HTML entities and normalize spaces
+                  const cleanedValue = e.target.value
+                    .replace(/&nbsp;/g, ' ')  // Replace &nbsp; with regular space
+                    .replace(/\s+/g, ' ')     // Normalize multiple spaces
+                    .trim();                  // Trim extra spaces
+                  
+                  setJobPosting({ ...jobPosting, description: cleanedValue });
+                }}
                 placeholder="Enter job description"
                 rows={6}
               />

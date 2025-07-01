@@ -214,6 +214,15 @@ async def create_job_posting(
     """Create new job posting"""
     db = get_database()
     
+    # Clean up HTML entities in description
+    if "description" in job_data:
+        job_data["description"] = (
+            job_data["description"]
+            .replace("&nbsp;", " ")  # Replace &nbsp; with regular space
+            .replace("\\s+", " ")    # Normalize multiple spaces using proper regex escape
+            .strip()                 # Trim extra spaces
+        )
+    
     job_data["createdAt"] = datetime.utcnow()
     job_data["updatedAt"] = datetime.utcnow()
     job_data["createdBy"] = str(current_user["_id"])
@@ -254,6 +263,15 @@ async def update_job_posting(
     db = get_database()
     
     try:
+        # Clean up HTML entities in description
+        if "description" in update_data:
+            update_data["description"] = (
+                update_data["description"]
+                .replace("&nbsp;", " ")  # Replace &nbsp; with regular space
+                .replace("\\s+", " ")    # Normalize multiple spaces using proper regex escape
+                .strip()                 # Trim extra spaces
+            )
+        
         update_data["updatedAt"] = datetime.utcnow()
         
         result = await db.jobpostings.update_one(
@@ -975,18 +993,36 @@ async def get_question(
     current_user: dict = Depends(get_current_admin_user)
 ):
     """Get specific question"""
-    db = get_database()
-    
     try:
-        question = await db.jobquestions.find_one({"_id": ObjectId(question_id)})
-        if not question:
-            raise HTTPException(status_code=404, detail="Question not found")
+        db = get_database()
+        if db is None:
+            raise HTTPException(status_code=503, detail="Database not available")
         
-        convert_objectids_to_strings(question)
-        question["id"] = str(question.pop("_id"))
-        return question
-    except InvalidId:
-        raise HTTPException(status_code=400, detail="Invalid question ID")
+        try:
+            question = await db.jobquestions.find_one({"_id": ObjectId(question_id)})
+            if not question:
+                raise HTTPException(status_code=404, detail="Question not found")
+            
+            # Convert ObjectIds to strings
+            convert_objectids_to_strings(question)
+            question["id"] = str(question.pop("_id"))
+            
+            # Return with proper JSON serialization
+            return JSONResponse(
+                content=json.loads(json.dumps(question, cls=CustomJSONEncoder)),
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                }
+            )
+        except InvalidId:
+            logger.error(f"Invalid question ID format: {question_id}")
+            raise HTTPException(status_code=400, detail="Invalid question ID")
+    except Exception as e:
+        logger.error(f"Error in get_question: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/questions/{question_id}")
 async def update_question(
@@ -1029,42 +1065,115 @@ async def delete_question(
 
 @router.put("/questions/reorder-questions")
 async def reorder_questions(
-    reorder_data: Dict[str, Any],
+    reorder_data: Dict[str, Any] = Body(...),
     current_user: dict = Depends(get_current_admin_user)
 ):
     """Reorder questions"""
     try:
         db = get_database()
         if db is None:
+            logger.error("Database connection not available")
             raise HTTPException(status_code=503, detail="Database not available")
         
         updates = reorder_data.get("updates", [])
+        if not updates:
+            logger.error("No updates provided in request")
+            raise HTTPException(status_code=400, detail="No updates provided")
+        
+        logger.info(f"Processing {len(updates)} updates")
+        
+        # First validate all IDs before making any changes
         for update in updates:
-            try:
-                await db.jobquestions.update_one(
-                    {"_id": ObjectId(update["id"])},
-                    {"$set": {"order": update["order"]}}
-                )
-            except InvalidId:
+            if not update.get("id") or not isinstance(update.get("order"), int):
+                logger.error(f"Invalid update format: {update}")
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Invalid question ID: {update['id']}"
+                    detail="Each update must have an 'id' and 'order' field"
+                )
+            
+            try:
+                # Validate ObjectId format
+                ObjectId(update["id"])
+            except InvalidId:
+                logger.error(f"Invalid ObjectId format: {update['id']}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid question ID format: {update['id']}"
                 )
         
-        return {"message": "Questions reordered successfully"}
-    except Exception as e:
-        logger.error(f"Error in reorder_questions: {str(e)}")
-        logger.exception("Full traceback:")
-    db = get_database()
-    
-    updates = reorder_data.get("updates", [])
-    for update in updates:
-        await db.jobquestions.update_one(
-            {"_id": ObjectId(update["id"])},
-            {"$set": {"order": update["order"]}}
+        # Then verify all questions exist
+        question_ids = [ObjectId(update["id"]) for update in updates]
+        questions = await db.jobquestions.find({"_id": {"$in": question_ids}}).to_list(None)
+        found_ids = {str(q["_id"]) for q in questions}
+        
+        # Check for missing questions
+        missing_ids = [update["id"] for update in updates if update["id"] not in found_ids]
+        if missing_ids:
+            logger.error(f"Questions not found: {missing_ids}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Questions not found: {', '.join(missing_ids)}"
+            )
+        
+        # Finally, update all questions
+        updated_questions = []
+        for update in updates:
+            try:
+                result = await db.jobquestions.find_one_and_update(
+                    {"_id": ObjectId(update["id"])},
+                    {"$set": {
+                        "order": update["order"],
+                        "updatedAt": datetime.utcnow()
+                    }},
+                    return_document=True,
+                    projection={"_id": 1, "question": 1, "type": 1, "required": 1, "options": 1, "order": 1, "jobIds": 1, "createdAt": 1, "updatedAt": 1}
+                )
+                
+                if not result:
+                    logger.error(f"Failed to update question {update['id']}")
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Failed to update question: {update['id']}"
+                    )
+                
+                # Convert ObjectIds to strings
+                result_dict = dict(result)  # Convert SON to dict
+                convert_objectids_to_strings(result_dict)
+                result_dict["id"] = str(result_dict.pop("_id"))
+                updated_questions.append(result_dict)
+                
+                logger.info(f"Successfully updated question {update['id']} order to {update['order']}")
+            except Exception as e:
+                logger.error(f"Error updating question {update['id']}: {str(e)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to update question {update['id']}: {str(e)}"
+                )
+        
+        # Return with proper JSON serialization
+        response_data = {
+            "message": "Questions reordered successfully",
+            "questions": updated_questions
+        }
+        
+        # Convert any remaining ObjectIds to strings
+        convert_objectids_to_strings(response_data)
+        
+        return JSONResponse(
+            content=response_data,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "PUT, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization"
+            }
         )
-    
-    return {"message": "Questions reordered successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in reorder_questions: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 # Settings endpoints
 @router.get("/settings")
