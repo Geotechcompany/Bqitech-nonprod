@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { authService } from '@/lib/auth-backend'
 import { User } from '@/types/user'
+import { SessionExpiredDialog } from '@/components/auth/SessionExpiredDialog'
 
 interface AuthContextType {
   isAuthenticated: boolean
@@ -17,6 +18,10 @@ interface AuthContextType {
   register: (email: string, password: string, name: string) => Promise<void>
   updateUserAvatar: (avatarUrl: string) => void
   refreshUserProfile: () => Promise<void>
+  handleAuthError: (error: any) => void
+  isEmailVerified: () => boolean
+  checkEmailVerification: () => void
+  updateEmailVerificationStatus: (isVerified: boolean) => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -29,7 +34,74 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     userRole: undefined as string | undefined,
     authLoading: true
   })
+  const [showSessionExpired, setShowSessionExpired] = useState(false)
   const router = useRouter()
+
+  // Check email verification and redirect if needed
+  const checkEmailVerification = () => {
+    if (authState.isAuthenticated && authState.user) {
+      const isVerified = authState.user.isEmailVerified || false;
+      console.log('Checking email verification:', { 
+        isVerified, 
+        email: authState.user.email,
+        user: authState.user 
+      });
+      
+      if (!isVerified) {
+        console.log('User email not verified, redirecting to verification page');
+        const verifyUrl = `/auth/verify-email?email=${encodeURIComponent(authState.user.email)}`;
+        router.push(verifyUrl);
+        return false;
+      }
+      return true;
+    }
+    return false;
+  };
+
+  // Check email verification status
+  const isEmailVerified = () => {
+    return authState.user?.isEmailVerified || false;
+  };
+
+  // Auto-check email verification when user state changes
+  useEffect(() => {
+    if (authState.isAuthenticated && authState.user && !authState.authLoading) {
+      // Only check verification for dashboard and admin routes
+      const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+      const requiresVerification = currentPath.startsWith('/dashboard') || currentPath.startsWith('/admin');
+      
+      if (requiresVerification && !authState.user.isEmailVerified) {
+        console.log('User not verified, redirecting from:', currentPath);
+        checkEmailVerification();
+      }
+    }
+  }, [authState.isAuthenticated, authState.user, authState.authLoading]);
+
+  // Handle authentication errors
+  const handleAuthError = (error: any) => {
+    console.error('Authentication error detected:', error)
+    
+    // Check if it's an authentication/authorization error
+    const isAuthError = 
+      error?.response?.status === 401 ||
+      error?.status === 401 ||
+      error?.message?.includes('authentication') ||
+      error?.message?.includes('token') ||
+      error?.message?.includes('unauthorized') ||
+      error?.detail?.includes('authentication') ||
+      error?.detail?.includes('token')
+
+    // Only show session expired dialog if user was previously authenticated
+    // Don't show it if user was never logged in or already logged out
+    if (isAuthError && authState.isAuthenticated && authState.user) {
+      console.log('Authentication error detected for authenticated user, showing session expired dialog')
+      setShowSessionExpired(true)
+    } else if (isAuthError && !authState.isAuthenticated) {
+      console.log('Authentication error for non-authenticated user, redirecting to login')
+      // For non-authenticated users, just redirect to login
+      router.push('/login')
+    }
+  }
 
   useEffect(() => {
     const initAuth = async () => {
@@ -280,7 +352,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           ...session.user,
           ...profileData,
           firstName: profileData.firstName || '',
-          lastName: profileData.lastName || ''
+          lastName: profileData.lastName || '',
+          isEmailVerified: profileData.isEmailVerified || false
         }
         
         // Update session storage
@@ -296,6 +369,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           isAdmin: profileData.role === 'admin',
           authLoading: false
         }))
+        
+        console.log('Auth state updated with verification status:', updatedUser.isEmailVerified)
       } else {
         console.error('Failed to refresh user profile')
         setAuthState(prev => ({
@@ -312,6 +387,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  // Method to update verification status after email verification
+  const updateEmailVerificationStatus = (isVerified: boolean) => {
+    if (authState.user) {
+      const updatedUser = {
+        ...authState.user,
+        isEmailVerified: isVerified,
+        name: authState.user.name || authState.user.email || `${authState.user.firstName || ''} ${authState.user.lastName || ''}`.trim()
+      }
+      
+      setAuthState(prev => ({
+        ...prev,
+        user: updatedUser
+      }))
+      
+      // Update session storage
+      const currentSession = authService.getSession()
+      if (currentSession) {
+        authService.setSession({
+          ...currentSession,
+          user: updatedUser
+        })
+      }
+      
+      console.log('Email verification status updated:', isVerified)
+    }
+  }
+
   console.log('Auth State Debug:', authState)
 
   return (
@@ -323,10 +425,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         refreshToken,
         register,
         updateUserAvatar,
-        refreshUserProfile
+        refreshUserProfile,
+        handleAuthError,
+        isEmailVerified,
+        checkEmailVerification,
+        updateEmailVerificationStatus
       }}
     >
       {children}
+      
+      {/* Session Expired Dialog */}
+      <SessionExpiredDialog
+        isOpen={showSessionExpired}
+        onClose={() => setShowSessionExpired(false)}
+        onRefresh={async () => {
+          try {
+            await refreshToken()
+            setShowSessionExpired(false)
+          } catch (error) {
+            console.error('Failed to refresh token:', error)
+            // If refresh fails, let the dialog handle logout
+            throw error
+          }
+        }}
+        countdownDuration={30}
+      />
     </AuthContext.Provider>
   )
 }

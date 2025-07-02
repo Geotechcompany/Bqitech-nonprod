@@ -25,6 +25,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { authService } from "@/lib/auth-backend";
 import { toast } from "sonner";
 import { adminApi } from "@/lib/api-backend";
+import { useAuthErrorHandler } from "@/hooks/useAuthErrorHandler";
 
 // Add sort options type
 type SortOption = {
@@ -36,6 +37,7 @@ type SortOption = {
 export default function ApplicationsPage() {
   const router = useRouter();
   const { isAuthenticated, isAdmin, authLoading } = useAuth();
+  const { handleError: handleAuthError } = useAuthErrorHandler();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPosition, setSelectedPosition] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
@@ -147,8 +149,14 @@ export default function ApplicationsPage() {
 
     } catch (error) {
       console.error('Failed to fetch applications:', error);
-      setError('Failed to fetch applications');
-      toast.error('Failed to fetch applications');
+      
+      // Handle authentication errors through the global handler
+      const isAuthError = handleAuthError(error);
+      
+      if (!isAuthError) {
+        setError('Failed to fetch applications');
+        toast.error('Failed to fetch applications');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -183,7 +191,10 @@ export default function ApplicationsPage() {
       toast.success('Application updated successfully');
     } catch (error) {
       console.error('Failed to update application:', error);
-      toast.error('Failed to update application');
+      const isAuthError = handleAuthError(error);
+      if (!isAuthError) {
+        toast.error('Failed to update application');
+      }
     }
   };
 
@@ -195,7 +206,10 @@ export default function ApplicationsPage() {
       toast.success('Application deleted successfully');
     } catch (error) {
       console.error('Failed to delete application:', error);
-      toast.error('Failed to delete application');
+      const isAuthError = handleAuthError(error);
+      if (!isAuthError) {
+        toast.error('Failed to delete application');
+      }
     }
   };
 
@@ -206,7 +220,10 @@ export default function ApplicationsPage() {
       toast.success('Applications updated successfully');
     } catch (error) {
       console.error('Failed to update applications:', error);
-      toast.error('Failed to update applications');
+      const isAuthError = handleAuthError(error);
+      if (!isAuthError) {
+        toast.error('Failed to update applications');
+      }
     }
   };
 
@@ -217,7 +234,10 @@ export default function ApplicationsPage() {
       toast.success('Applications deleted successfully');
     } catch (error) {
       console.error('Failed to delete applications:', error);
-      toast.error('Failed to delete applications');
+      const isAuthError = handleAuthError(error);
+      if (!isAuthError) {
+        toast.error('Failed to delete applications');
+      }
     }
   };
 

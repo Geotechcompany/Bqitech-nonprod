@@ -14,6 +14,7 @@ import OtpInput from 'react-otp-input'
 import { Controller } from 'react-hook-form'
 import { useRouter } from 'next/navigation'
 import { authService } from '@/lib/auth-backend'
+import { useAuth } from '@/contexts/AuthContext'
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -39,6 +40,7 @@ export default function EmailVerificationPage() {
   const [error, setError] = useState('')
   const [initialEmailSent, setInitialEmailSent] = useState(false)
   const router = useRouter()
+  const { updateEmailVerificationStatus } = useAuth()
 
   const { handleSubmit, formState: { errors }, control, setError: setFormError } = useForm<z.infer<typeof otpSchema>>({
     resolver: zodResolver(otpSchema),
@@ -101,9 +103,23 @@ export default function EmailVerificationPage() {
         throw new Error(data.detail || 'Verification failed')
       }
 
+      const result = await response.json()
       setStatus('success')
       toast.success('Email verified successfully!')
-      router.push('/login')
+      
+      // Try to refresh user profile to update verification status
+      try {
+        await updateEmailVerificationStatus(true)
+      } catch (sessionError) {
+        console.error('Error updating session:', sessionError)
+      }
+      
+      // Redirect to appropriate dashboard based on user role
+      const redirectPath = result.user?.role === 'admin' ? '/admin' : '/dashboard'
+      setTimeout(() => {
+        router.push(redirectPath)
+      }, 1500)
+      
     } catch (error) {
       setStatus('error')
       toast.error(error.message || 'Verification failed')

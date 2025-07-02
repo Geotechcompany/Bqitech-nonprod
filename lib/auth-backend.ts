@@ -293,7 +293,8 @@ class AuthService {
   }
 
   isAuthenticated(): boolean {
-    return !!this.getSession()?.token;
+    const session = this.getSession();
+    return !!(session?.token && session?.user);
   }
 
   isAdmin(): boolean {
@@ -357,6 +358,43 @@ class AuthService {
     } catch (error) {
       console.error('Authenticated fetch error:', error);
       throw error;
+    }
+  }
+
+  // Check if user's email is verified
+  isEmailVerified(): boolean {
+    const session = this.getSession();
+    return session?.user?.isEmailVerified || false;
+  }
+
+  // Refresh user profile data
+  async refreshUserProfile(): Promise<SessionData | null> {
+    try {
+      const response = await this.authenticatedFetch(`${BACKEND_URL}/api/users/profile`);
+      
+      if (response.ok) {
+        const profileData = await response.json();
+        
+        // Update session with new profile data
+        const currentSession = this.getSession();
+        if (currentSession) {
+          const updatedSession = {
+            ...currentSession,
+            user: {
+              ...currentSession.user,
+              ...profileData,
+              isEmailVerified: profileData.isEmailVerified || false
+            }
+          };
+          this.setSession(updatedSession);
+          return updatedSession;
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error refreshing user profile:', error);
+      return null;
     }
   }
 }

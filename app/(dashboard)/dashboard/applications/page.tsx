@@ -154,7 +154,7 @@ const statusConfig = {
 export default function ApplicationsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [viewApplication, setViewApplication] = useState<Application | null>(null);
-  const { user, refreshToken } = useAuth();
+  const { user, refreshToken, handleAuthError } = useAuth();
 
   const { data, isLoading, error } = useQuery<ApplicationResponse>({
     queryKey: ['userApplications', user?.id],
@@ -181,19 +181,35 @@ export default function ApplicationsPage() {
         console.log('Response data:', data);
 
         if (!response.ok) {
-          throw new Error(data.detail || 'Failed to load applications');
+          const error = new Error(data.detail || 'Failed to load applications');
+          // Handle authentication errors through the global handler
+          if (response.status === 401) {
+            handleAuthError({ status: 401, detail: data.detail });
+          }
+          throw error;
         }
 
         return data;
       } catch (error: any) {
         console.error('Error fetching applications:', error);
-        if (error.response?.status === 401) {
-          throw new Error('Please log in to view your applications');
+        
+        // Handle authentication errors through the global handler
+        if (error.response?.status === 401 || error.status === 401) {
+          handleAuthError(error);
         }
+        
         throw new Error(error.response?.data?.detail || error.message || 'Failed to load applications');
       }
     },
-    retry: 1,
+    retry: (failureCount, error: any) => {
+      // Don't retry on authentication errors
+      if (error?.message?.includes('authentication') || 
+          error?.message?.includes('token') ||
+          error?.response?.status === 401) {
+        return false;
+      }
+      return failureCount < 1;
+    },
     enabled: !!user?.id, // Only run query if we have a user ID
   });
 
@@ -213,45 +229,35 @@ export default function ApplicationsPage() {
     setViewApplication(application || null);
   };
 
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-red-50/30 to-pink-100/20 dark:from-gray-900 dark:via-red-950/30 dark:to-pink-950/20">
-        <div className="container mx-auto py-6 sm:py-8 lg:py-12 px-4">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="text-center max-w-sm sm:max-w-md mx-auto"
-          >
-            <div className="relative mb-4 sm:mb-6">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 mx-auto bg-gradient-to-br from-red-100 to-pink-100 dark:from-red-900/20 dark:to-pink-900/20 rounded-full flex items-center justify-center backdrop-blur-sm border border-red-200/50">
-                <AlertCircle className="h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 text-red-500" />
-              </div>
-            </div>
-            <h3 className="text-lg sm:text-xl lg:text-2xl font-bold text-red-600 dark:text-red-400 mb-2 sm:mb-3">
-              Authentication Required
-            </h3>
-            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mb-4 sm:mb-6 px-2">
-              Please log in to view your applications
-            </p>
-          </motion.div>
-        </div>
-      </div>
-    );
-  }
+  // Handle authentication errors gracefully
+  const isAuthError = error && (
+    error.message?.includes('authentication') ||
+    error.message?.includes('token') ||
+    error.message?.includes('unauthorized') ||
+    error.message?.includes('User not authenticated')
+  );
 
-  if (error) {
+  // Don't show error UI for auth errors, let SessionExpiredDialog handle it
+  if (error && !isAuthError) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-red-50/30 to-pink-100/20 dark:from-gray-900 dark:via-red-950/30 dark:to-pink-950/20">
         <div className="container mx-auto py-6 sm:py-8 lg:py-12 px-4">
           <motion.div 
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="text-center max-w-sm sm:max-w-md mx-auto"
+            className="text-center max-w-sm sm:max-w-md lg:max-w-lg mx-auto"
           >
             <div className="relative mb-4 sm:mb-6">
               <div className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 mx-auto bg-gradient-to-br from-red-100 to-pink-100 dark:from-red-900/20 dark:to-pink-900/20 rounded-full flex items-center justify-center backdrop-blur-sm border border-red-200/50">
                 <AlertCircle className="h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 text-red-500" />
               </div>
+              <motion.div
+                className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 text-red-400"
+                animate={{ rotate: [0, 10, -10, 0] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              >
+                <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" />
+              </motion.div>
             </div>
             <h3 className="text-lg sm:text-xl lg:text-2xl font-bold text-red-600 dark:text-red-400 mb-2 sm:mb-3">
               Error Loading Applications
@@ -269,6 +275,11 @@ export default function ApplicationsPage() {
         </div>
       </div>
     );
+  }
+
+  // Show loading skeleton for auth errors while SessionExpiredDialog handles it
+  if (isAuthError) {
+    return <ApplicationsPageSkeleton />;
   }
 
   if (isLoading) return <ApplicationsPageSkeleton />;

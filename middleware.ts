@@ -21,7 +21,9 @@ const noVerificationPaths = [
   '/login',
   '/sign-up',
   '/forgot-password',
-  '/reset-password'
+  '/reset-password',
+  '/logout',
+  '/api'
 ]
 
 // Helper function to get auth token from custom auth system
@@ -55,6 +57,8 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const authSession = request.cookies.get('auth_session')?.value;
   
+  console.log('Middleware processing:', { pathname, hasSession: !!authSession });
+  
   // Allow public paths without authentication
   if (publicPaths.some(path => pathname.startsWith(path))) {
     return NextResponse.next();
@@ -62,24 +66,42 @@ export function middleware(request: NextRequest) {
 
   // If no session, redirect to login
   if (!authSession) {
+    console.log('No auth session, redirecting to login');
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
   try {
     // Parse the session to check email verification status
     const session = JSON.parse(authSession);
-    const isEmailVerified = session?.user?.isEmailVerified;
+    const user = session?.user;
+    const isEmailVerified = user?.isEmailVerified;
+
+    console.log('Session data:', { 
+      userEmail: user?.email, 
+      isEmailVerified, 
+      userRole: user?.role 
+    });
 
     // If email is not verified and not on a verification-exempt path,
     // redirect to verification page with email
     if (!isEmailVerified && !noVerificationPaths.some(path => pathname.startsWith(path))) {
+      console.log('Email not verified, redirecting to verification page');
       const verifyUrl = new URL('/auth/verify-email', request.url);
-      verifyUrl.searchParams.set('email', session?.user?.email || '');
+      if (user?.email) {
+        verifyUrl.searchParams.set('email', user.email);
+      }
       return NextResponse.redirect(verifyUrl);
+    }
+
+    // Check admin access for admin routes
+    if (pathname.startsWith('/admin') && user?.role !== 'admin') {
+      console.log('Non-admin user trying to access admin area');
+      return NextResponse.redirect(new URL('/dashboard', request.url));
     }
 
     return NextResponse.next();
   } catch (error) {
+    console.error('Error parsing session:', error);
     // If session is invalid, clear it and redirect to login
     const response = NextResponse.redirect(new URL('/login', request.url));
     response.cookies.delete('auth_session');
