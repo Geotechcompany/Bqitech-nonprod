@@ -9,7 +9,7 @@ load_dotenv()
 class Settings(BaseModel):
     # Server Configuration
     host: str = "0.0.0.0"
-    port: int = int(os.getenv("PORT", "10000"))
+    port: int = int(os.getenv("PORT", "9000"))
     debug: bool = False
     
     # Database
@@ -46,7 +46,7 @@ class Settings(BaseModel):
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = [
         "http://localhost:3000",
-        "http://localhost:10000",
+        "http://localhost:9000",
         "https://bqitech.com",
         "https://bqitech-nonprod.netlify.app",
         "https://www.bqitech-nonprod.netlify.app"

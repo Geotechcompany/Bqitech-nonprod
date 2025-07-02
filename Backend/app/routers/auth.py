@@ -483,8 +483,11 @@ async def verify_email(
         
         return {"message": "Email verified successfully"}
         
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Email verification error: {e}")
+        logger.error(f"Email verification error: {str(e)}")
+        logger.exception("Full traceback:")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
@@ -527,8 +530,11 @@ async def send_verification_code_endpoint(
         
         return {"message": "Verification code sent successfully"}
         
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Send verification code error: {e}")
+        logger.error(f"Send verification code error: {str(e)}")
+        logger.exception("Full traceback:")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
