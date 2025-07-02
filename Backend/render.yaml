@@ -41,7 +41,7 @@ services:
       - key: MAX_FILE_SIZE
         value: 10485760
       - key: ALLOWED_EXTENSIONS
-        value: pdf,doc,docx
+        value: pdf,doc,docx,jpg,jpeg,png,gif,webp
       - key: RATE_LIMIT_REQUESTS
         value: 100
       - key: RATE_LIMIT_WINDOW

@@ -13,8 +13,37 @@ const nextConfig = {
             'images.unsplash.com',
             'd1.awsstatic.com',
             'dl.dropboxusercontent.com',
-            'bqitech.com'
+            'bqitech.com',
+            'cdn.pixabay.com',
+            'img.freepik.com',
+            'source.unsplash.com',
+            'picsum.photos'
         ],
+        formats: ['image/webp', 'image/avif'],
+        deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+        imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+        minimumCacheTTL: 60,
+        dangerouslyAllowSVG: true,
+        contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
+        remotePatterns: [{
+            protocol: 'https',
+            hostname: '**.dropboxusercontent.com',
+            port: '',
+            pathname: '/**',
+        },
+        {
+            protocol: 'https',
+            hostname: '**.unsplash.com',
+            port: '',
+            pathname: '/**',
+        },
+        {
+            protocol: 'https',
+            hostname: '**.bqitech.com',
+            port: '',
+            pathname: '/**',
+        }
+        ]
     },
     async headers() {
         const isProduction = process.env.NODE_ENV === 'production';
@@ -25,7 +54,7 @@ const nextConfig = {
             `script-src-elem 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/`,
             `style-src 'self' 'unsafe-inline'`,
             `img-src 'self' data: blob: https://dl.dropboxusercontent.com https://images.unsplash.com`,
-            `connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.dev https://clerk-telemetry.com https://*.googletagmanager.com https://www.googletagmanager.com https://www.google-analytics.com https://accounts.google.com https://hcaptcha.com https://sentry.hcaptcha.com ${process.env.NODE_ENV === 'development' ? 'ws://localhost:3000/_next/webpack-hmr http://localhost:10000' : ''} https://organic-hound-41949.upstash.io https://bqitech-nonprod-1.onrender.com https://bqitech.com`,
+            `connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.dev https://clerk-telemetry.com https://*.googletagmanager.com https://www.googletagmanager.com https://www.google-analytics.com https://accounts.google.com https://hcaptcha.com https://sentry.hcaptcha.com ${process.env.NODE_ENV === 'development' ? 'ws://localhost:3000/_next/webpack-hmr http://localhost:9000' : ''} https://organic-hound-41949.upstash.io https://bqitech-nonprod-1.onrender.com https://bqitech.com`,
             `frame-src https://newassets.hcaptcha.com https://hcaptcha.com https://*.hcaptcha.com https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/`,
             `font-src 'self' data:`
         ];
@@ -37,39 +66,39 @@ const nextConfig = {
         }
 
         const securityHeaders = [{
-                key: 'Content-Security-Policy',
-                value: cspDirectives.join('; ')
-            },
-            {
-                key: 'X-Content-Type-Options',
-                value: 'nosniff'
-            }
+            key: 'Content-Security-Policy',
+            value: cspDirectives.join('; ')
+        },
+        {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff'
+        }
         ];
 
         return [{
-                source: '/sitemap.xml',
-                headers: [{
-                        key: 'Content-Type',
-                        value: 'application/xml',
-                    },
-                    {
-                        key: 'Cache-Control',
-                        value: 'public, max-age=3600, must-revalidate',
-                    },
-                ],
+            source: '/sitemap.xml',
+            headers: [{
+                key: 'Content-Type',
+                value: 'application/xml',
             },
             {
-                source: '/:path*',
-                headers: securityHeaders,
+                key: 'Cache-Control',
+                value: 'public, max-age=3600, must-revalidate',
             },
-            {
-                source: '/api/:path*',
-                headers: [
-                    { key: 'Access-Control-Allow-Origin', value: '*' },
-                    { key: 'Access-Control-Allow-Methods', value: 'GET,POST,PUT,DELETE,OPTIONS' },
-                    { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
-                ],
-            },
+            ],
+        },
+        {
+            source: '/:path*',
+            headers: securityHeaders,
+        },
+        {
+            source: '/api/:path*',
+            headers: [
+                { key: 'Access-Control-Allow-Origin', value: '*' },
+                { key: 'Access-Control-Allow-Methods', value: 'GET,POST,PUT,DELETE,OPTIONS' },
+                { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
+            ],
+        },
         ]
     },
     webpack: (config, { isServer }) => {
@@ -100,15 +129,15 @@ const nextConfig = {
     },
     async redirects() {
         return [{
-                source: '/admin',
-                destination: '/admin/overview',
-                permanent: true,
-            },
-            {
-                source: '/dashboard',
-                destination: '/dashboard/overview',
-                permanent: true,
-            }
+            source: '/admin',
+            destination: '/admin/overview',
+            permanent: true,
+        },
+        {
+            source: '/dashboard',
+            destination: '/dashboard/overview',
+            permanent: true,
+        }
         ];
     },
     transpilePackages: ['@uiw/react-md-editor', 'react-beautiful-dnd'],
@@ -116,7 +145,7 @@ const nextConfig = {
         return [{
             source: '/sitemap.xml',
             destination: '/api/sitemap',
-        }, ]
+        },]
     },
     output: 'standalone',
 };

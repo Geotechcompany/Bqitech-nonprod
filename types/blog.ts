@@ -1,3 +1,16 @@
+export interface AuthorProfile {
+  name: string
+  bio: string
+  profileImage: string
+  title: string
+  socialLinks?: {
+    twitter?: string
+    linkedin?: string
+    github?: string
+    website?: string
+  }
+}
+
 export interface BlogPost {
   id: string
   title: string
@@ -11,4 +24,8 @@ export interface BlogPost {
   createdAt: string
   updatedAt?: string
   authorId?: string
+  author?: string | AuthorProfile
+  authorProfile?: AuthorProfile
+  tags?: string[]
+  metaDescription?: string
 } 

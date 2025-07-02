@@ -6,11 +6,12 @@ export interface Notification {
   message: string;
   type: 'info' | 'warning' | 'error' | 'success';
   isRead: boolean;
-  date: string;
+  date?: string;
   userId?: string;
   createdAt: string;
-  updatedAt: string;
-  __v: number;
+  updatedAt?: string;
+  __v?: number;
+  priority?: string;
 }
 
 class NotificationService {

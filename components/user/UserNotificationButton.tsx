@@ -18,12 +18,24 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { userNotificationService, UserNotification } from "@/lib/user-notifications";
+import { userApi } from "@/lib/api-backend";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { toast } from "react-hot-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/contexts/AuthContext";
+
+interface UserNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: 'info' | 'warning' | 'error' | 'success';
+  isRead: boolean;
+  date: string;
+  createdAt: string;
+  updatedAt?: string;
+  userId?: string;
+}
 
 interface UserNotificationButtonProps {
   variant?: "default" | "ghost" | "outline";
@@ -38,64 +50,87 @@ export function UserNotificationButton({
 }: UserNotificationButtonProps) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
-  // Fetch notifications
-  const { data: notifications = [], isLoading } = useQuery<UserNotification[]>({
+  // Fetch user notifications - only if authenticated
+  const { data: notifications = [], isLoading, error } = useQuery<UserNotification[]>({
     queryKey: ['userNotifications'],
-    queryFn: () => userNotificationService.getNotifications(),
+    queryFn: () => userApi.getUserNotifications(),
     refetchInterval: 30000, // Refetch every 30 seconds
     staleTime: 10000,
-    retry: 1, // Only retry once on failure
+    enabled: isAuthenticated, // Only run query if user is authenticated
+    retry: (failureCount, error: any) => {
+      // Don't retry on 401 errors (authentication failures)
+      if (error?.response?.status === 401) {
+        return false;
+      }
+      return failureCount < 3;
+    },
   });
 
   // Create test notification mutation
   const createTestNotificationMutation = useMutation({
-    mutationFn: () => userNotificationService.createTestNotification(),
+    mutationFn: () => userApi.seedUserNotifications(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['userNotifications'] });
-      toast.success('Test notification created');
+      toast.success('Test notifications created!');
     },
-    onError: () => {
-      toast.error('Failed to create test notification');
+    onError: (error: any) => {
+      console.error('Error creating test notifications:', error);
+      if (error?.response?.status === 401) {
+        toast.error('Authentication failed. Please log in again.');
+      } else {
+        toast.error('Failed to create test notifications');
+      }
     }
   });
 
   // Mark as read mutation
   const markAsReadMutation = useMutation({
-    mutationFn: (notificationId: string) => userNotificationService.markAsRead(notificationId),
+    mutationFn: (notificationId: string) => userApi.markUserNotificationAsRead(notificationId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['userNotifications'] });
       toast.success('Notification marked as read');
     },
-    onError: () => {
-      toast.error('Failed to mark notification as read');
+    onError: (error: any) => {
+      console.error('Error marking notification as read:', error);
+      if (error?.response?.status === 401) {
+        toast.error('Authentication failed. Please log in again.');
+      } else {
+        toast.error('Failed to mark notification as read');
+      }
     }
   });
 
   // Delete notification mutation
   const deleteNotificationMutation = useMutation({
-    mutationFn: (notificationId: string) => userNotificationService.deleteNotification(notificationId),
+    mutationFn: (notificationId: string) => userApi.deleteUserNotification(notificationId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['userNotifications'] });
       toast.success('Notification deleted');
     },
-    onError: () => {
-      toast.error('Failed to delete notification');
+    onError: (error: any) => {
+      console.error('Error deleting notification:', error);
+      if (error?.response?.status === 401) {
+        toast.error('Authentication failed. Please log in again.');
+      } else {
+        toast.error('Failed to delete notification');
+      }
     }
   });
 
-  // Mark all as read mutation
-  const markAllAsReadMutation = useMutation({
-    mutationFn: () => userNotificationService.markAllAsRead(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['userNotifications'] });
-      toast.success('All notifications marked as read');
-    },
-    onError: () => {
-      toast.error('Failed to mark all notifications as read');
+  // Don't render if user is not authenticated
+  if (!isAuthenticated || !user) {
+    return null;
+  }
+
+  // Handle error logging
+  if (error) {
+    console.error('Error fetching user notifications:', error);
+    if ((error as any)?.response?.status === 401) {
+      console.warn('Authentication failed for user notifications');
     }
-  });
+  }
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
   const recentNotifications = notifications.slice(0, 5);
@@ -169,17 +204,6 @@ export function UserNotificationButton({
                 {unreadCount} unread
               </Badge>
             )}
-            {unreadCount > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => markAllAsReadMutation.mutate()}
-                disabled={markAllAsReadMutation.isPending}
-                className="text-xs"
-              >
-                Mark all read
-              </Button>
-            )}
           </div>
         </div>
 
@@ -189,6 +213,25 @@ export function UserNotificationButton({
               <div className="p-8 text-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
                 <p className="text-sm text-gray-500 mt-2">Loading notifications...</p>
+              </div>
+            ) : error ? (
+              <div className="p-8 text-center">
+                <AlertCircle className="h-12 w-12 text-red-300 mx-auto mb-3" />
+                <p className="text-red-500 font-medium">Failed to load notifications</p>
+                <p className="text-gray-400 text-sm mb-4">
+                  {(error as any)?.response?.status === 401 
+                    ? 'Please log in again to view notifications' 
+                    : 'Please try again later'
+                  }
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => queryClient.invalidateQueries({ queryKey: ['userNotifications'] })}
+                  className="mt-2"
+                >
+                  Retry
+                </Button>
               </div>
             ) : recentNotifications.length === 0 ? (
               <div className="p-8 text-center">
@@ -270,7 +313,7 @@ export function UserNotificationButton({
                               <DropdownMenuItem
                                 onClick={() => deleteNotificationMutation.mutate(notification.id)}
                                 disabled={deleteNotificationMutation.isPending}
-                                className="text-red-600 focus:text-red-600"
+                                className="text-red-600"
                               >
                                 <Trash2 className="w-4 h-4 mr-2" />
                                 Delete
@@ -286,20 +329,28 @@ export function UserNotificationButton({
             )}
           </AnimatePresence>
         </ScrollArea>
-        
-        {notifications.length > 5 && (
+
+        {/* Footer */}
+        {recentNotifications.length > 0 && (
           <div className="p-3 border-t bg-gray-50">
-            <Button 
-              variant="ghost" 
-              className="w-full justify-center text-sm"
-              onClick={() => {
-                setOpen(false);
-                // You can add navigation to a full notifications page here
-                // router.push('/dashboard/notifications');
-              }}
-            >
-              View all {notifications.length} notifications
-            </Button>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-gray-500">
+                {notifications.length > 5 && `Showing 5 of ${notifications.length} notifications`}
+              </p>
+              {unreadCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs h-7"
+                  onClick={() => {
+                    // Mark all as read functionality could be added here
+                    console.log('Mark all as read clicked');
+                  }}
+                >
+                  Mark all read
+                </Button>
+              )}
+            </div>
           </div>
         )}
       </PopoverContent>

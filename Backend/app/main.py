@@ -19,6 +19,7 @@ from .routers.user import router as user_router
 from .routers.contact import router as contact_router
 from .routers.health import router as health_router
 from .routers.notifications import router as notifications_router
+from .routers.user_notifications import router as user_notifications_router
 from .routers.upload import router as upload_router
 
 # Try to import misc router if it exists
@@ -92,6 +93,8 @@ logger.info("Registering health router at /api")
 app.include_router(health_router, prefix="/api")
 logger.info("Registering notifications router at /api/notifications")
 app.include_router(notifications_router, prefix="/api/notifications")
+logger.info("Registering user notifications router at /api/user-notifications")
+app.include_router(user_notifications_router, prefix="/api/user-notifications")
 logger.info("Registering upload router at /api/upload")
 app.include_router(upload_router, prefix="/api/upload")
 

@@ -34,10 +34,26 @@ async def get_user_profile(
             raise HTTPException(status_code=404, detail="User not found")
         
         # Format user profile data
+        name = user.get("name", "")
+        
+        # Try to parse firstName and lastName from name
+        firstName = user.get("firstName", "")
+        lastName = user.get("lastName", "")
+        
+        # If firstName/lastName not stored separately, try to parse from name
+        if not firstName and not lastName and name:
+            name_parts = name.strip().split()
+            if len(name_parts) >= 1:
+                firstName = name_parts[0]
+            if len(name_parts) >= 2:
+                lastName = " ".join(name_parts[1:])
+        
         profile = {
             "id": str(user["_id"]),
             "email": user.get("email", ""),
-            "name": user.get("name", ""),
+            "name": name,
+            "firstName": firstName,
+            "lastName": lastName,
             "role": user.get("role", "USER"),
             "avatar": user.get("avatar", ""),
             "phone": user.get("phone", ""),
@@ -82,6 +98,14 @@ async def update_user_profile(
         profile_data.pop("email", None)  # Email updates should be handled separately
         profile_data.pop("password", None)  # Password updates should be handled separately
         profile_data.pop("role", None)  # Role updates should be handled by admin
+        
+        # Handle firstName and lastName updates
+        firstName = profile_data.get("firstName", "")
+        lastName = profile_data.get("lastName", "")
+        
+        # If firstName or lastName is provided, construct the full name
+        if firstName or lastName:
+            profile_data["name"] = f"{firstName} {lastName}".strip()
         
         # Add update timestamp
         profile_data["updatedAt"] = datetime.utcnow()

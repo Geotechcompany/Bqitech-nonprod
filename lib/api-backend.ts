@@ -324,21 +324,30 @@ export const adminApi = {
 
   // Get notifications
   async getNotifications() {
-    return backendApi.request('/api/notifications/');
+    const response = await backendApi.request('/api/admin/notifications');
+    // The admin API returns {notifications: [...], total: number}
+    return response.notifications || [];
   },
 
   // Mark notification as read
   async markNotificationAsRead(notificationId: string) {
-    return backendApi.request(`/api/notifications/${notificationId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ isRead: true }),
+    return backendApi.request(`/api/admin/notifications/${notificationId}/read`, {
+      method: 'PUT',
+      body: JSON.stringify({}),
     });
   },
 
   // Delete notification
   async deleteNotification(notificationId: string) {
-    return backendApi.request(`/api/notifications/${notificationId}`, {
+    return backendApi.request(`/api/admin/notifications/${notificationId}`, {
       method: 'DELETE',
+    });
+  },
+
+  // Mark all notifications as read
+  async markAllNotificationsAsRead() {
+    return backendApi.request('/api/admin/notifications/mark-all-read', {
+      method: 'PUT',
     });
   }
 };
@@ -412,6 +421,35 @@ export const userApi = {
 
   getHiringProgress: () =>
     backendApi.get('/api/users/hiring-progress'),
+
+  // User Notifications
+  async getUserNotifications(params?: { skip?: number; limit?: number }) {
+    return backendApi.get('/api/user-notifications/', params);
+  },
+
+  async markUserNotificationAsRead(notificationId: string) {
+    return backendApi.patch(`/api/user-notifications/${notificationId}`, {
+      isRead: true
+    });
+  },
+
+  async deleteUserNotification(notificationId: string) {
+    return backendApi.delete(`/api/user-notifications/${notificationId}`);
+  },
+
+  async createUserNotification(notification: {
+    title: string;
+    message: string;
+    type?: string;
+    priority?: string;
+    link?: string;
+  }) {
+    return backendApi.post('/api/user-notifications/', notification);
+  },
+
+  async seedUserNotifications() {
+    return backendApi.post('/api/user-notifications/seed');
+  }
 };
 
 // Public API (no auth required)

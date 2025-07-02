@@ -45,7 +45,7 @@ async def get_notifications(
     skip: int = 0
 ):
     """
-    Get notifications for the current user
+    Get system/admin notifications (deprecated - use /api/admin/notifications for admin or /api/user-notifications for users)
     """
     try:
         if not is_connected():
@@ -53,43 +53,17 @@ async def get_notifications(
             
         db = get_database()
         
-        # Get notifications that are specifically for this user only
+        # Get current user ID
         user_id = str(current_user.get("_id", "")) if current_user else None
         if not user_id:
             raise HTTPException(status_code=401, detail="User ID not found")
         
         logger.info(f"Fetching notifications for user: {user_id}")
         
-        # Only get notifications that are specifically for this user
-        # Exclude admin notifications (like application status updates for other users)
-        notifications = await db.notifications.find({
-            "userId": user_id,
-            # Exclude admin-type notifications that shouldn't be shown to regular users
-            "title": {
-                "$not": {
-                    "$regex": "Application Status Updated|New Application Received|Interview Scheduled"
-                }
-            }
-        }).sort("date", -1).skip(skip).limit(limit).to_list(length=None)
-
-        logger.info(f"Found {len(notifications)} user-specific notifications")
-
-        # Convert MongoDB documents to response format
-        response_data = []
-        for notification in notifications:
-            try:
-                notification_dict = convert_mongo_doc(notification)
-                if "_id" in notification_dict:
-                    notification_dict["id"] = str(notification_dict.pop("_id"))
-                notification_dict.setdefault("isRead", False)
-                notification_dict.setdefault("__v", 0)
-                response_data.append(notification_dict)
-            except Exception as e:
-                logger.error(f"Error processing notification: {str(e)}")
-                continue
-
-        logger.info(f"Returning {len(response_data)} processed notifications")
-        return response_data
+        # For backward compatibility, return empty array and suggest using the correct endpoints
+        logger.warning("Deprecated endpoint /api/notifications used. Use /api/admin/notifications for admin or /api/user-notifications for users")
+        
+        return []
 
     except Exception as e:
         logger.error(f"Error in get_notifications: {str(e)}")

@@ -11,6 +11,13 @@ export interface User {
   updatedAt?: string;
   lastLoginAt?: string;
   profileImage?: string;
+  phone?: string;
+  location?: string;
+  bio?: string;
+  skills?: string[];
+  experience?: any[];
+  education?: any[];
+  socialLinks?: Record<string, string>;
   settings?: {
     notifications: {
       email: boolean;

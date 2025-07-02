@@ -18,8 +18,10 @@ import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/AuthContext";
 import { User } from "@/types/user";
+import Logo from "@/components/logo";
 
 const tabs = [
   {
@@ -68,115 +70,173 @@ export default function UserDashboardSidebar({
   return (
     <>
       {/* Desktop Sidebar */}
-      <motion.aside
-        initial={{ width: 256 }}
-        animate={{ width: isCollapsed ? 80 : 256 }}
-        transition={{ type: "spring", stiffness: 200, damping: 25 }}
-        className="hidden md:flex flex-col fixed left-0 top-0 bottom-0 z-[9998] bg-white border-r border-gray-100 flex-shrink-0"
-      >
-        <div className="flex flex-col h-full">
-          {/* Header */}
-          <div className="h-16 flex items-center justify-between px-4 border-b border-gray-100">
-            {!isCollapsed && (
-              <Link href="/dashboard" className="flex items-center space-x-2">
-                <span className="font-semibold text-lg bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  BQI Tech
-                </span>
-              </Link>
-            )}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onCollapse?.(!isCollapsed)}
-              className="ml-auto"
-            >
-              <ChevronRight className={`h-4 w-4 transition-transform ${isCollapsed ? 'rotate-180' : ''}`} />
-            </Button>
-          </div>
-
-          {/* Navigation */}
-          <nav className="flex-1 overflow-y-auto p-3 space-y-2">
-            {tabs.map((tab) => (
-              <Link
-                key={tab.id}
-                href={tab.href}
-                className={cn(
-                  "flex items-center px-3 py-2 rounded-lg transition-colors relative group",
-                  pathname === tab.href
-                    ? "bg-blue-50 text-blue-600"
-                    : "text-gray-600 hover:bg-gray-50"
-                )}
-              >
-                <tab.icon className={cn(
-                  "h-5 w-5 transition-colors",
-                  pathname === tab.href ? "text-blue-600" : "text-gray-500 group-hover:text-blue-600"
-                )} />
-                {!isCollapsed && (
-                  <span className="ml-3 font-medium">{tab.label}</span>
-                )}
-                {pathname === tab.href && (
-                  <motion.div
-                    layoutId="activeTab"
-                    className="absolute inset-0 rounded-lg bg-blue-50 -z-10"
-                  />
-                )}
-              </Link>
-            ))}
-          </nav>
-
-          {/* Footer - User Profile */}
-          <div className="p-4 border-t border-gray-100">
-            {!isCollapsed ? (
-              <Link 
-                href="/dashboard/settings"
-                className="group flex items-center space-x-3 p-3 rounded-xl hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 transition-all duration-300 cursor-pointer"
-              >
-                <div className="relative">
-                  <Avatar className="h-12 w-12 ring-2 ring-white shadow-lg group-hover:ring-blue-200 transition-all duration-300">
-                    <AvatarImage 
-                      src={user?.avatar}
-                      alt={displayName}
-                      className="object-cover"
-                    />
-                    <AvatarFallback className="bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold text-lg">
-                      {userInitial}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
-                    {user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : user?.email || 'User'}
-                  </p>
-                  <p className="text-xs text-gray-500 truncate">
-                    {user?.firstName ? user?.email : ''}
-                  </p>
-                  <div className="flex items-center mt-1">
-                    <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                    <span className="text-xs text-green-600 font-medium">Online</span>
+      <TooltipProvider>
+        <motion.aside
+          initial={{ width: 280 }}
+          animate={{ width: isCollapsed ? 80 : 280 }}
+          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+          className="hidden md:flex flex-col fixed left-0 top-0 bottom-0 z-[9998] bg-white/95 backdrop-blur-xl border-r border-gray-200/60 shadow-xl flex-shrink-0"
+        >
+          <div className="flex flex-col h-full">
+            {/* Header */}
+            <div className="h-10 flex items-center justify-between px-4 border-b border-gray-100/80 mb-4">
+              {!isCollapsed && (
+                <Link href="/dashboard" className="flex items-center space-x-3 group">
+                  <div className="w-16 h-5 relative transition-transform group-hover:scale-105">
+                    <Logo />
                   </div>
-                </div>
-                <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-blue-600 transition-colors" />
-              </Link>
-            ) : (
-              <div className="flex justify-center">
-                <Link href="/dashboard/settings" className="group">
-                  <Avatar className="h-10 w-10 ring-2 ring-white shadow-lg group-hover:ring-blue-200 transition-all duration-300">
-                    <AvatarImage 
-                      src={user?.avatar}
-                      alt={displayName}
-                      className="object-cover"
-                    />
-                    <AvatarFallback className="bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold">
-                      {userInitial}
-                    </AvatarFallback>
-                  </Avatar>
                 </Link>
-              </div>
-            )}
+              )}
+              {isCollapsed && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Link href="/dashboard" className="flex items-center justify-center w-full group">
+                      <div className="w-8 h-8 bg-white/10 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-105 border border-white/20">
+                        <div className="w-6 h-4 relative">
+                          <Logo />
+                        </div>
+                      </div>
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    <p>Dashboard</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onCollapse?.(!isCollapsed)}
+                className="ml-auto hover:bg-gray-100/80 rounded-xl transition-all duration-200 hover:scale-105"
+              >
+                <ChevronRight className={`h-4 w-4 transition-transform duration-300 ${isCollapsed ? 'rotate-180' : ''}`} />
+              </Button>
+            </div>
+
+            {/* Navigation */}
+            <nav className="flex-1 overflow-y-auto px-4 py-6 mt-4 space-y-2">
+              {tabs.map((tab) => (
+                <div key={tab.id}>
+                  {isCollapsed ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Link
+                          href={tab.href}
+                          className={cn(
+                            "flex items-center justify-center px-4 py-3 rounded-xl transition-all duration-200 relative group",
+                            pathname === tab.href
+                              ? "bg-gradient-to-r from-[#31CDFF]/10 to-[#272055]/10 text-[#272055] shadow-sm border border-[#31CDFF]/20"
+                              : "text-gray-600 hover:bg-gray-50/80 hover:text-[#272055]"
+                          )}
+                        >
+                          <div className={cn(
+                            "p-2 rounded-lg transition-all duration-200",
+                            pathname === tab.href 
+                              ? "bg-gradient-to-br from-[#31CDFF] to-[#272055] text-white shadow-md" 
+                              : "bg-gray-100/60 text-gray-500 group-hover:bg-[#31CDFF]/10 group-hover:text-[#31CDFF]"
+                          )}>
+                            <tab.icon className="h-5 w-5" />
+                          </div>
+                        </Link>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">
+                        <p>{tab.label}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <Link
+                      href={tab.href}
+                      className={cn(
+                        "flex items-center px-4 py-3 rounded-xl transition-all duration-200 relative group",
+                        pathname === tab.href
+                          ? "bg-gradient-to-r from-[#31CDFF]/10 to-[#272055]/10 text-[#272055] shadow-sm border border-[#31CDFF]/20"
+                          : "text-gray-600 hover:bg-gray-50/80 hover:text-[#272055]"
+                      )}
+                    >
+                      <div className={cn(
+                        "p-2 rounded-lg transition-all duration-200",
+                        pathname === tab.href 
+                          ? "bg-gradient-to-br from-[#31CDFF] to-[#272055] text-white shadow-md" 
+                          : "bg-gray-100/60 text-gray-500 group-hover:bg-[#31CDFF]/10 group-hover:text-[#31CDFF]"
+                      )}>
+                        <tab.icon className="h-5 w-5" />
+                      </div>
+                      <span className="ml-4 font-medium text-sm">{tab.label}</span>
+                      {pathname === tab.href && (
+                        <motion.div
+                          layoutId="activeIndicator"
+                          className="absolute right-2 w-2 h-2 bg-gradient-to-br from-[#31CDFF] to-[#272055] rounded-full"
+                          initial={false}
+                          transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                        />
+                      )}
+                    </Link>
+                  )}
+                </div>
+              ))}
+            </nav>
+
+            {/* Footer - User Profile */}
+            <div className="p-4 border-t border-gray-100/80">
+              {!isCollapsed ? (
+                <Link 
+                  href="/dashboard/settings"
+                  className="group flex items-center space-x-3 p-4 rounded-xl hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-100/50 transition-all duration-300 cursor-pointer border border-transparent hover:border-gray-200/60"
+                >
+                  <div className="relative">
+                    <Avatar className="h-12 w-12 ring-2 ring-white shadow-lg group-hover:ring-[#31CDFF]/30 transition-all duration-300 group-hover:shadow-xl">
+                      <AvatarImage 
+                        src={user?.avatar}
+                        alt={displayName}
+                        className="object-cover"
+                      />
+                      <AvatarFallback className="bg-gradient-to-br from-[#272055] to-[#31CDFF] text-white font-semibold text-lg">
+                        {userInitial}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full shadow-sm"></div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-[#272055] transition-colors">
+                      {user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : user?.email || 'User'}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate">
+                      {user?.firstName ? user?.email : ''}
+                    </p>
+                    <div className="flex items-center mt-1">
+                      <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
+                      <span className="text-xs text-green-600 font-medium">Online</span>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-[#31CDFF] transition-colors" />
+                </Link>
+              ) : (
+                <div className="flex justify-center">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Link href="/dashboard/settings" className="group">
+                        <Avatar className="h-12 w-12 ring-2 ring-white shadow-lg group-hover:ring-[#31CDFF]/30 transition-all duration-300 group-hover:shadow-xl group-hover:scale-105">
+                          <AvatarImage 
+                            src={user?.avatar}
+                            alt={displayName}
+                            className="object-cover"
+                          />
+                          <AvatarFallback className="bg-gradient-to-br from-[#272055] to-[#31CDFF] text-white font-semibold">
+                            {userInitial}
+                          </AvatarFallback>
+                        </Avatar>
+                      </Link>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      <p>Profile Settings</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      </motion.aside>
+        </motion.aside>
+      </TooltipProvider>
     </>
   );
 }

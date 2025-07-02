@@ -21,8 +21,14 @@ router = APIRouter(tags=["upload"])
 
 # Configure upload settings
 MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", 10485760))  # 10MB default
-ALLOWED_EXTENSIONS = set(os.getenv("ALLOWED_EXTENSIONS", "pdf,doc,docx,jpg,jpeg,png,gif").split(","))
-ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "gif"}
+# Hardcode allowed extensions to include images
+ALLOWED_EXTENSIONS = {"pdf", "doc", "docx", "jpg", "jpeg", "png", "gif", "webp"}
+ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp"}
+
+# Debug logging
+logger.info(f"Hardcoded ALLOWED_EXTENSIONS: {ALLOWED_EXTENSIONS}")
+logger.info(f"Hardcoded ALLOWED_IMAGE_EXTENSIONS: {ALLOWED_IMAGE_EXTENSIONS}")
+logger.info(f"MAX_FILE_SIZE: {MAX_FILE_SIZE} bytes ({MAX_FILE_SIZE/1024/1024}MB)")
 
 def get_file_extension(filename: str) -> str:
     return os.path.splitext(filename)[1].lower().lstrip(".")

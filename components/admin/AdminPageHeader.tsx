@@ -41,12 +41,14 @@ import { useSettings } from "@/contexts/SettingsContext";
 interface Notification {
   id: string;
   title: string;
-  description: string;
+  message: string;
   type: string;
-  read: boolean;
+  isRead: boolean;
   link?: string;
   createdAt: string;
   expiresAt?: string;
+  priority?: string;
+  userId?: string;
 }
 
 interface AdminPageHeaderProps {
@@ -74,18 +76,21 @@ export default function AdminPageHeader({
   };
 
   // Fetch notifications
-  const { data: notifications = [], isLoading: isLoadingNotifications } = useQuery({
-    queryKey: ['notifications'],
+  const { data: notificationsResponse, isLoading: isLoadingNotifications } = useQuery({
+    queryKey: ['admin-notifications'],
     queryFn: () => adminApi.getNotifications(),
     refetchInterval: 30000, // Refetch every 30 seconds
   });
+
+  // Extract notifications from the response
+  const notifications = notificationsResponse || [];
 
   // Mark as read mutation
   const markAsReadMutation = useMutation({
     mutationFn: (notificationId: string) => 
       adminApi.markNotificationAsRead(notificationId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-notifications'] });
     },
     onError: (error) => {
       toast.error('Failed to mark notification as read');
@@ -97,7 +102,7 @@ export default function AdminPageHeader({
     mutationFn: (notificationId: string) => 
       adminApi.deleteNotification(notificationId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-notifications'] });
       toast.success('Notification deleted');
     },
     onError: (error) => {
@@ -105,7 +110,7 @@ export default function AdminPageHeader({
     }
   });
 
-  const unreadCount = notifications.filter((n: Notification) => !n.read).length;
+  const unreadCount = notifications.filter((n: Notification) => !n.isRead).length;
 
   const formatTimeAgo = (dateString: string) => {
     const date = new Date(dateString);
@@ -227,19 +232,19 @@ export default function AdminPageHeader({
                         <div className="flex flex-col flex-1">
                           <div className="flex items-center gap-2">
                             <span className="font-medium">{notification.title}</span>
-                            {!notification.read && (
+                            {!notification.isRead && (
                               <Badge variant="secondary" className="h-auto py-0 px-1">New</Badge>
                             )}
                           </div>
                           <p className="line-clamp-2 text-sm text-muted-foreground">
-                            {notification.description}
+                            {notification.message}
                           </p>
                           <span className="text-xs text-muted-foreground">
                             {formatTimeAgo(notification.createdAt)}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
-                          {!notification.read && (
+                          {!notification.isRead && (
                             <Button
                               variant="ghost"
                               size="icon"

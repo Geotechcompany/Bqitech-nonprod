@@ -475,9 +475,37 @@ async def create_blog_post(
     """Create new blog post"""
     db = get_database()
     
+    # Handle author profile data
+    author_profile = None
+    if all(key in post_data for key in ['authorName', 'authorBio', 'authorTitle', 'authorProfileImage']):
+        social_links = {}
+        if post_data.get('authorTwitter'):
+            social_links['twitter'] = post_data.pop('authorTwitter')
+        if post_data.get('authorLinkedin'):
+            social_links['linkedin'] = post_data.pop('authorLinkedin')
+        if post_data.get('authorGithub'):
+            social_links['github'] = post_data.pop('authorGithub')
+        if post_data.get('authorWebsite'):
+            social_links['website'] = post_data.pop('authorWebsite')
+        
+        author_profile = {
+            "name": post_data.pop('authorName'),
+            "bio": post_data.pop('authorBio'),
+            "title": post_data.pop('authorTitle'),
+            "profile_image": post_data.pop('authorProfileImage'),
+            "social_links": social_links if social_links else None
+        }
+        post_data["authorProfile"] = author_profile
+    
     post_data["createdAt"] = datetime.utcnow()
     post_data["updatedAt"] = datetime.utcnow()
     post_data["authorId"] = str(current_user["_id"])
+    
+    # Set default author name if no profile provided
+    if not author_profile:
+        post_data["author"] = current_user.get("name", "Admin")
+    else:
+        post_data["author"] = author_profile["name"]
     
     result = await db.blogposts.insert_one(post_data)
     post_data["_id"] = str(result.inserted_id)
@@ -514,6 +542,28 @@ async def update_blog_post(
     db = get_database()
     
     try:
+        # Handle author profile data
+        if all(key in update_data for key in ['authorName', 'authorBio', 'authorTitle', 'authorProfileImage']):
+            social_links = {}
+            if update_data.get('authorTwitter'):
+                social_links['twitter'] = update_data.pop('authorTwitter')
+            if update_data.get('authorLinkedin'):
+                social_links['linkedin'] = update_data.pop('authorLinkedin')
+            if update_data.get('authorGithub'):
+                social_links['github'] = update_data.pop('authorGithub')
+            if update_data.get('authorWebsite'):
+                social_links['website'] = update_data.pop('authorWebsite')
+            
+            author_profile = {
+                "name": update_data.pop('authorName'),
+                "bio": update_data.pop('authorBio'),
+                "title": update_data.pop('authorTitle'),
+                "profile_image": update_data.pop('authorProfileImage'),
+                "social_links": social_links if social_links else None
+            }
+            update_data["authorProfile"] = author_profile
+            update_data["author"] = author_profile["name"]
+        
         update_data["updatedAt"] = datetime.utcnow()
         
         result = await db.blogposts.update_one(
@@ -608,7 +658,7 @@ async def get_admin_overview(
         # Get base counts
         total_users = await db.users.count_documents({})
         total_jobs = await db.jobpostings.count_documents({})
-        active_jobs = await db.jobpostings.count_documents({"status": "active"})
+        active_jobs = await db.jobpostings.count_documents({"isActive": True})
         total_applications = await db.applications.count_documents({})
         
         # Get application counts by status
@@ -1278,13 +1328,23 @@ async def get_admin_notifications(
     """Get admin notifications"""
     db = get_database()
     
-    # Get notifications
+    # Get notifications for this admin user OR system-wide admin notifications (userId is null)
     notifications_cursor = db.notifications.find({
-        "userId": str(current_user["_id"])
+        "$or": [
+            {"userId": str(current_user["_id"])},  # User-specific notifications
+            {"userId": {"$in": [None, ""]}},       # System-wide admin notifications
+            {"userId": {"$exists": False}}         # Notifications without userId field
+        ]
     }).skip(skip).limit(limit).sort("createdAt", -1)
     
     notifications = await notifications_cursor.to_list(length=limit)
-    total = await db.notifications.count_documents({"userId": str(current_user["_id"])})
+    total = await db.notifications.count_documents({
+        "$or": [
+            {"userId": str(current_user["_id"])},
+            {"userId": {"$in": [None, ""]}},
+            {"userId": {"$exists": False}}
+        ]
+    })
     
     # Convert ObjectIds to strings
     for notification in notifications:
@@ -1319,10 +1379,15 @@ async def mark_notification_as_read(
     """Mark notification as read"""
     db = get_database()
     
+    # Allow marking as read for user-specific notifications OR system-wide notifications
     result = await db.notifications.update_one(
         {
             "_id": ObjectId(notification_id),
-            "userId": str(current_user["_id"])
+            "$or": [
+                {"userId": str(current_user["_id"])},  # User-specific notifications
+                {"userId": {"$in": [None, ""]}},       # System-wide admin notifications
+                {"userId": {"$exists": False}}         # Notifications without userId field
+            ]
         },
         {"$set": {"isRead": True}}
     )
@@ -1339,8 +1404,15 @@ async def mark_all_notifications_as_read(
     """Mark all notifications as read"""
     db = get_database()
     
+    # Mark all notifications as read for this admin (user-specific + system-wide)
     result = await db.notifications.update_many(
-        {"userId": str(current_user["_id"])},
+        {
+            "$or": [
+                {"userId": str(current_user["_id"])},  # User-specific notifications
+                {"userId": {"$in": [None, ""]}},       # System-wide admin notifications
+                {"userId": {"$exists": False}}         # Notifications without userId field
+            ]
+        },
         {"$set": {"isRead": True}}
     )
     
@@ -1354,9 +1426,14 @@ async def delete_notification(
     """Delete notification"""
     db = get_database()
     
+    # Allow deleting user-specific notifications OR system-wide notifications
     result = await db.notifications.delete_one({
         "_id": ObjectId(notification_id),
-        "userId": str(current_user["_id"])
+        "$or": [
+            {"userId": str(current_user["_id"])},  # User-specific notifications
+            {"userId": {"$in": [None, ""]}},       # System-wide admin notifications
+            {"userId": {"$exists": False}}         # Notifications without userId field
+        ]
     })
     
     if result.deleted_count == 0:
@@ -1377,7 +1454,7 @@ async def seed_notifications(
             "message": "John Doe has applied for Software Engineer position",
             "type": "info",
             "userId": str(current_user["_id"]),
-            "read": False,
+            "isRead": False,
             "createdAt": datetime.utcnow() - timedelta(minutes=30),
             "priority": "normal"
         },
@@ -1386,7 +1463,7 @@ async def seed_notifications(
             "message": "Interview scheduled for Jane Smith tomorrow at 2 PM",
             "type": "success",
             "userId": str(current_user["_id"]),
-            "read": False,
+            "isRead": False,
             "createdAt": datetime.utcnow() - timedelta(hours=2),
             "priority": "high"
         },
@@ -1395,7 +1472,7 @@ async def seed_notifications(
             "message": "Scheduled maintenance will occur this weekend",
             "type": "warning",
             "userId": str(current_user["_id"]),
-            "read": True,
+            "isRead": True,
             "createdAt": datetime.utcnow() - timedelta(days=1),
             "priority": "normal"
         },
@@ -1404,7 +1481,7 @@ async def seed_notifications(
             "message": "Your blog post 'Company Culture Update' has been published",
             "type": "success",
             "userId": str(current_user["_id"]),
-            "read": False,
+            "isRead": False,
             "createdAt": datetime.utcnow() - timedelta(hours=4),
             "priority": "low"
         },
@@ -1413,7 +1490,7 @@ async def seed_notifications(
             "message": "Server disk space is running low (85% full)",
             "type": "error",
             "userId": str(current_user["_id"]),
-            "read": False,
+            "isRead": False,
             "createdAt": datetime.utcnow() - timedelta(hours=6),
             "priority": "high"
         }

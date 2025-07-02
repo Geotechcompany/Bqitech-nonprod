@@ -1,12 +1,26 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict
 from datetime import datetime
+
+class SocialLinks(BaseModel):
+    twitter: Optional[str] = None
+    linkedin: Optional[str] = None
+    github: Optional[str] = None
+    website: Optional[str] = None
+
+class AuthorProfile(BaseModel):
+    name: str
+    bio: str
+    profile_image: str
+    title: str
+    social_links: Optional[SocialLinks] = None
 
 class BlogPost(BaseModel):
     id: str
     title: str
     content: str
-    author: str
+    author: str  # Keep for backward compatibility
+    author_profile: Optional[AuthorProfile] = None
     slug: str
     status: str = "draft"  # draft, published, archived
     featured_image: Optional[str] = None

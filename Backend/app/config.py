@@ -57,7 +57,7 @@ class Settings(BaseModel):
     
     # File Upload Configuration
     max_file_size: int = 10485760  # 10MB
-    allowed_extensions: str = "pdf,doc,docx"
+    allowed_extensions: str = "pdf,doc,docx,jpg,jpeg,png,gif,webp"
     
     # Rate Limiting
     rate_limit_requests: int = 100

@@ -346,3 +346,21 @@ html {
 .bottom-tab-indicator {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+
+/* Custom Dialog z-index to ensure modals appear above sidebar */
+
+[data-radix-dialog-overlay] {
+    z-index: 9998 !important;
+}
+
+[data-radix-dialog-content] {
+    z-index: 9999 !important;
+}
+
+
+/* Ensure Dialog portals have proper z-index */
+
+[data-radix-portal] {
+    z-index: 9997 !important;
+}

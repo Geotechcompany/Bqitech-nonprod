@@ -8,7 +8,18 @@ import { AdminPageLayout } from "@/components/admin/AdminPageLayout";
 import { notificationService } from "@/lib/notifications";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Check, Trash2, Bell, Calendar, Info, AlertTriangle, CheckCircle2, XCircle, Filter, X } from "lucide-react";
+import { 
+  Check, 
+  Trash2, 
+  Bell, 
+  Info, 
+  CheckCircle2, 
+  AlertTriangle, 
+  XCircle, 
+  Calendar, 
+  Filter,
+  X 
+} from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
@@ -28,6 +39,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
+import { adminApi } from "@/lib/api-backend";
+import { getSession } from "@/lib/auth-backend";
 
 type FilterType = 'all' | 'unread' | 'read';
 type NotificationType = 'all' | 'info' | 'warning' | 'error' | 'success';
@@ -72,15 +85,15 @@ export default function NotificationsPage() {
   }, [authLoading, isAuthenticated, isAdmin, router]);
 
   const { data = [], isLoading: isLoadingNotifications } = useQuery({
-    queryKey: ['notifications'],
-    queryFn: () => notificationService.getNotifications(),
+    queryKey: ['admin-notifications'],
+    queryFn: () => adminApi.getNotifications(),
     refetchInterval: 30000, // Refetch every 30 seconds
   });
 
   const markAsReadMutation = useMutation({
-    mutationFn: (notificationId: string) => notificationService.markAsRead(notificationId),
+    mutationFn: (notificationId: string) => adminApi.markNotificationAsRead(notificationId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-notifications'] });
       toast.success('Notification marked as read');
     },
     onError: () => {
@@ -89,13 +102,51 @@ export default function NotificationsPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (notificationId: string) => notificationService.deleteNotification(notificationId),
+    mutationFn: (notificationId: string) => adminApi.deleteNotification(notificationId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-notifications'] });
       toast.success('Notification deleted');
     },
     onError: () => {
       toast.error('Failed to delete notification');
+    }
+  });
+
+  const markAllAsReadMutation = useMutation({
+    mutationFn: () => adminApi.markAllNotificationsAsRead(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-notifications'] });
+      toast.success('All notifications marked as read');
+    },
+    onError: () => {
+      toast.error('Failed to mark all notifications as read');
+    }
+  });
+
+  const seedMutation = useMutation({
+    mutationFn: async () => {
+      const session = getSession();
+      if (!session?.token) {
+        throw new Error('No auth token available');
+      }
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:9000'}/api/admin/notifications/seed`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.token}`
+        },
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Failed to seed notifications');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-notifications'] });
+      toast.success('Sample notifications created');
+    },
+    onError: () => {
+      toast.error('Failed to create sample notifications');
     }
   });
 
@@ -158,8 +209,21 @@ export default function NotificationsPage() {
               </p>
             </div>
 
-            {/* Desktop Filters */}
+            {/* Desktop Actions and Filters */}
             <div className="hidden sm:flex items-center gap-3">
+              {unreadCount > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => markAllAsReadMutation.mutate()}
+                  disabled={markAllAsReadMutation.isPending}
+                  className="flex items-center gap-2"
+                >
+                  <Check className="h-4 w-4" />
+                  Mark All Read
+                </Button>
+              )}
+
               <Select value={statusFilter} onValueChange={(value: FilterType) => setStatusFilter(value)}>
                 <SelectTrigger className="w-[140px]">
                   <SelectValue placeholder="Filter by status" />
@@ -185,8 +249,21 @@ export default function NotificationsPage() {
               </Select>
             </div>
 
-            {/* Mobile Filters */}
-            <div className="sm:hidden">
+            {/* Mobile Actions and Filters */}
+            <div className="sm:hidden space-y-2">
+              {unreadCount > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => markAllAsReadMutation.mutate()}
+                  disabled={markAllAsReadMutation.isPending}
+                  className="w-full flex items-center gap-2"
+                >
+                  <Check className="h-4 w-4" />
+                  Mark All Read
+                </Button>
+              )}
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="w-full">
@@ -305,18 +382,28 @@ export default function NotificationsPage() {
               </div>
               <p className="text-xl font-semibold mt-6 text-foreground">No notifications found</p>
               <p className="text-muted-foreground">Try adjusting your filters</p>
-              {(statusFilter !== 'all' || typeFilter !== 'all') && (
-                <Button 
-                  variant="outline" 
-                  className="mt-4"
-                  onClick={() => {
-                    setStatusFilter('all');
-                    setTypeFilter('all');
-                  }}
-                >
-                  Clear Filters
-                </Button>
-              )}
+              <div className="flex gap-2 mt-4">
+                {(statusFilter !== 'all' || typeFilter !== 'all') && (
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setStatusFilter('all');
+                      setTypeFilter('all');
+                    }}
+                  >
+                    Clear Filters
+                  </Button>
+                )}
+                {statusFilter === 'all' && typeFilter === 'all' && (
+                  <Button 
+                    variant="default"
+                    onClick={() => seedMutation.mutate()}
+                    disabled={seedMutation.isPending}
+                  >
+                    {seedMutation.isPending ? 'Creating...' : 'Create Sample Notifications'}
+                  </Button>
+                )}
+              </div>
             </motion.div>
           ) : (
             <div className="grid gap-4">
@@ -358,7 +445,7 @@ export default function NotificationsPage() {
                         </p>
                         <div className="mt-4 flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
                           <Calendar className="h-4 w-4" />
-                          <span>{formatDate(notification.date || notification.createdAt)}</span>
+                          <span>{formatDate(notification.createdAt)}</span>
                         </div>
                       </div>
                       <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
