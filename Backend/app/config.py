@@ -21,12 +21,27 @@ class Settings(BaseModel):
     API_V1_STR: str = "/api/v1"
     PROJECT_NAME: str = "BQI Tech Backend"
     app_url: str = "http://localhost:8000"
-    frontend_url: str = "http://localhost:3000"
+    frontend_url: str = os.getenv("NEXT_PUBLIC_APP_URL", "https://bqitech.com")
     
     # Security
     SECRET_KEY: str = Field(default=os.getenv("SECRET_KEY", "your-secret-key-change-in-production"))
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
     algorithm: str = os.getenv("ALGORITHM", "HS256")
+    
+    # Production/Development Mode
+    is_production: bool = os.getenv("NODE_ENV", "development") == "production"
+    api_base_path: str = os.getenv("API_BASE_PATH", "/api")
+    
+    # Security Headers
+    enable_security_headers: bool = True
+    
+    # Response Obfuscation
+    obfuscate_responses: bool = os.getenv("OBFUSCATE_RESPONSES", "false").lower() == "true"
+    response_encoding: str = os.getenv("RESPONSE_ENCODING", "none")  # none, base64, gzip
+    
+    # Response Encryption
+    encrypt_responses: bool = os.getenv("ENCRYPT_RESPONSES", "false").lower() == "true"
+    encryption_master_key: str = os.getenv("ENCRYPTION_MASTER_KEY", "")
     
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = [

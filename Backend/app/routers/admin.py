@@ -528,6 +528,19 @@ async def get_blog_post(
         
         post["_id"] = str(post["_id"])
         post["id"] = str(post["_id"])
+        
+        # Ensure authorProfile is properly formatted for the frontend form
+        if "authorProfile" in post and post["authorProfile"]:
+            # Convert profile_image to profileImage for frontend compatibility
+            if "profile_image" in post["authorProfile"]:
+                post["authorProfile"]["profileImage"] = post["authorProfile"].pop("profile_image")
+            
+            # Ensure social_links is properly formatted
+            if "social_links" in post["authorProfile"] and post["authorProfile"]["social_links"]:
+                post["authorProfile"]["socialLinks"] = post["authorProfile"].pop("social_links")
+            else:
+                post["authorProfile"]["socialLinks"] = {}
+        
         return post
     except Exception as e:
         raise HTTPException(status_code=400, detail="Invalid post ID")
@@ -589,6 +602,28 @@ async def patch_blog_post(
         db = get_database()
         if db is None:
             raise HTTPException(status_code=503, detail="Database not available")
+        
+        # Handle author profile data if present
+        if all(key in update_data for key in ['authorName', 'authorBio', 'authorTitle', 'authorProfileImage']):
+            social_links = {}
+            if update_data.get('authorTwitter'):
+                social_links['twitter'] = update_data.pop('authorTwitter')
+            if update_data.get('authorLinkedin'):
+                social_links['linkedin'] = update_data.pop('authorLinkedin')
+            if update_data.get('authorGithub'):
+                social_links['github'] = update_data.pop('authorGithub')
+            if update_data.get('authorWebsite'):
+                social_links['website'] = update_data.pop('authorWebsite')
+            
+            author_profile = {
+                "name": update_data.pop('authorName'),
+                "bio": update_data.pop('authorBio'),
+                "title": update_data.pop('authorTitle'),
+                "profile_image": update_data.pop('authorProfileImage'),
+                "social_links": social_links if social_links else {}
+            }
+            update_data["authorProfile"] = author_profile
+            update_data["author"] = author_profile["name"]
         
         update_data["updatedAt"] = datetime.utcnow()
         

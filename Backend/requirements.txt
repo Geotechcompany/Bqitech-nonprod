@@ -25,3 +25,4 @@ dnspython==2.7.0
 dropbox==11.36.2
 requests==2.31.0
 python-magic==0.4.27
+slowapi==0.1.9
